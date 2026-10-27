@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appendClip, moveClip, setClipVolume, trimClip, upsertCaption } from "./model";
-import type { ProjectManifestV2 } from "../../types/project";
+import type { ProjectManifestV2 } from "./project";
 
 const base = (): ProjectManifestV2 => ({
   version: 2, id: "p", title: "测试", publishingCopy: "", coverTimeMs: null, captions: [], clips: [], shots: [], jobs: [], budgetUsd: null,

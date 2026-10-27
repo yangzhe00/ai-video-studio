@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createProject, openProject } from "../../lib/native";
-import type { OpenProject } from "../../types/project";
+import type { OpenProject } from "@ai-video/project-core";
 
 interface Props { onOpen: (project: OpenProject) => void }
 

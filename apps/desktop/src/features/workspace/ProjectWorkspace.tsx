@@ -3,11 +3,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { auditAssets, exportProject, importAsset, readAsset, saveProject } from "../../lib/native";
 import type { ExportArtifacts } from "../../lib/native";
-import { appendClip, moveClip, setClipVolume, trimClip, upsertCaption } from "../timeline/model";
+import { appendClip, moveClip, setClipVolume, trimClip, upsertCaption } from "@ai-video/project-core";
 import { CreateVideo } from "../create/CreateVideo";
 import { CostReview } from "../generation/CostReview";
 import { ServiceSettings } from "../generation/ServiceSettings";
-import type { OpenProject, ProjectManifestV2 } from "../../types/project";
+import type { OpenProject, ProjectManifestV2 } from "@ai-video/project-core";
 
 interface Props { project: OpenProject; onClose: () => void }
 

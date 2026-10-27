@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MediaAsset, ProjectManifestV2 } from "../types/project";
+import type { MediaAsset, ProjectManifestV2 } from "@ai-video/project-core";
 
 export const createProject = (root: string, title: string) =>
   invoke<ProjectManifestV2>("create_project", { root, title });

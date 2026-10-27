@@ -1,4 +1,4 @@
-import type { ShotDraft } from "../../types/ai";
+import type { ShotDraft } from "./ai";
 
 export const DOG_CHEF_PRESET = {
   prompt: "保持照片中狗的可辨认外貌，让它穿厨师服在厨房洗菜做饭。说话时切换为厨房内正面镜头。",

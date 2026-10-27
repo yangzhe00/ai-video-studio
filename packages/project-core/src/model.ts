@@ -1,4 +1,4 @@
-import type { Caption, ProjectManifestV2, TimelineClip } from "../../types/project";
+import type { Caption, ProjectManifestV2, TimelineClip } from "./project";
 
 export class TimelineError extends Error {}
 

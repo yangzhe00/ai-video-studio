@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ProjectHome } from "./features/projects/ProjectHome";
 import { ProjectWorkspace } from "./features/workspace/ProjectWorkspace";
-import type { OpenProject } from "./types/project";
+import type { OpenProject } from "@ai-video/project-core";
 import "./App.css";
 
 export default function App() {

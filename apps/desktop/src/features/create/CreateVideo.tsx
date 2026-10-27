@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { createShotDraft, DOG_CHEF_PRESET } from "./shotDraft";
-import type { ShotDraft } from "../../types/ai";
-import type { MediaAsset } from "../../types/project";
+import { createShotDraft, DOG_CHEF_PRESET } from "@ai-video/project-core";
+import type { ShotDraft, MediaAsset } from "@ai-video/project-core";
 
 interface Props { assets: MediaAsset[]; shots: ShotDraft[]; disabled?: boolean; onAdd: (shot: ShotDraft) => void }
 

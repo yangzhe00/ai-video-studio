@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { checkShotBudget, quoteShot } from "../../lib/native";
 import type { MoneyEstimate } from "../../lib/native";
-import type { ShotDraft } from "../../types/ai";
+import type { ShotDraft } from "@ai-video/project-core";
 
 interface Props { root: string; shots: ShotDraft[]; budgetUsd: number | null; onSaveBudget: (value: number | null) => void; disabled?: boolean }
 

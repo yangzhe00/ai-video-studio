@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CostReview } from "./CostReview";
-import type { ShotDraft } from "../../types/ai";
+import type { ShotDraft } from "@ai-video/project-core";
 
 const mocks = vi.hoisted(() => ({ quote: vi.fn() }));
 vi.mock("../../lib/native", () => ({ quoteShot: mocks.quote, checkShotBudget: vi.fn() }));
