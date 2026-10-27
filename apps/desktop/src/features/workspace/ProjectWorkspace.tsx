@@ -7,6 +7,7 @@ import { CreateVideo } from "../create/CreateVideo";
 import { CostReview } from "../generation/CostReview";
 import { ServiceSettings } from "../generation/ServiceSettings";
 import type { OpenProject, ProjectManifestV2 } from "@ai-video/project-core";
+import { Button, Panel, StatusBadge } from "@ai-video/ui-web";
 
 interface Props { project: OpenProject; onClose: () => void }
 
@@ -92,20 +93,19 @@ export function ProjectWorkspace({ project, onClose }: Props) {
 
   const totalMs = manifest.clips.reduce((sum, clip) => sum + clip.outMs - clip.inMs, 0);
   return <section className="project-content">
-    <button className="text-button" onClick={onClose} type="button">← 返回项目首页</button>
+    <Button className="text-button" variant="secondary" onClick={onClose}>← 返回项目首页</Button>
     <div className="eyebrow">当前项目</div><h1>{manifest.title}</h1><p className="intro">{project.root}</p>
     {hasDesktopFeature("storyboard") && <><CreateVideo assets={manifest.assets} shots={manifest.shots} disabled={busy} onAdd={shot => void update({ ...manifest, shots: [...manifest.shots, shot] })} />
     <CostReview root={project.root} shots={manifest.shots} budgetUsd={manifest.budgetUsd} disabled={busy} onSaveBudget={budgetUsd => void update({ ...manifest, budgetUsd })} />
     <ServiceSettings /></>}
     <div className="editor-grid">
-      {hasDesktopFeature("media") && <div className="editor-panel" id="media-library">
-        <div className="panel-heading"><h2>素材库</h2><button type="button" onClick={importFiles} disabled={busy}>＋ 导入素材</button></div>
+      {hasDesktopFeature("media") && <Panel className="editor-panel" id="media-library" title="素材库" action={<Button onClick={importFiles} disabled={busy}>＋ 导入素材</Button>}>
         {manifest.assets.length === 0 ? <p className="muted">添加人物或动物照片，也可以导入已有视频和音频。</p> : <ul className="asset-list">{manifest.assets.map(asset => <li key={asset.id}>
           <span><strong>{asset.relativePath.split("/").slice(-1)[0]}</strong><small>{asset.kind === "image" ? "照片" : asset.kind === "video" ? "视频" : "音频"}{asset.durationMs ? ` · ${(asset.durationMs / 1000).toFixed(1)} 秒` : ""}</small></span>
           {asset.missing ? <em>文件缺失</em> : <div className="asset-actions"><button type="button" onClick={() => setSelectedAssetId(asset.id)}>预览</button>{asset.kind !== "audio" && <button type="button" disabled={busy} onClick={() => edit(() => appendClip(manifest, asset.id))}>加入时间线</button>}</div>}
         </li>)}</ul>}
         {previewUrl && (() => { const asset = manifest.assets.find(item => item.id === selectedAssetId); return asset?.kind === "image" ? <img className="media-preview" src={previewUrl} alt="当前素材预览" /> : asset?.kind === "video" ? <video className="media-preview" src={previewUrl} controls onError={() => setMessage("当前视频编码无法在系统预览器中播放")} /> : <audio className="audio-preview" src={previewUrl} controls />; })()}
-      </div>}
+      </Panel>}
       {hasDesktopFeature("timeline") && <div className="editor-panel">
         <div className="panel-heading"><h2>时间线</h2><span>{(totalMs / 1000).toFixed(1)} 秒</span></div>
         {manifest.clips.length === 0 ? <p className="muted">从素材库添加片段后，可排序、裁剪并调整音量。</p> : <ol className="clip-list">{manifest.clips.map((clip, index) => {
@@ -121,7 +121,7 @@ export function ProjectWorkspace({ project, onClose }: Props) {
       {hasDesktopFeature("captions") && <div className="editor-panel"><h2>字幕</h2><p className="muted">添加后可调整每条字幕的出现时间。</p><div className="inline-form"><input aria-label="字幕内容" value={captionText} onChange={event => setCaptionText(event.target.value)} placeholder="输入字幕" /><button type="button" disabled={busy || totalMs === 0} onClick={() => { if (!captionText.trim()) { setMessage("请先输入字幕"); return; } edit(() => upsertCaption(manifest, { id: crypto.randomUUID(), startMs: 0, endMs: totalMs, text: captionText })); setCaptionText(""); }}>添加</button></div><ul className="caption-list">{manifest.captions.map(caption => <li key={caption.id}><input aria-label="字幕文本" value={caption.text} onChange={event => edit(() => upsertCaption(manifest, { ...caption, text: event.target.value }))} /><label>开始 <input type="number" min="0" step="0.1" value={caption.startMs / 1000} onChange={event => edit(() => upsertCaption(manifest, { ...caption, startMs: Math.round(Number(event.target.value) * 1000) }))} /></label><label>结束 <input type="number" min="0.1" step="0.1" value={caption.endMs / 1000} onChange={event => edit(() => upsertCaption(manifest, { ...caption, endMs: Math.round(Number(event.target.value) * 1000) }))} /></label><button type="button" onClick={() => void update({ ...manifest, captions: manifest.captions.filter(item => item.id !== caption.id) })}>删除</button></li>)}</ul></div>}
       {hasDesktopFeature("publishing") && <div className="editor-panel"><h2>发布文案</h2><textarea aria-label="发布文案" value={manifest.publishingCopy} onChange={event => setManifest(current => ({ ...current, publishingCopy: event.target.value }))} placeholder="写下发布时使用的文案" /><div className="panel-actions"><button type="button" disabled={busy} onClick={() => void update(manifest)}>保存文案</button><button type="button" disabled={!manifest.publishingCopy} onClick={() => void navigator.clipboard.writeText(manifest.publishingCopy).then(() => setMessage("文案已复制"))}>复制文案</button></div></div>}
     </div>
-    {hasDesktopFeature("export") && <div className="editor-panel export-panel"><div><h2>导出作品</h2><p className="muted">在本机生成 9:16 MP4 和 PNG 封面，不调用付费模型。</p></div>{hasDesktopFeature("cover") && <label>封面时间（秒）<input type="number" min="0" max={Math.max(0, totalMs / 1000 - 0.1)} step="0.1" value={(manifest.coverTimeMs ?? 0) / 1000} onChange={event => edit(() => ({ ...manifest, coverTimeMs: Math.round(Number(event.target.value) * 1000) }))} /></label>}<label>文件名<input aria-label="导出文件名" value={outputName} onChange={event => setOutputName(event.target.value)} /></label><button type="button" disabled={busy || totalMs === 0 || manifest.assets.some(asset => asset.missing)} onClick={exportVideo}>导出 MP4 与封面</button>{exported && <div className="export-result"><strong>导出完成</strong><small>{exported.videoRelativePath}<br />{exported.coverRelativePath}</small><button type="button" onClick={() => void desktopPorts.export.openFolder(project.root)}>打开导出目录</button></div>}</div>}
+    {hasDesktopFeature("export") && <Panel className="editor-panel export-panel"><div><h2>导出作品</h2><p className="muted">在本机生成 9:16 MP4 和 PNG 封面，不调用付费模型。</p></div>{hasDesktopFeature("cover") && <label>封面时间（秒）<input type="number" min="0" max={Math.max(0, totalMs / 1000 - 0.1)} step="0.1" value={(manifest.coverTimeMs ?? 0) / 1000} onChange={event => edit(() => ({ ...manifest, coverTimeMs: Math.round(Number(event.target.value) * 1000) }))} /></label>}<label>文件名<input aria-label="导出文件名" value={outputName} onChange={event => setOutputName(event.target.value)} /></label><Button disabled={busy || totalMs === 0 || manifest.assets.some(asset => asset.missing)} onClick={exportVideo}>导出 MP4 与封面</Button>{exported && <div className="export-result"><StatusBadge tone="success">导出完成</StatusBadge><small>{exported.videoRelativePath}<br />{exported.coverRelativePath}</small><Button variant="secondary" onClick={() => void desktopPorts.export.openFolder(project.root)}>打开导出目录</Button></div>}</Panel>}
     {message && <p className="notice" role="status">{message}</p>}
   </section>;
 }

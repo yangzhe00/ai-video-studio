@@ -1,0 +1,15 @@
+:root {
+  --avs-background: #f5f7fb;
+  --avs-surface: #ffffff;
+  --avs-surface-subtle: #f6f8fd;
+  --avs-text: #243044;
+  --avs-text-muted: #8794a5;
+  --avs-primary: #4369ef;
+  --avs-primary-subtle: #eef2ff;
+  --avs-border: #e5eaf1;
+  --avs-danger: #c93648;
+  --avs-success: #198760;
+  --avs-radius-sm: 8px;
+  --avs-radius-panel: 15px;
+  --avs-focus-ring: 0 0 0 3px #4369ef55;
+}

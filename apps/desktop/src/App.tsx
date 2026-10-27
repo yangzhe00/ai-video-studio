@@ -3,6 +3,7 @@ import { ProjectHome } from "./features/projects/ProjectHome";
 import { ProjectWorkspace } from "./features/workspace/ProjectWorkspace";
 import type { OpenProject } from "@ai-video/project-core";
 import { hasDesktopFeature } from "./lib/plugins";
+import { StatusBadge } from "@ai-video/ui-web";
 import "./App.css";
 
 export default function App() {
@@ -15,7 +16,7 @@ export default function App() {
       <div className="sidebar-bottom"><span className="status-dot" /> 本地创作空间</div>
     </aside>
     <main className="workspace">
-      <header className="topbar"><div className="breadcrumb">工作区 <span>/</span> {project?.manifest.title ?? "项目"}</div><div className="topbar-tag">macOS · 本地优先</div></header>
+      <header className="topbar"><div className="breadcrumb">工作区 <span>/</span> {project?.manifest.title ?? "项目"}</div><StatusBadge className="topbar-tag">macOS · 本地优先</StatusBadge></header>
       {project ? <ProjectWorkspace project={project} onClose={() => setProject(null)} /> : <ProjectHome onOpen={setProject} />}
     </main>
   </div>;

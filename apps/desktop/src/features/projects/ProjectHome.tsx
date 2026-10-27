@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { desktopPorts } from "../../lib/ports";
 import type { OpenProject } from "@ai-video/project-core";
+import { Button, Panel } from "@ai-video/ui-web";
 
 interface Props { onOpen: (project: OpenProject) => void }
 
@@ -45,7 +46,7 @@ export function ProjectHome({ onOpen }: Props) {
       <button className="action-card primary" onClick={() => setCreating(true)} disabled={busy} type="button"><span className="action-icon" aria-hidden="true">＋</span><span className="action-text"><strong>新建项目</strong><small>从照片或视频开始创作</small></span><span className="action-arrow" aria-hidden="true">↗</span></button>
       <button className="action-card" onClick={openExisting} disabled={busy} type="button"><span className="action-icon" aria-hidden="true">⌁</span><span className="action-text"><strong>打开项目</strong><small>继续编辑本地创作</small></span><span className="action-arrow" aria-hidden="true">↗</span></button>
     </div>
-    {creating && <div className="create-panel"><label htmlFor="project-title">项目名称</label><input id="project-title" autoFocus value={title} onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === "Enter") void create(); }} placeholder="例如：我的第一支短视频" /><div className="panel-actions"><button type="button" onClick={() => setCreating(false)}>取消</button><button type="button" onClick={create} disabled={busy}>选择保存位置并创建</button></div></div>}
+    {creating && <Panel className="create-panel"><label htmlFor="project-title">项目名称</label><input id="project-title" autoFocus value={title} onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === "Enter") void create(); }} placeholder="例如：我的第一支短视频" /><div className="panel-actions"><Button variant="secondary" onClick={() => setCreating(false)}>取消</Button><Button onClick={create} disabled={busy}>选择保存位置并创建</Button></div></Panel>}
     {error && <p className="error" role="alert">{error}</p>}
     <div className="feature-divider" /><div className="feature-row" aria-label="创作流程"><div><span>01</span><strong>导入素材</strong><small>照片或已有视频</small></div><div><span>02</span><strong>生成与剪辑</strong><small>按镜头调整内容</small></div><div><span>03</span><strong>导出作品</strong><small>视频、封面与文案</small></div></div>
   </section>;

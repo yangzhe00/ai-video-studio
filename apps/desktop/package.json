@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-video/design-tokens": "workspace:*",
+    "@ai-video/ui-web": "workspace:*",
     "@ai-video/platform-ports": "workspace:*",
     "@ai-video/plugin-sdk": "workspace:*",
     "@ai-video/plugin-media": "workspace:*",
