@@ -14,9 +14,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
-src-tauri/target
-src-tauri/gen/schemas
-src-tauri/binaries/
+**/src-tauri/target
+**/src-tauri/gen/schemas
+**/src-tauri/binaries/
 
 # Editor directories and files
 .vscode/*

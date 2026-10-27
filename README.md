@@ -1,6 +1,6 @@
 # AI Video Studio
 
-独立开发中的 macOS 短视频创作工具。目标是从人物或动物照片出发，按自由提示词生成镜头；可选配音与口型同步，并能剪辑、加字幕、选封面和导出。狗狗做饭是演示案例，不限制其他题材。
+独立开发中的 macOS 短视频创作工具。仓库使用 pnpm workspace，当前可运行应用位于 `apps/desktop`。目标是从人物或动物照片出发，按自由提示词生成镜头；可选配音与口型同步，并能剪辑、加字幕、选封面和导出。狗狗做饭是演示案例，不限制其他题材。
 
 ## 当前可用
 
@@ -25,9 +25,9 @@ pnpm tauri dev
 `pnpm tauri dev` 会准备仅供本地开发的 `ffprobe`。验证：
 
 ```sh
-pnpm test --run
+pnpm test
 pnpm build
-cargo test --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
 本仓库尚未选择开源许可证；发布前需要确定许可证，并完成第三方依赖及媒体二进制许可核对。
