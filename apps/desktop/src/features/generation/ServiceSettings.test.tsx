@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServiceSettings } from "./ServiceSettings";
 
 const mocks = vi.hoisted(() => ({ status: vi.fn(), set: vi.fn(), remove: vi.fn() }));
-vi.mock("../../lib/native", () => ({ providerKeyStatus: mocks.status, setProviderKey: mocks.set, removeProviderKey: mocks.remove }));
+vi.mock("../../lib/ports", () => ({ desktopPorts: { ai: { keyStatus: mocks.status, setKey: mocks.set, removeKey: mocks.remove } } }));
 
 describe("ServiceSettings", () => {
   afterEach(() => { cleanup(); vi.clearAllMocks(); });

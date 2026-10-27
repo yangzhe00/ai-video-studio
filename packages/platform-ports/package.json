@@ -1,0 +1,10 @@
+{
+  "name": "@ai-video/platform-ports",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "build": "tsc --noEmit" },
+  "dependencies": { "@ai-video/project-core": "workspace:*" },
+  "devDependencies": { "typescript": "~6.0.3" }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { providerKeyStatus, removeProviderKey, setProviderKey } from "../../lib/native";
-import type { ProviderId, ProviderKeyStatus } from "../../lib/native";
+import { desktopPorts } from "../../lib/ports";
+import type { ProviderId, ProviderKeyStatus } from "@ai-video/platform-ports";
 
 const PROVIDERS: { id: ProviderId; label: string; use: string }[] = [
   { id: "hedra", label: "Hedra", use: "默认图生视频与口型服务" },
@@ -15,15 +15,15 @@ export function ServiceSettings() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => { void providerKeyStatus().then(setStatuses).catch(error => setNotice(String(error))); }, []);
+  useEffect(() => { void desktopPorts.ai.keyStatus().then(setStatuses).catch(error => setNotice(String(error))); }, []);
 
   async function save() {
     if (!key.trim()) { setNotice("请输入 API Key"); return; }
     setBusy(true);
     try {
-      await setProviderKey(provider, key);
+      await desktopPorts.ai.setKey(provider, key);
       setKey("");
-      setStatuses(await providerKeyStatus());
+      setStatuses(await desktopPorts.ai.keyStatus());
       setNotice("密钥已保存到 macOS 钥匙串");
     } catch (error) { setNotice(`保存失败：${String(error)}`); }
     finally { setBusy(false); }
@@ -31,7 +31,7 @@ export function ServiceSettings() {
 
   async function remove() {
     setBusy(true);
-    try { await removeProviderKey(provider); setStatuses(await providerKeyStatus()); setNotice("密钥已移除"); }
+    try { await desktopPorts.ai.removeKey(provider); setStatuses(await desktopPorts.ai.keyStatus()); setNotice("密钥已移除"); }
     catch (error) { setNotice(`移除失败：${String(error)}`); }
     finally { setBusy(false); }
   }

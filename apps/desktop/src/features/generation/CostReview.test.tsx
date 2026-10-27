@@ -4,7 +4,7 @@ import { CostReview } from "./CostReview";
 import type { ShotDraft } from "@ai-video/project-core";
 
 const mocks = vi.hoisted(() => ({ quote: vi.fn() }));
-vi.mock("../../lib/native", () => ({ quoteShot: mocks.quote, checkShotBudget: vi.fn() }));
+vi.mock("../../lib/ports", () => ({ desktopPorts: { ai: { quote: mocks.quote, checkBudget: vi.fn() } } }));
 
 const shot: ShotDraft = { id: "s", sourceAssetId: "a", prompt: "在雨中跳舞", durationSec: 10, speaking: false, script: null, acceptedAudioAssetId: null, modelId: "seedance-15-pro" };
 

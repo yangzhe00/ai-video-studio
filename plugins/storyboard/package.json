@@ -1,0 +1,8 @@
+{
+  "name": "@ai-video/plugin-storyboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@ai-video/plugin-sdk": "workspace:*" }
+}

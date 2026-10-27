@@ -2,9 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectHome } from "./ProjectHome";
 
-const mocks = vi.hoisted(() => ({ open: vi.fn(), create: vi.fn(), load: vi.fn() }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
-vi.mock("../../lib/native", () => ({ createProject: mocks.create, openProject: mocks.load }));
+const mocks = vi.hoisted(() => ({ parent: vi.fn(), existing: vi.fn(), create: vi.fn(), load: vi.fn() }));
+vi.mock("../../lib/ports", () => ({ desktopPorts: { projects: { chooseParent: mocks.parent, chooseExisting: mocks.existing, create: mocks.create, open: mocks.load } } }));
 
 const manifest = { version: 2, id: "p", title: "故事", assets: [], clips: [], captions: [], publishingCopy: "", coverTimeMs: null, shots: [], jobs: [], budgetUsd: null };
 
@@ -13,7 +12,7 @@ describe("ProjectHome", () => {
   afterEach(cleanup);
 
   it("creates a new independent project under the selected directory", async () => {
-    mocks.open.mockResolvedValue("/tmp/projects");
+    mocks.parent.mockResolvedValue("/tmp/projects");
     mocks.create.mockResolvedValue(manifest);
     const onOpen = vi.fn();
     render(<ProjectHome onOpen={onOpen} />);
@@ -25,7 +24,7 @@ describe("ProjectHome", () => {
   });
 
   it("opens an existing project without changing it", async () => {
-    mocks.open.mockResolvedValue("/tmp/projects/故事");
+    mocks.existing.mockResolvedValue("/tmp/projects/故事");
     mocks.load.mockResolvedValue(manifest);
     const onOpen = vi.fn();
     render(<ProjectHome onOpen={onOpen} />);

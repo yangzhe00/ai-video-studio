@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { createProject, openProject } from "../../lib/native";
+import { desktopPorts } from "../../lib/ports";
 import type { OpenProject } from "@ai-video/project-core";
 
 interface Props { onOpen: (project: OpenProject) => void }
@@ -18,11 +17,11 @@ export function ProjectHome({ onOpen }: Props) {
     }
     setError(null);
     try {
-      const parent = await open({ directory: true, multiple: false, title: "选择项目保存位置" });
-      if (!parent || typeof parent !== "string") return;
+      const parent = await desktopPorts.projects.chooseParent();
+      if (!parent) return;
       setBusy(true);
       const root = `${parent.replace(/\/$/, "")}/${cleanTitle}`;
-      onOpen({ root, manifest: await createProject(root, cleanTitle) });
+      onOpen({ root, manifest: await desktopPorts.projects.create(root, cleanTitle) });
     } catch (cause) { setError(String(cause)); }
     finally { setBusy(false); }
   }
@@ -30,10 +29,10 @@ export function ProjectHome({ onOpen }: Props) {
   async function openExisting() {
     setError(null);
     try {
-      const root = await open({ directory: true, multiple: false, title: "选择项目文件夹" });
-      if (!root || typeof root !== "string") return;
+      const root = await desktopPorts.projects.chooseExisting();
+      if (!root) return;
       setBusy(true);
-      onOpen({ root, manifest: await openProject(root) });
+      onOpen({ root, manifest: await desktopPorts.projects.open(root) });
     } catch (cause) { setError(String(cause)); }
     finally { setBusy(false); }
   }
