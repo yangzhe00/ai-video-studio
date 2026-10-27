@@ -22,12 +22,23 @@ pnpm install
 pnpm tauri dev
 ```
 
-`pnpm tauri dev` 会准备仅供本地开发的 `ffprobe`。验证：
+`pnpm tauri dev` 会准备仅供本地开发的 `ffmpeg` 和 `ffprobe`。验证：
 
 ```sh
 pnpm test
 pnpm build
+pnpm check:boundaries
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
+
+## 仓库结构
+
+- `apps/desktop`：当前 macOS 桌面应用，包含 React 前端与 Tauri/Rust 后端。
+- `packages/project-core`：项目文件模型、分镜草稿与时间线规则。
+- `packages/platform-ports`：应用与平台 I/O 之间的接口；桌面实现位于 `apps/desktop/src/lib/ports.ts`。
+- `packages/plugin-sdk` 与 `plugins/*`：静态功能注册、依赖校验和平台能力声明。
+- `packages/design-tokens` 与 `packages/ui-web`：可复用的 Web 样式变量和控件。
+
+新增功能及跨端边界参见 [插件契约](docs/architecture/plugin-contract.md)。目前只有桌面端适配器；网页端、手机 App、Agent/MCP 及付费视频生成仍属于后续开发阶段。现有编辑页尚未改为故事板与时间线双视图。
 
 本仓库尚未选择开源许可证；发布前需要确定许可证，并完成第三方依赖及媒体二进制许可核对。

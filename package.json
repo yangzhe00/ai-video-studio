@@ -9,6 +9,7 @@
     "build": "pnpm -r --if-present build",
     "preview": "pnpm --filter @ai-video/desktop preview",
     "tauri": "pnpm --filter @ai-video/desktop tauri",
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test && node scripts/check-boundaries.mjs",
+    "check:boundaries": "node scripts/check-boundaries.mjs"
   }
 }
