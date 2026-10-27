@@ -4,7 +4,9 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { auditAssets, exportProject, importAsset, readAsset, saveProject } from "../../lib/native";
 import type { ExportArtifacts } from "../../lib/native";
 import { appendClip, moveClip, setClipVolume, trimClip, upsertCaption } from "../timeline/model";
-import type { OpenProject, ProjectManifestV1 } from "../../types/project";
+import { CreateVideo } from "../create/CreateVideo";
+import { CostReview } from "../generation/CostReview";
+import type { OpenProject, ProjectManifestV2 } from "../../types/project";
 
 interface Props { project: OpenProject; onClose: () => void }
 
@@ -42,13 +44,14 @@ export function ProjectWorkspace({ project, onClose }: Props) {
     return () => { live = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [selectedAssetId, project.root, manifest.assets]);
 
-  async function update(next: ProjectManifestV1) {
+  async function update(next: ProjectManifestV2) {
     setBusy(true);
+    const previous = manifest;
+    setManifest(next);
     try {
       await saveProject(project.root, next);
-      setManifest(next);
       setMessage("已保存到项目文件夹");
-    } catch (error) { setMessage(`保存失败：${String(error)}`); }
+    } catch (error) { setManifest(previous); setMessage(`保存失败：${String(error)}`); }
     finally { setBusy(false); }
   }
 
@@ -71,7 +74,7 @@ export function ProjectWorkspace({ project, onClose }: Props) {
     finally { setBusy(false); }
   }
 
-  function edit(operation: () => ProjectManifestV1) {
+  function edit(operation: () => ProjectManifestV2) {
     try { void update(operation()); }
     catch (error) { setMessage(String(error)); }
   }
@@ -92,6 +95,8 @@ export function ProjectWorkspace({ project, onClose }: Props) {
   return <section className="project-content">
     <button className="text-button" onClick={onClose} type="button">← 返回项目首页</button>
     <div className="eyebrow">当前项目</div><h1>{manifest.title}</h1><p className="intro">{project.root}</p>
+    <CreateVideo assets={manifest.assets} shots={manifest.shots} disabled={busy} onAdd={shot => void update({ ...manifest, shots: [...manifest.shots, shot] })} />
+    <CostReview root={project.root} shots={manifest.shots} budgetUsd={manifest.budgetUsd} disabled={busy} onSaveBudget={budgetUsd => void update({ ...manifest, budgetUsd })} />
     <div className="editor-grid">
       <div className="editor-panel">
         <div className="panel-heading"><h2>素材库</h2><button type="button" onClick={importFiles} disabled={busy}>＋ 导入素材</button></div>

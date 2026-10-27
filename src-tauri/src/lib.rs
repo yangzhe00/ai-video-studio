@@ -1,6 +1,7 @@
 mod project;
 mod media;
 mod export;
+mod ai;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,7 +15,9 @@ pub fn run() {
             media::import_asset,
             media::audit_assets,
             media::read_asset,
-            export::export_project
+            export::export_project,
+            ai::pricing::quote_shot,
+            ai::pricing::check_shot_budget
         ])
         .run(tauri::generate_context!())
         .expect("failed to start AI Video Studio");

@@ -1,3 +1,5 @@
+import type { GenerationJob, ShotDraft } from "./ai";
+
 export type MediaKind = "image" | "video" | "audio";
 
 export interface MediaAsset {
@@ -25,8 +27,8 @@ export interface Caption {
   text: string;
 }
 
-export interface ProjectManifestV1 {
-  version: 1;
+export interface ProjectManifestV2 {
+  version: 2;
   id: string;
   title: string;
   assets: MediaAsset[];
@@ -34,9 +36,13 @@ export interface ProjectManifestV1 {
   captions: Caption[];
   publishingCopy: string;
   coverTimeMs: number | null;
+  shots: ShotDraft[];
+  jobs: GenerationJob[];
+  budgetUsd: number | null;
 }
 
 export interface OpenProject {
   root: string;
-  manifest: ProjectManifestV1;
+  manifest: ProjectManifestV2;
 }
+

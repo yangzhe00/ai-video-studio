@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { appendClip, moveClip, setClipVolume, trimClip, upsertCaption } from "./model";
-import type { ProjectManifestV1 } from "../../types/project";
+import type { ProjectManifestV2 } from "../../types/project";
 
-const base = (): ProjectManifestV1 => ({
-  version: 1, id: "p", title: "测试", publishingCopy: "", coverTimeMs: null, captions: [], clips: [],
+const base = (): ProjectManifestV2 => ({
+  version: 2, id: "p", title: "测试", publishingCopy: "", coverTimeMs: null, captions: [], clips: [], shots: [], jobs: [], budgetUsd: null,
   assets: [
     { id: "a", kind: "video", relativePath: "media/source/a.mp4", durationMs: 4000, width: 1080, height: 1920, missing: false },
     { id: "b", kind: "video", relativePath: "media/source/b.mp4", durationMs: 3000, width: 1080, height: 1920, missing: false },

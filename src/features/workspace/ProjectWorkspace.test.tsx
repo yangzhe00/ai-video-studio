@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ open: vi.fn(), audit: vi.fn(), import: vi.fn()
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
 vi.mock("../../lib/native", () => ({ auditAssets: mocks.audit, importAsset: mocks.import, saveProject: mocks.save }));
 
-const manifest = { version: 1 as const, id: "p", title: "故事", assets: [], clips: [], captions: [], publishingCopy: "", coverTimeMs: null };
+const manifest = { version: 2 as const, id: "p", title: "故事", assets: [], clips: [], captions: [], publishingCopy: "", coverTimeMs: null, shots: [], jobs: [], budgetUsd: null };
 
 describe("ProjectWorkspace", () => {
   afterEach(() => { cleanup(); vi.clearAllMocks(); });

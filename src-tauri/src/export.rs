@@ -1,4 +1,4 @@
-use crate::project::{open_project_impl, validate_relative_path, ProjectManifestV1};
+use crate::project::{open_project_impl, validate_relative_path, ProjectManifestV2};
 use serde::Serialize;
 use serde_json::Value;
 use std::fs;
@@ -49,7 +49,7 @@ fn ass_text(text: &str) -> String {
     text.replace('\\', "\\\\").replace('{', "\\{").replace('}', "\\}").replace("\r\n", "\n").replace('\n', "\\N")
 }
 
-fn write_ass(path: &Path, manifest: &ProjectManifestV1) -> Result<(), String> {
+fn write_ass(path: &Path, manifest: &ProjectManifestV2) -> Result<(), String> {
     let mut body = String::from("[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 2\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,54,&H00FFFFFF,&H000000FF,&H00000000,&H88000000,0,0,0,0,100,100,0,0,1,3,1,2,60,60,170,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
     for caption in &manifest.captions {
         body.push_str(&format!("Dialogue: 0,{},{},Default,,0,0,0,,{}\n", ass_time(caption.start_ms), ass_time(caption.end_ms), ass_text(&caption.text)));
@@ -57,7 +57,7 @@ fn write_ass(path: &Path, manifest: &ProjectManifestV1) -> Result<(), String> {
     fs::write(path, body).map_err(|err| format!("无法写入字幕：{err}"))
 }
 
-fn validate_export(manifest: &ProjectManifestV1, root: &Path) -> Result<u64, String> {
+fn validate_export(manifest: &ProjectManifestV2, root: &Path) -> Result<u64, String> {
     if manifest.clips.is_empty() { return Err("时间线为空，请先添加片段".into()); }
     let mut total_ms = 0u64;
     let canonical_root = fs::canonicalize(root).map_err(|err| format!("项目目录不可读取：{err}"))?;

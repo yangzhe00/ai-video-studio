@@ -1,13 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MediaAsset, ProjectManifestV1 } from "../types/project";
+import type { MediaAsset, ProjectManifestV2 } from "../types/project";
 
 export const createProject = (root: string, title: string) =>
-  invoke<ProjectManifestV1>("create_project", { root, title });
+  invoke<ProjectManifestV2>("create_project", { root, title });
 
 export const openProject = (root: string) =>
-  invoke<ProjectManifestV1>("open_project", { root });
+  invoke<ProjectManifestV2>("open_project", { root });
 
-export const saveProject = (root: string, manifest: ProjectManifestV1) =>
+export const saveProject = (root: string, manifest: ProjectManifestV2) =>
   invoke<void>("save_project", { root, manifest });
 
 export const importAsset = (root: string, source: string) =>
@@ -26,3 +26,11 @@ export interface ExportArtifacts {
 
 export const exportProject = (root: string, outputName: string) =>
   invoke<ExportArtifacts>("export_project", { root, outputName });
+
+export interface MoneyEstimate { modelId: string; durationSec: number; microsUsd: number; asOf: string }
+
+export const quoteShot = (modelId: string, durationSec: number) =>
+  invoke<MoneyEstimate>("quote_shot", { modelId, durationSec });
+
+export const checkShotBudget = (root: string, shotId: string) =>
+  invoke<MoneyEstimate>("check_shot_budget", { root, shotId });
