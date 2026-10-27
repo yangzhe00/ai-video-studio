@@ -17,7 +17,10 @@ pub fn run() {
             media::read_asset,
             export::export_project,
             ai::pricing::quote_shot,
-            ai::pricing::check_shot_budget
+            ai::pricing::check_shot_budget,
+            ai::secrets::set_provider_key,
+            ai::secrets::remove_provider_key,
+            ai::secrets::provider_key_status
         ])
         .run(tauri::generate_context!())
         .expect("failed to start AI Video Studio");

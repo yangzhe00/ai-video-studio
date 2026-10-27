@@ -6,6 +6,7 @@ import type { ExportArtifacts } from "../../lib/native";
 import { appendClip, moveClip, setClipVolume, trimClip, upsertCaption } from "../timeline/model";
 import { CreateVideo } from "../create/CreateVideo";
 import { CostReview } from "../generation/CostReview";
+import { ServiceSettings } from "../generation/ServiceSettings";
 import type { OpenProject, ProjectManifestV2 } from "../../types/project";
 
 interface Props { project: OpenProject; onClose: () => void }
@@ -97,6 +98,7 @@ export function ProjectWorkspace({ project, onClose }: Props) {
     <div className="eyebrow">当前项目</div><h1>{manifest.title}</h1><p className="intro">{project.root}</p>
     <CreateVideo assets={manifest.assets} shots={manifest.shots} disabled={busy} onAdd={shot => void update({ ...manifest, shots: [...manifest.shots, shot] })} />
     <CostReview root={project.root} shots={manifest.shots} budgetUsd={manifest.budgetUsd} disabled={busy} onSaveBudget={budgetUsd => void update({ ...manifest, budgetUsd })} />
+    <ServiceSettings />
     <div className="editor-grid">
       <div className="editor-panel">
         <div className="panel-heading"><h2>素材库</h2><button type="button" onClick={importFiles} disabled={busy}>＋ 导入素材</button></div>

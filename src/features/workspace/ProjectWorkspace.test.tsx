@@ -4,7 +4,7 @@ import { ProjectWorkspace } from "./ProjectWorkspace";
 
 const mocks = vi.hoisted(() => ({ open: vi.fn(), audit: vi.fn(), import: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
-vi.mock("../../lib/native", () => ({ auditAssets: mocks.audit, importAsset: mocks.import, saveProject: mocks.save }));
+vi.mock("../../lib/native", () => ({ auditAssets: mocks.audit, importAsset: mocks.import, saveProject: mocks.save, providerKeyStatus: vi.fn().mockResolvedValue([]) }));
 
 const manifest = { version: 2 as const, id: "p", title: "故事", assets: [], clips: [], captions: [], publishingCopy: "", coverTimeMs: null, shots: [], jobs: [], budgetUsd: null };
 

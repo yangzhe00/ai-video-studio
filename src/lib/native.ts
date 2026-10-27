@@ -34,3 +34,10 @@ export const quoteShot = (modelId: string, durationSec: number) =>
 
 export const checkShotBudget = (root: string, shotId: string) =>
   invoke<MoneyEstimate>("check_shot_budget", { root, shotId });
+
+export type ProviderId = "hedra" | "runway" | "deepseek";
+export interface ProviderKeyStatus { provider: ProviderId; configured: boolean }
+
+export const providerKeyStatus = () => invoke<ProviderKeyStatus[]>("provider_key_status");
+export const setProviderKey = (provider: ProviderId, key: string) => invoke<void>("set_provider_key", { provider, key });
+export const removeProviderKey = (provider: ProviderId) => invoke<void>("remove_provider_key", { provider });
