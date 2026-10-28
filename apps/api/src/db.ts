@@ -1,0 +1,31 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+
+export function createDb(dataDir: string): DatabaseSync {
+  mkdirSync(dataDir, { recursive: true });
+  const db = new DatabaseSync(join(dataDir, "studio.sqlite"));
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
+      created_at INTEGER NOT NULL, demo_quota INTEGER NOT NULL, demo_reserved INTEGER NOT NULL DEFAULT 0,
+      demo_used INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, document_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS objects (
+      id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      sha256 TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, path TEXT NOT NULL,
+      created_at INTEGER NOT NULL, UNIQUE(owner_id, sha256)
+    );
+  `);
+  return db;
+}
