@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "dependencies": { "@ai-video/agent-core": "workspace:*" },
   "scripts": {
     "dev": "node --experimental-strip-types src/main.ts",
     "build": "tsc --noEmit",

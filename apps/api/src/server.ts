@@ -1,11 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, mkdirSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { ApiConfig } from "./config.ts";
 import { clearSession, createSession, hashPassword, normalizeEmail, sessionAccount, validatePassword, verifyPassword } from "./auth.ts";
 import { createDb } from "./db.ts";
+import { approveRun, createRun, getRun, listRunEvents, RunError } from "./runs.ts";
+import { GenerationWorker } from "./generation-worker.ts";
+import { KlingGateway } from "./kling.ts";
 
 class ApiError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const allowedMime = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4"]);
@@ -44,6 +47,9 @@ export function createApi(config: ApiConfig): Server {
   if (!config.dataDir || !config.sessionSecret || config.sessionSecret.length < 32) throw new Error("Persistent data directory and session secret are required");
   const maxUploadBytes = config.maxUploadBytes ?? 20_000_000;
   const db = createDb(config.dataDir);
+  const worker = config.klingApiKey ? new GenerationWorker(db, config.dataDir, new KlingGateway(config.klingApiKey, config.klingBaseUrl)) : null;
+  const workerTimer = worker && config.workerEnabled !== false ? setInterval(() => { void worker.tick(); }, 5_000) : null;
+  if (worker && config.workerEnabled !== false) queueMicrotask(() => { void worker.tick(); });
   const recentAuthAttempts = new Map<string, { count: number; until: number }>();
 
   function checkAuthRate(req: IncomingMessage) {
@@ -57,7 +63,8 @@ export function createApi(config: ApiConfig): Server {
 
   const server = createServer((req, res) => {
     void (async () => {
-      const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const pathname = url.pathname;
       const method = req.method ?? "GET";
       const origin = req.headers.origin;
       if (origin && origin !== config.allowedOrigin) throw new ApiError(403, "来源不允许");
@@ -116,6 +123,40 @@ export function createApi(config: ApiConfig): Server {
         reply(res, 200, { account: row }); return;
       }
 
+      const projectRuns = /^\/projects\/([a-zA-Z0-9-]+)\/runs$/.exec(pathname);
+      if (projectRuns && method === "POST") {
+        const run = createRun(db, accountId, projectRuns[1], await readJson(req));
+        reply(res, 201, { run }); return;
+      }
+      const runMatch = /^\/runs\/([a-zA-Z0-9-]+)$/.exec(pathname);
+      if (runMatch && method === "GET") { reply(res, 200, { run: getRun(db, accountId, runMatch[1]) }); return; }
+      const approvalMatch = /^\/runs\/([a-zA-Z0-9-]+)\/approve$/.exec(pathname);
+      if (approvalMatch && method === "POST") {
+        if (!worker) throw new ApiError(503, "后台生成服务尚未配置");
+        const run = approveRun(db, accountId, approvalMatch[1], await readJson(req));
+        reply(res, 200, { run });
+        if (config.workerEnabled !== false) queueMicrotask(() => { void worker.run(approvalMatch[1]); });
+        return;
+      }
+      const eventMatch = /^\/runs\/([a-zA-Z0-9-]+)\/events$/.exec(pathname);
+      if (eventMatch && method === "GET") {
+        const runId = eventMatch[1];
+        getRun(db, accountId, runId);
+        let after = Number(req.headers["last-event-id"] ?? url.searchParams.get("after") ?? 0);
+        if (!Number.isSafeInteger(after) || after < 0) throw new ApiError(400, "事件序号无效");
+        res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive" });
+        const send = () => {
+          for (const event of listRunEvents(db, accountId, runId, after)) {
+            res.write(`id: ${event.seq}\nevent: state\ndata: ${JSON.stringify(event)}\n\n`);
+            after = event.seq;
+          }
+        };
+        send();
+        const timer = setInterval(() => { send(); res.write(": keepalive\n\n"); }, 1000);
+        res.on("close", () => clearInterval(timer));
+        return;
+      }
+
       if (pathname === "/projects" && method === "GET") {
         const rows = db.prepare("SELECT id,title,revision FROM projects WHERE owner_id=? ORDER BY created_at DESC").all(accountId);
         reply(res, 200, { projects: rows.map(row => projectSummary(row as { id: string; title: string; revision: number })) }); return;
@@ -167,7 +208,7 @@ export function createApi(config: ApiConfig): Server {
         const folder = join(config.dataDir, "objects", accountId);
         mkdirSync(folder, { recursive: true });
         const path = join(folder, sha256);
-        writeFileSync(path, bytes, { flag: "wx" });
+        if (!existsSync(path)) writeFileSync(path, bytes, { flag: "wx" });
         db.prepare("INSERT INTO objects (id,owner_id,sha256,mime,size,path,created_at) VALUES (?,?,?,?,?,?,?)")
           .run(objectId, accountId, sha256, mime, bytes.length, path, Date.now());
         reply(res, 201, { object: { id: objectId, mime, size: bytes.length, sha256 } }); return;
@@ -182,10 +223,10 @@ export function createApi(config: ApiConfig): Server {
       throw new ApiError(404, "接口不存在");
     })().catch(error => {
       if (res.headersSent) { res.destroy(); return; }
-      const status = error instanceof ApiError ? error.status : 500;
+      const status = error instanceof ApiError || error instanceof RunError ? error.status : 500;
       reply(res, status, { error: status === 500 ? "服务器内部错误" : error.message });
     });
   });
-  server.on("close", () => db.close());
+  server.on("close", () => { if (workerTimer) clearInterval(workerTimer); db.close(); });
   return server;
 }

@@ -8,6 +8,9 @@ export interface ApiConfig {
   demoQuota?: number;
   maxUploadBytes?: number;
   allowedOrigin?: string;
+  klingApiKey?: string;
+  klingBaseUrl?: string;
+  workerEnabled?: boolean;
 }
 
 export function configFromEnv(): ApiConfig {
@@ -23,5 +26,8 @@ export function configFromEnv(): ApiConfig {
     allowedOrigin: process.env.API_ALLOWED_ORIGIN,
     demoQuota: Number(process.env.API_DEMO_QUOTA || 3),
     maxUploadBytes: Number(process.env.API_MAX_UPLOAD_BYTES || 20_000_000),
+    klingApiKey: process.env.KLING_API_KEY,
+    klingBaseUrl: process.env.KLING_BASE_URL || "https://api-beijing.klingai.com",
+    workerEnabled: true,
   };
 }
