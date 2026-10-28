@@ -1,5 +1,5 @@
 export type Platform = "desktop" | "web" | "mobile";
-export type WorkspacePanel = "media" | "timeline" | "captions" | "shot-drafts" | "cover" | "publishing" | "export";
+export type WorkspacePanel = "media" | "timeline" | "captions" | "shot-drafts" | "generation" | "cover" | "publishing" | "export";
 
 export interface FeaturePlugin {
   id: string;
@@ -8,6 +8,9 @@ export interface FeaturePlugin {
   requires?: readonly string[];
   contributes: {
     panels: readonly WorkspacePanel[];
+    routes?: readonly string[];
+    capabilities?: readonly string[];
+    nodeTypes?: readonly string[];
   };
 }
 

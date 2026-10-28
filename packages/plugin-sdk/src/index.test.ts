@@ -22,4 +22,16 @@ describe("static plugin registry", () => {
     const cyclic: FeaturePlugin = { ...media, requires: ["timeline"] };
     expect(() => resolvePlugins("desktop", ["media", "timeline"], [cyclic, timeline])).toThrow("依赖循环");
   });
+  it("keeps canvas out of mobile while exposing video editing on every platform", () => {
+    const canvas: FeaturePlugin = {
+      id: "canvas", version: "1.0.0", supportedPlatforms: ["desktop", "web"],
+      contributes: { panels: [], routes: ["canvas"], capabilities: ["graph.edit"], nodeTypes: ["video", "timeline"] },
+    };
+    const videoEdit: FeaturePlugin = {
+      id: "video-edit", version: "1.0.0", supportedPlatforms: ["desktop", "web", "mobile"],
+      contributes: { panels: [], routes: ["video-edit"], capabilities: ["video-edit.render"] },
+    };
+    expect(resolvePlugins("web", ["canvas", "video-edit"], [canvas, videoEdit]).flatMap(item => item.contributes.routes ?? [])).toEqual(["canvas", "video-edit"]);
+    expect(resolvePlugins("mobile", ["canvas", "video-edit"], [canvas, videoEdit]).flatMap(item => item.contributes.routes ?? [])).toEqual(["video-edit"]);
+  });
 });

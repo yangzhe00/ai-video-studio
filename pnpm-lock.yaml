@@ -16,6 +16,9 @@ importers:
       '@ai-video/platform-ports':
         specifier: workspace:*
         version: link:../../packages/platform-ports
+      '@ai-video/plugin-canvas':
+        specifier: workspace:*
+        version: link:../../plugins/canvas
       '@ai-video/plugin-captions':
         specifier: workspace:*
         version: link:../../plugins/captions
@@ -25,6 +28,9 @@ importers:
       '@ai-video/plugin-export':
         specifier: workspace:*
         version: link:../../plugins/export
+      '@ai-video/plugin-generation':
+        specifier: workspace:*
+        version: link:../../plugins/generation
       '@ai-video/plugin-media':
         specifier: workspace:*
         version: link:../../plugins/media
@@ -154,6 +160,12 @@ importers:
         specifier: ^4.0.0
         version: 4.1.12(@types/node@24.19.2)(jsdom@27.4.0)(vite@8.3.5(@types/node@24.19.2))
 
+  plugins/canvas:
+    dependencies:
+      '@ai-video/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
   plugins/captions:
     dependencies:
       '@ai-video/plugin-sdk':
@@ -167,6 +179,12 @@ importers:
         version: link:../../packages/plugin-sdk
 
   plugins/export:
+    dependencies:
+      '@ai-video/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
+  plugins/generation:
     dependencies:
       '@ai-video/plugin-sdk':
         specifier: workspace:*
