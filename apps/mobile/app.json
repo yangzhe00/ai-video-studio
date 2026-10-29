@@ -1,0 +1,1 @@
+{ "expo": { "name": "AI Video Studio", "slug": "ai-video-studio", "version": "0.1.0", "orientation": "portrait", "userInterfaceStyle": "light", "ios": { "supportsTablet": true }, "android": { "edgeToEdgeEnabled": true }, "plugins": ["expo-secure-store", "expo-image-picker", "expo-video"] } }

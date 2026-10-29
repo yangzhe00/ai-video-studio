@@ -1,5 +1,9 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+
+const scryptAsync = (password: string, salt: string, length: number): Promise<Buffer> =>
+  new Promise((resolve, reject) => scrypt(password, salt, length, (error, derived) =>
+    error ? reject(error) : resolve(derived as Buffer)));
 
 export function normalizeEmail(value: unknown): string {
   if (typeof value !== "string") throw new Error("邮箱格式无效");
@@ -13,16 +17,17 @@ export function validatePassword(value: unknown): string {
   return value;
 }
 
-export function hashPassword(password: string): string {
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
-  return `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+  return `${salt}:${(await scryptAsync(password, salt, 64)).toString("hex")}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [salt, hex] = stored.split(":");
   if (!salt || !hex) return false;
   const expected = Buffer.from(hex, "hex");
-  const actual = scryptSync(password, salt, expected.length);
+  if (expected.length !== 64) return false;
+  const actual = await scryptAsync(password, salt, expected.length);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 

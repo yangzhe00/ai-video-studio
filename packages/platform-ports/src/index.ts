@@ -12,8 +12,6 @@ export interface MoneyEstimate {
   asOf: string;
 }
 
-export type ProviderId = "hedra" | "runway" | "deepseek";
-export interface ProviderKeyStatus { provider: ProviderId; configured: boolean }
 
 export interface PlatformPorts {
   projects: {
@@ -36,8 +34,6 @@ export interface PlatformPorts {
   ai: {
     quote(modelId: string, durationSec: number): Promise<MoneyEstimate>;
     checkBudget(root: string, shotId: string): Promise<MoneyEstimate>;
-    keyStatus(): Promise<ProviderKeyStatus[]>;
-    setKey(provider: ProviderId, key: string): Promise<void>;
-    removeKey(provider: ProviderId): Promise<void>;
+    refreshImageVideo(root: string, jobId: string): Promise<ProjectManifestV2>;
   };
 }

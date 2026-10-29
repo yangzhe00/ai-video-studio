@@ -12,9 +12,9 @@ fn ffprobe_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries/ffprobe"))
 }
 
-fn probe(source: &Path, binary: &Path) -> Result<(String, Option<u64>, Option<u32>, Option<u32>), String> {
+pub(crate) fn probe(source: &Path, binary: &Path) -> Result<(String, Option<u64>, Option<u32>, Option<u32>), String> {
     let result = Command::new(binary)
-        .args(["-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration", "-of", "json"])
+        .args(["-v", "error", "-show_entries", "stream=codec_type,width,height:format=format_name,duration", "-of", "json"])
         .arg(source)
         .output()
         .map_err(|err| format!("无法运行随应用提供的 ffprobe：{err}"))?;
@@ -27,11 +27,16 @@ fn probe(source: &Path, binary: &Path) -> Result<(String, Option<u64>, Option<u3
     let sound = streams.iter().find(|stream| stream["codec_type"] == "audio");
     let seconds = value["format"]["duration"].as_str().and_then(|raw| raw.parse::<f64>().ok());
     let duration_ms = seconds.filter(|n| n.is_finite() && *n > 0.0).map(|n| (n * 1000.0).round() as u64);
+    // ffprobe's image2 demuxer assigns a synthetic frame duration to still photos.
+    // The container format, rather than duration alone, distinguishes these from videos.
+    let image_container = value["format"]["format_name"].as_str().is_some_and(|names| {
+        names.split(',').any(|name| name == "image2" || name.ends_with("_pipe"))
+    });
     let (kind, width, height) = if let Some(stream) = picture {
         let width = stream["width"].as_u64().and_then(|value| u32::try_from(value).ok());
         let height = stream["height"].as_u64().and_then(|value| u32::try_from(value).ok());
         if width.unwrap_or(0) == 0 || height.unwrap_or(0) == 0 { return Err("画面尺寸无效".into()); }
-        (if duration_ms.is_some() { "video" } else { "image" }, width, height)
+        (if image_container || duration_ms.is_none() { "image" } else { "video" }, width, height)
     } else if sound.is_some() && duration_ms.is_some() {
         ("audio", None, None)
     } else {
@@ -136,6 +141,23 @@ mod tests {
         assert!(import_asset_impl(&root, &fake, Path::new(&probe_binary)).is_err());
         fs::copy(&png, &fake).unwrap();
         assert!(import_asset_impl(&root, &fake, Path::new(&probe_binary)).unwrap_err().contains("扩展名"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn media_imports_jpeg_even_when_ffprobe_reports_frame_duration() {
+        let (Ok(jpg), Ok(probe_binary)) = (
+            std::env::var("AI_VIDEO_TEST_JPG"),
+            std::env::var("AI_VIDEO_FFPROBE"),
+        ) else {
+            return;
+        };
+        let root = std::env::temp_dir().join(format!("ai-video-jpeg-{}", Uuid::new_v4()));
+        create_project_impl(&root, "照片导入测试".into()).unwrap();
+        let image = import_asset_impl(&root, Path::new(&jpg), Path::new(&probe_binary)).unwrap();
+        assert_eq!(image.kind, "image");
+        assert_eq!(image.duration_ms, None);
+        assert!(image.width.unwrap_or(0) > 0 && image.height.unwrap_or(0) > 0);
         fs::remove_dir_all(root).unwrap();
     }
 }

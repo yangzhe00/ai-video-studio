@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -12,7 +12,7 @@ import { GenerationWorker } from "./generation-worker.ts";
 const fixtures: { db: DatabaseSync; dir: string }[] = [];
 afterEach(() => { for (const fixture of fixtures.splice(0)) { fixture.db.close(); rmSync(fixture.dir, { recursive: true, force: true }); } });
 
-function setup(fetchMock: typeof fetch) {
+function setup(fetchMock: typeof fetch, limits = {}) {
   const dir = mkdtempSync(join(tmpdir(), "avs-worker-test-"));
   const db = createDb(dir);
   fixtures.push({ db, dir });
@@ -27,7 +27,7 @@ function setup(fetchMock: typeof fetch) {
   const run = createRun(db, account, project, { clientRequestId: "request-0001", episodeId: episode, sourceAssetId: photo, input: "小狗洗菜", durationSec: 5 });
   approveRun(db, account, run.runId, { approvalId: "approve-0001", planHash: run.planHash });
   const gateway = new KlingGateway("server-key", "https://api-beijing.klingai.com", fetchMock);
-  return { db, dir, account, project, runId: run.runId, worker: new GenerationWorker(db, dir, gateway) };
+  return { db, dir, account, project, gateway, runId: run.runId, worker: new GenerationWorker(db, dir, gateway, limits) };
 }
 
 describe("cloud generation worker", () => {
@@ -54,12 +54,17 @@ describe("cloud generation worker", () => {
       if (String(url).includes("/tasks?")) return Response.json({ code: 0, data: [{ id: "remote-1", status: "succeeded", outputs: [{ type: "video", url: "https://h1.inkwai.com/video.mp4" }] }] });
       return new Response(Buffer.from("fake mp4 bytes"), { status: 200 });
     });
+    const before = db.prepare("SELECT updated_at FROM projects WHERE id=?").get(project) as { updated_at: number };
     await worker.run(runId);
     await worker.run(runId);
     await worker.run(runId);
     const document = JSON.parse((db.prepare("SELECT document_json FROM projects WHERE id=?").get(project) as { document_json: string }).document_json);
     expect(document.episodes[0].shots).toHaveLength(1);
     expect(document.episodes[0].shots[0].runId).toBe(runId);
+    expect(document.episodes[0].shots[0].originalAssetId).toBe(document.episodes[0].shots[0].resultAssetId);
+    expect(db.prepare("SELECT updated_at,recent_episode_id FROM projects WHERE id=?").get(project))
+      .toMatchObject({ updated_at: expect.any(Number), recent_episode_id: document.episodes[0].id });
+    expect((db.prepare("SELECT updated_at FROM projects WHERE id=?").get(project) as { updated_at: number }).updated_at).toBeGreaterThan(before.updated_at);
     expect(db.prepare("SELECT demo_reserved,demo_used FROM accounts WHERE id=?").get(account)).toMatchObject({ demo_reserved: 0, demo_used: 1 });
     expect(posts).toBe(1);
   });
@@ -69,6 +74,30 @@ describe("cloud generation worker", () => {
     await worker.run(runId);
     expect(db.prepare("SELECT state FROM agent_runs WHERE id=?").get(runId)).toMatchObject({ state: "failed" });
     expect(db.prepare("SELECT demo_reserved,demo_used FROM accounts WHERE id=?").get(account)).toMatchObject({ demo_reserved: 0, demo_used: 0 });
+  });
+
+  it("stages a completed paid result when account storage is full, then saves it after capacity increases", async () => {
+    const limits = { maxAccountObjects: 1 };
+    const { db, dir, account, runId, worker, gateway } = setup(async (url, init) => {
+      if (init?.method === "POST") return Response.json({ code: 0, data: { id: "remote-1" } });
+      if (String(url).includes("/tasks?")) return Response.json({ code: 0, data: [{ id: "remote-1", status: "succeeded", outputs: [{ type: "video", url: "https://h1.inkwai.com/video.mp4" }] }] });
+      return new Response(Buffer.from("fake mp4 bytes"), { status: 200 });
+    }, limits);
+    await worker.run(runId);
+    await worker.run(runId);
+    await worker.run(runId);
+    expect(db.prepare("SELECT state FROM operations WHERE run_id=?").get(runId)).toMatchObject({ state: "storage_pending" });
+    expect(db.prepare("SELECT demo_reserved,demo_used FROM accounts WHERE id=?").get(account)).toMatchObject({ demo_reserved: 1, demo_used: 0 });
+    expect(db.prepare("SELECT COUNT(*) AS count FROM objects WHERE owner_id=?").get(account)).toMatchObject({ count: 1 });
+    const pendingId = (db.prepare("SELECT id FROM operations WHERE run_id=?").get(runId) as { id: string }).id;
+    expect(existsSync(join(dir, "temporary", `${pendingId}.ready`))).toBe(true);
+    limits.maxAccountObjects = 2;
+    await new GenerationWorker(db, dir, gateway, limits).run(runId);
+    expect(db.prepare("SELECT state FROM operations WHERE run_id=?").get(runId)).toMatchObject({ state: "saved" });
+    expect(db.prepare("SELECT demo_used FROM accounts WHERE id=?").get(account)).toMatchObject({ demo_used: 1 });
+    expect(existsSync(join(dir, "temporary", `${pendingId}.ready`))).toBe(false);
+    const video = db.prepare("SELECT path FROM objects WHERE owner_id=? AND mime='video/mp4'").get(account) as { path: string };
+    expect(readFileSync(video.path).toString()).toBe("fake mp4 bytes");
   });
 
   it("queries a recovered submitting operation without sending a POST", async () => {

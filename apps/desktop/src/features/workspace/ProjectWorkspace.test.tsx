@@ -2,8 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 
-const mocks = vi.hoisted(() => ({ choose: vi.fn(), audit: vi.fn(), import: vi.fn(), read: vi.fn(), save: vi.fn(), status: vi.fn() }));
-vi.mock("../../lib/ports", () => ({ desktopPorts: { media: { chooseFiles: mocks.choose, audit: mocks.audit, import: mocks.import, read: mocks.read }, projects: { save: mocks.save }, ai: { keyStatus: mocks.status } } }));
+const mocks = vi.hoisted(() => ({ choose: vi.fn(), audit: vi.fn(), import: vi.fn(), read: vi.fn(), save: vi.fn() }));
+vi.mock("../../lib/ports", () => ({ desktopPorts: { media: { chooseFiles: mocks.choose, audit: mocks.audit, import: mocks.import, read: mocks.read }, projects: { save: mocks.save } } }));
 
 const manifest = { version: 2 as const, id: "p", title: "故事", assets: [], clips: [], captions: [], publishingCopy: "", coverTimeMs: null, shots: [], jobs: [], budgetUsd: null };
 
@@ -18,7 +18,6 @@ describe("ProjectWorkspace", () => {
   it("imports a selected file into the project and saves the manifest", async () => {
     mocks.audit.mockResolvedValue([]);
     mocks.choose.mockResolvedValue(["/tmp/original.png"]);
-    mocks.status.mockResolvedValue([]);
     const asset = { id: "a", kind: "image", relativePath: "media/source/a.png", durationMs: null, width: 320, height: 240, missing: false };
     mocks.import.mockResolvedValue(asset);
     render(<ProjectWorkspace project={{ root: "/tmp/story", manifest }} />);
@@ -26,6 +25,16 @@ describe("ProjectWorkspace", () => {
     await waitFor(() => expect(mocks.import).toHaveBeenCalledWith("/tmp/story", "/tmp/original.png"));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith("/tmp/story", expect.objectContaining({ assets: [asset] })));
     expect(screen.getByRole("button", { name: "将 a.png 加入时间线" })).toBeTruthy();
+  });
+
+  it("keeps service setup, model names and cost estimates out of the AI workspace", async () => {
+    mocks.audit.mockResolvedValue([]);
+    render(<ProjectWorkspace project={{ root: "/tmp/story", manifest }} />);
+    fireEvent.click(screen.getByRole("tab", { name: "AI 创作" }));
+    expect(screen.getByText("照片生成视频 · 分镜草稿")).toBeTruthy();
+    expect(screen.queryByText("模型服务设置")).toBeNull();
+    expect(screen.queryByText("生成费用预估")).toBeNull();
+    expect(screen.queryByLabelText("选择模型服务")).toBeNull();
   });
 
   it("uses the reordered clips in both storyboard and timeline", async () => {

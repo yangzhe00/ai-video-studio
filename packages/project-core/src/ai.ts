@@ -9,7 +9,7 @@ export interface ShotDraft {
   modelId: string;
 }
 
-export type JobState = "draft" | "submitting" | "queued" | "running" | "succeeded" | "failed" | "unknown";
+export type JobState = "draft" | "submitting" | "queued" | "running" | "download_pending" | "succeeded" | "failed" | "unknown";
 
 export interface GenerationJob {
   id: string;

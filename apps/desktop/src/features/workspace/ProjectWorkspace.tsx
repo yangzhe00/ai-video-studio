@@ -4,20 +4,18 @@ import type { ExportArtifacts } from "@ai-video/platform-ports";
 import { appendClip, moveClip, setClipVolume, trimClip, upsertCaption } from "@ai-video/project-core";
 import type { OpenProject, ProjectManifestV2, TimelineClip } from "@ai-video/project-core";
 import { CreateVideo } from "../create/CreateVideo";
-import { CostReview } from "../generation/CostReview";
-import { ServiceSettings } from "../generation/ServiceSettings";
 import { desktopPorts } from "../../lib/ports";
 import { hasDesktopFeature } from "../../lib/plugins";
 
 type SequenceView = "storyboard" | "timeline";
 type InspectorTab = "clip" | "captions" | "publish" | "ai";
-interface Props { project: OpenProject }
+interface Props { project: OpenProject; onCloudGenerate?: () => void }
 
 function assetName(path: string) { return path.split("/").slice(-1)[0] ?? path; }
 function clipDuration(clip: TimelineClip) { return clip.outMs - clip.inMs; }
 function formatTime(ms: number) { return `${(ms / 1000).toFixed(1)}s`; }
 
-export function ProjectWorkspace({ project }: Props) {
+export function ProjectWorkspace({ project, onCloudGenerate }: Props) {
   const [manifest, setManifest] = useState(project.manifest);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -149,6 +147,19 @@ export function ProjectWorkspace({ project }: Props) {
     finally { setBusy(false); setExporting(false); }
   }
 
+  async function refreshGeneration(jobId: string) {
+    setBusy(true);
+    try {
+      const updated = await desktopPorts.ai.refreshImageVideo(project.root, jobId);
+      setManifest(updated);
+      const job = updated.jobs.find(item => item.id === jobId);
+      setMessage(job?.state === "succeeded" ? "视频已保存到项目素材库，可加入时间线" : job?.state === "failed" ? "可灵任务失败；重新生成需要再次明确点击" : "已查询原任务，未发起新的生成请求");
+    } catch (error) {
+      setMessage(`查询失败：${String(error)}`);
+      void desktopPorts.projects.open(project.root).then(setManifest).catch(() => {});
+    } finally { setBusy(false); }
+  }
+
   const invalidCaption = manifest.captions.some(caption => caption.endMs > totalMs);
   const invalidCover = totalMs > 0 && (manifest.coverTimeMs ?? 0) >= totalMs;
   const exportDisabled = busy || totalMs === 0 || manifest.assets.some(asset => asset.missing) || invalidCaption || invalidCover;
@@ -197,7 +208,7 @@ export function ProjectWorkspace({ project }: Props) {
           {inspector === "clip" && hasDesktopFeature("timeline") && (selectedClip ? <><div className="editor-inspector-title"><strong>片段属性</strong><small>{assetName(manifest.assets.find(asset => asset.id === selectedClip.assetId)?.relativePath ?? "未知素材")}</small></div><div className="editor-field-grid"><label>开始秒<input aria-label="片段开始秒" type="number" min="0" step="0.1" value={selectedClip.inMs / 1000} disabled={busy} onChange={event => edit(() => trimClip(manifest, selectedClip.id, Math.round(Number(event.target.value) * 1000), selectedClip.outMs))} /></label><label>结束秒<input aria-label="片段结束秒" type="number" min="0.1" step="0.1" value={selectedClip.outMs / 1000} disabled={busy} onChange={event => edit(() => trimClip(manifest, selectedClip.id, selectedClip.inMs, Math.round(Number(event.target.value) * 1000)))} /></label></div><label className="editor-field">音量 <input type="range" min="0" max="1" step="0.05" value={selectedClip.volume} disabled={busy} onChange={event => edit(() => setClipVolume(manifest, selectedClip.id, Number(event.target.value)))} /></label><p className="editor-helper">拖动故事板卡片可排序；数字输入可精确裁剪。</p></> : <div className="editor-inspector-empty"><strong>选择一个片段</strong><p>从素材库加入照片或视频后，在下方选择片段编辑。</p></div>)}
           {inspector === "captions" && hasDesktopFeature("captions") && <><div className="editor-inspector-title"><strong>字幕</strong><small>字幕使用整条视频的时间点</small></div><label className="editor-field">字幕内容<input aria-label="字幕内容" value={captionText} onChange={event => setCaptionText(event.target.value)} placeholder="输入字幕" /></label><Button disabled={busy || totalMs === 0} onClick={() => { if (!captionText.trim()) { setMessage("请先输入字幕"); return; } const startMs = Math.min(positionMs, Math.max(0, totalMs - 100)); edit(() => upsertCaption(manifest, { id: crypto.randomUUID(), startMs, endMs: Math.min(totalMs, startMs + 2000), text: captionText })); setCaptionText(""); }}>在当前位置添加</Button><ul className="editor-caption-list">{manifest.captions.map(caption => <li key={caption.id}><input aria-label="字幕文本" value={caption.text} disabled={busy} onChange={event => edit(() => upsertCaption(manifest, { ...caption, text: event.target.value }))} /><div className="editor-field-grid"><label>开始<input type="number" min="0" step="0.1" value={caption.startMs / 1000} disabled={busy} onChange={event => edit(() => upsertCaption(manifest, { ...caption, startMs: Math.round(Number(event.target.value) * 1000) }))} /></label><label>结束<input type="number" min="0.1" step="0.1" value={caption.endMs / 1000} disabled={busy} onChange={event => edit(() => upsertCaption(manifest, { ...caption, endMs: Math.round(Number(event.target.value) * 1000) }))} /></label></div><Button variant="ghost" disabled={busy} onClick={() => void update({ ...manifest, captions: manifest.captions.filter(item => item.id !== caption.id) })}>删除字幕</Button></li>)}</ul></>}
           {inspector === "publish" && <><div className="editor-inspector-title"><strong>发布与导出</strong><small>视频、封面和文案</small></div><label className="editor-field">发布文案<textarea aria-label="发布文案" value={manifest.publishingCopy} onChange={event => setManifest(current => ({ ...current, publishingCopy: event.target.value }))} placeholder="写下发布时使用的文案" /></label><div className="editor-row"><Button variant="secondary" disabled={busy} onClick={() => void update(manifest)}>保存文案</Button><Button variant="ghost" disabled={!manifest.publishingCopy} onClick={() => void navigator.clipboard.writeText(manifest.publishingCopy).then(() => setMessage("文案已复制"))}>复制</Button></div>{hasDesktopFeature("cover") && <label className="editor-field">封面时间（秒）<input type="number" min="0" max={Math.max(0, totalMs / 1000 - 0.1)} step="0.1" value={(manifest.coverTimeMs ?? 0) / 1000} disabled={busy} onChange={event => edit(() => ({ ...manifest, coverTimeMs: Math.round(Number(event.target.value) * 1000) }))} /></label>}<label className="editor-field">导出文件名<input aria-label="导出文件名" value={outputName} onChange={event => setOutputName(event.target.value)} /></label><Button disabled={exportDisabled} onClick={exportVideo}>{exporting ? "导出中…" : "导出 MP4 与封面"}</Button>{exportDisabled && <p className="editor-helper">{totalMs === 0 ? "请先加入片段" : manifest.assets.some(asset => asset.missing) ? "有素材文件缺失，请先修复" : invalidCaption ? "字幕超出成片时长，请调整时间" : invalidCover ? "封面时间超出成片，请调整" : "请稍候"}</p>}{exported && <div className="editor-export-result"><StatusBadge tone="success">导出完成</StatusBadge><small>{exported.videoRelativePath}<br />{exported.coverRelativePath}</small><Button variant="secondary" onClick={() => void desktopPorts.export.openFolder(project.root)}>打开导出目录</Button></div>}</>}
-          {inspector === "ai" && hasDesktopFeature("storyboard") && <div className="editor-ai-panels"><p className="editor-helper">分镜草稿和费用规划不会进入可播放时间线。当前尚未接通付费生成。</p><CreateVideo assets={manifest.assets} shots={manifest.shots} disabled={busy} onAdd={shot => void update({ ...manifest, shots: [...manifest.shots, shot] })} /><CostReview root={project.root} shots={manifest.shots} budgetUsd={manifest.budgetUsd} disabled={busy} onSaveBudget={budgetUsd => void update({ ...manifest, budgetUsd })} /><ServiceSettings /></div>}
+          {inspector === "ai" && hasDesktopFeature("storyboard") && <div className="editor-ai-panels"><p className="editor-helper">新视频请到生成页登录云端并创建任务；这里保留旧任务查询。说话和口型仍在开发中。</p>{onCloudGenerate && <Button onClick={onCloudGenerate}>前往云端生成</Button>}<CreateVideo assets={manifest.assets} shots={manifest.shots} jobs={manifest.jobs} disabled={busy} onAdd={shot => void update({ ...manifest, shots: [...manifest.shots, shot] })} onRefresh={hasDesktopFeature("generation") ? jobId => void refreshGeneration(jobId) : undefined} /></div>}
         </div>
       </aside>
     </div>

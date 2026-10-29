@@ -1,4 +1,5 @@
 import type { GenerationJob, ShotDraft } from "./ai";
+import type { StudioDocument } from "./studio";
 
 export type MediaKind = "image" | "video" | "audio";
 
@@ -39,6 +40,8 @@ export interface ProjectManifestV2 {
   shots: ShotDraft[];
   jobs: GenerationJob[];
   budgetUsd: number | null;
+  studio?: StudioDocument | null;
+  extensions?: Record<string, unknown>;
 }
 
 export interface OpenProject {

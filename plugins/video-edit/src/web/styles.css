@@ -1,0 +1,23 @@
+.video-edit { color: var(--avs-text); background: var(--avs-background); min-height: 100%; border-radius: 16px; overflow: hidden; }
+.video-edit button { cursor: pointer; border: 1px solid var(--avs-border); border-radius: 10px; background: var(--avs-control-bg); color: var(--avs-text); padding: 8px 12px; }
+.video-edit button:disabled { opacity: .5; cursor: not-allowed; }
+.video-edit-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--avs-border); background: var(--avs-toolbar); }
+.video-edit-header small { color: var(--avs-primary); font-size: 11px; letter-spacing: .12em; }
+.video-edit-header h2 { margin: 4px 0 0; font-size: 22px; }
+.video-edit-header>button { font-size: 20px; width: 38px; height: 38px; }
+.video-edit-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 20px; padding: 20px; }
+.video-edit-preview, .video-edit-controls section { border: 1px solid var(--avs-border); border-radius: 16px; padding: 16px; background: var(--avs-surface); }
+.video-edit-preview video { width: 100%; max-height: 65vh; background: #000; border-radius: 12px; }
+.video-edit-preview p, .video-edit-controls small { color: var(--avs-text-muted); font-size: 12px; }
+.video-edit-preview-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.video-edit-preview-tabs .active, .video-edit .video-edit-render { background: var(--avs-primary); color: var(--avs-primary-on); border-color: var(--avs-primary); }
+.video-edit-controls { display: grid; align-content: start; gap: 12px; }
+.video-edit-controls section { display: grid; gap: 10px; }
+.video-edit-controls h3 { font-size: 15px; margin: 0; }
+.video-edit-controls label { display: grid; gap: 5px; font-size: 12px; color: var(--avs-text-muted); }
+.video-edit-controls input { width: 100%; border: 1px solid var(--avs-border); border-radius: 8px; background: var(--avs-background); color: var(--avs-text); padding: 8px; }
+.video-edit-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.video-edit-controls ul { margin: 0; padding: 0; list-style: none; max-height: 120px; overflow: auto; }
+.video-edit-controls li { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--avs-border); padding: 6px 0; font-size: 12px; }
+.video-edit [role=alert] { color: var(--avs-danger); }
+@media (max-width: 800px) { .video-edit-body { grid-template-columns: 1fr; } }

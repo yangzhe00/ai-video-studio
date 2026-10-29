@@ -6,6 +6,7 @@ describe("freeform shot drafts", () => {
     const shot = createShotDraft("human-photo", "在雨中跳舞", 5);
     expect(shot.prompt).toBe("在雨中跳舞");
     expect(shot.speaking).toBe(false);
+    expect(shot.modelId).toBe("kling-v2-5-turbo");
     expect(shot.script).toBeNull();
     expect(shot.prompt).not.toContain("狗");
   });
@@ -15,6 +16,7 @@ describe("freeform shot drafts", () => {
   it("makes supplied speech explicit and validates input", () => {
     const shot = createShotDraft("dog", "在厨房做饭", 5, "妈妈要下班了");
     expect(shot.speaking).toBe(true);
+    expect(shot.modelId).toBe("kling-digital-character");
     expect(shot.script).toBe("妈妈要下班了");
     expect(() => createShotDraft("human", " ")).toThrow("提示词");
     expect(() => createShotDraft("human", "跳舞", 13)).toThrow("4 到 12");

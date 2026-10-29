@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MediaAsset, ProjectManifestV2 } from "@ai-video/project-core";
-import type { ExportArtifacts, MoneyEstimate, ProviderId, ProviderKeyStatus } from "@ai-video/platform-ports";
-export type { ExportArtifacts, MoneyEstimate, ProviderId, ProviderKeyStatus } from "@ai-video/platform-ports";
+import type { ExportArtifacts, MoneyEstimate } from "@ai-video/platform-ports";
+export type { ExportArtifacts, MoneyEstimate } from "@ai-video/platform-ports";
 
 export const createProject = (root: string, title: string) =>
   invoke<ProjectManifestV2>("create_project", { root, title });
@@ -11,6 +11,9 @@ export const openProject = (root: string) =>
 
 export const saveProject = (root: string, manifest: ProjectManifestV2) =>
   invoke<void>("save_project", { root, manifest });
+
+export const backupProject = (root: string) =>
+  invoke<string>("backup_project", { root });
 
 export const importAsset = (root: string, source: string) =>
   invoke<MediaAsset>("import_asset", { root, source });
@@ -30,6 +33,5 @@ export const quoteShot = (modelId: string, durationSec: number) =>
 export const checkShotBudget = (root: string, shotId: string) =>
   invoke<MoneyEstimate>("check_shot_budget", { root, shotId });
 
-export const providerKeyStatus = () => invoke<ProviderKeyStatus[]>("provider_key_status");
-export const setProviderKey = (provider: ProviderId, key: string) => invoke<void>("set_provider_key", { provider, key });
-export const removeProviderKey = (provider: ProviderId) => invoke<void>("remove_provider_key", { provider });
+export const refreshKlingImageVideo = (root: string, jobId: string) =>
+  invoke<ProjectManifestV2>("refresh_kling_image_video", { root, jobId });

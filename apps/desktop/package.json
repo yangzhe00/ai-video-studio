@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-video/design-tokens": "workspace:*",
+    "@ai-video/components": "workspace:*",
     "@ai-video/ui-web": "workspace:*",
     "@ai-video/platform-ports": "workspace:*",
     "@ai-video/plugin-sdk": "workspace:*",
@@ -23,6 +24,7 @@
     "@ai-video/plugin-storyboard": "workspace:*",
     "@ai-video/plugin-generation": "workspace:*",
     "@ai-video/plugin-canvas": "workspace:*",
+    "@ai-video/plugin-video-edit": "workspace:*",
     "@ai-video/plugin-export": "workspace:*",
     "@ai-video/project-core": "workspace:*",
     "@tauri-apps/api": "^2.11.1",

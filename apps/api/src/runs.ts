@@ -82,7 +82,15 @@ export function getRun(db: DatabaseSync, ownerId: string, runId: string) {
   return toSnapshot(db, row);
 }
 
-export function approveRun(db: DatabaseSync, ownerId: string, runId: string, body: Record<string, unknown>) {
+export function listProjectRuns(db: DatabaseSync, ownerId: string, projectId: string) {
+  const project = db.prepare("SELECT id FROM projects WHERE id=? AND owner_id=?").get(projectId, ownerId);
+  if (!project) throw new RunError(404, "项目不存在");
+  const rows = db.prepare("SELECT * FROM agent_runs WHERE project_id=? AND owner_id=? ORDER BY created_at DESC LIMIT 30")
+    .all(projectId, ownerId) as unknown as RunRow[];
+  return rows.map(row => toSnapshot(db, row));
+}
+
+export function approveRun(db: DatabaseSync, ownerId: string, runId: string, body: Record<string, unknown>, maxTotalDemoCredits = Number.MAX_SAFE_INTEGER) {
   if (!validId(body.approvalId) || typeof body.planHash !== "string") throw new RunError(400, "确认请求无效");
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -96,6 +104,8 @@ export function approveRun(db: DatabaseSync, ownerId: string, runId: string, bod
       return getRun(db, ownerId, runId);
     }
     if (run.state !== "waiting_approval") throw new RunError(409, "任务当前不能确认");
+    const total = db.prepare("SELECT COALESCE(SUM(demo_reserved + demo_used), 0) AS credits FROM accounts").get() as { credits: number };
+    if (total.credits >= maxTotalDemoCredits) throw new RunError(503, "平台演示生成总额度已用完");
     const reserved = db.prepare("UPDATE accounts SET demo_reserved=demo_reserved+1 WHERE id=? AND demo_reserved+demo_used<demo_quota").run(ownerId);
     if (!reserved.changes) throw new RunError(403, "演示额度已用完");
     const operationId = randomUUID();

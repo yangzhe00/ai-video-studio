@@ -10,4 +10,6 @@ Checked 2026-10-27. These are planning estimates only. Each paid submission must
 
 Sources: [Hedra Seedance 1.5 Pro](https://www.hedra.com/video-models/seedance-15-pro), [Hedra Kling AI Avatar v2](https://mkt.hedra.com/models/video/kling/ai-avatar-v2), [Runway pricing](https://docs.dev.runwayml.com/guides/pricing/).
 
-Money is converted to integer micro-dollars for reservation arithmetic. The current UI only checks and displays a quote; it does not authorize or submit a paid request. `reserve_budget` will be called by the durable job submission flow, where it must persist the reservation before sending any request to a provider.
+Money is converted to integer micro-dollars for the legacy quote and reservation helpers. Those helpers are not used by the current Kling generation workflow; their USD baselines must not be shown as Kling prices.
+
+The separate Kling image-to-video integration can submit a paid `kling-v2-5-turbo` task after an explicit confirmation. The old USD baselines above do not price this model and are not displayed as a Kling quote. Its task record currently stores `estimatedUsd: 0` as an unknown placeholder; this is not a zero-cost claim. The accurate charge must be checked in the Kling console. Numeric Kling price review and budget enforcement remain future work.

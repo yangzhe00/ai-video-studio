@@ -4,11 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./cloud-dsl": "./src/dsl/migrate-cloud.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-video/project-schema": "workspace:*"
   },
   "devDependencies": {
     "typescript": "~6.0.3",

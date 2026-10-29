@@ -1,5 +1,10 @@
+import { createHash } from "node:crypto";
+import { open, rm } from "node:fs/promises";
+
 export interface KlingSubmitResult { kind: "accepted" | "rejected" | "unknown"; remoteTaskId?: string }
 export interface KlingTask { status: "missing" | "submitted" | "processing" | "succeeded" | "failed" | "unknown"; remoteTaskId?: string; videoUrl?: string; message?: string }
+export const MAX_CLOUD_VIDEO_BYTES = 100_000_000;
+export class VideoTooLargeError extends Error {}
 
 export class KlingGateway {
   constructor(
@@ -41,7 +46,7 @@ export class KlingGateway {
     return { status, remoteTaskId: task.id, videoUrl: task.outputs?.find(item => item.type === "video")?.url, message: task.message };
   }
 
-  async download(videoUrl: string, maxBytes = 500_000_000): Promise<Buffer> {
+  private async videoResponse(videoUrl: string): Promise<Response> {
     let current = videoUrl;
     for (let redirect = 0; redirect <= 4; redirect++) {
       const url = new URL(current);
@@ -55,17 +60,51 @@ export class KlingGateway {
         current = new URL(location, url).toString(); continue;
       }
       if (!response.ok || !response.body) throw new Error("视频结果下载失败");
-      const chunks: Buffer[] = [];
-      let total = 0;
-      for await (const chunk of response.body) {
-        const bytes = Buffer.from(chunk);
-        total += bytes.length;
-        if (total > maxBytes) throw new Error("视频结果超过大小限制");
-        chunks.push(bytes);
-      }
-      if (!total) throw new Error("视频结果为空");
-      return Buffer.concat(chunks);
+      return response;
     }
     throw new Error("视频结果重定向过多");
+  }
+
+  async download(videoUrl: string, maxBytes = MAX_CLOUD_VIDEO_BYTES): Promise<Buffer> {
+    const response = await this.videoResponse(videoUrl);
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of response.body!) {
+      const bytes = Buffer.from(chunk);
+      total += bytes.length;
+      if (total > maxBytes) throw new VideoTooLargeError("视频结果超过大小限制");
+      chunks.push(bytes);
+    }
+    if (!total) throw new Error("视频结果为空");
+    return Buffer.concat(chunks);
+  }
+
+  async downloadToFile(videoUrl: string, path: string, maxBytes = MAX_CLOUD_VIDEO_BYTES): Promise<{ sha256: string; size: number }> {
+    const response = await this.videoResponse(videoUrl);
+    const file = await open(path, "wx");
+    const hash = createHash("sha256");
+    let total = 0;
+    let complete = false;
+    try {
+      for await (const chunk of response.body!) {
+        const bytes = Buffer.from(chunk);
+        total += bytes.length;
+        if (total > maxBytes) throw new VideoTooLargeError("视频结果超过大小限制");
+        hash.update(bytes);
+        let offset = 0;
+        while (offset < bytes.length) {
+          const written = (await file.write(bytes, offset, bytes.length - offset)).bytesWritten;
+          if (written < 1) throw new Error("视频结果写入失败");
+          offset += written;
+        }
+      }
+      if (!total) throw new Error("视频结果为空");
+      await file.sync();
+      complete = true;
+      return { sha256: hash.digest("hex"), size: total };
+    } finally {
+      await file.close();
+      if (!complete) await rm(path, { force: true });
+    }
   }
 }

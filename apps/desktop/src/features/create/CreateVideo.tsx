@@ -1,10 +1,23 @@
 import { useState } from "react";
 import { createShotDraft, DOG_CHEF_PRESET } from "@ai-video/project-core";
-import type { ShotDraft, MediaAsset } from "@ai-video/project-core";
+import type { ShotDraft, MediaAsset, GenerationJob } from "@ai-video/project-core";
 
-interface Props { assets: MediaAsset[]; shots: ShotDraft[]; disabled?: boolean; onAdd: (shot: ShotDraft) => void }
+interface Props {
+  assets: MediaAsset[];
+  shots: ShotDraft[];
+  jobs?: GenerationJob[];
+  disabled?: boolean;
+  onAdd: (shot: ShotDraft) => void;
+  onGenerate?: (shotId: string) => void;
+  onRefresh?: (jobId: string) => void;
+}
 
-export function CreateVideo({ assets, shots, disabled, onAdd }: Props) {
+const jobLabel: Record<GenerationJob["state"], string> = {
+  draft: "草稿", submitting: "提交中", queued: "排队中", running: "生成中",
+  download_pending: "待下载", succeeded: "已生成", failed: "生成失败", unknown: "状态待确认",
+};
+
+export function CreateVideo({ assets, shots, jobs = [], disabled, onAdd, onGenerate, onRefresh }: Props) {
   const images = assets.filter(asset => asset.kind === "image" && !asset.missing);
   const [source, setSource] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -19,15 +32,25 @@ export function CreateVideo({ assets, shots, disabled, onAdd }: Props) {
 
   return <div className="editor-panel create-video-panel">
     <div className="panel-heading"><h2>照片生成视频 · 分镜草稿</h2><button type="button" onClick={() => { setPrompt(DOG_CHEF_PRESET.prompt); setScript(DOG_CHEF_PRESET.script); }}>使用宠物小厨师示例</button></div>
-    <p className="muted">自由描述任意人物或动物的场景与动作。说话台词可留空；草稿保存后再进行模型费用确认与生成。</p>
+    <p className="muted">自由描述任意人物或动物的场景与动作。先保存草稿；无台词镜头可提交到可灵生成，说话镜头暂仅保存草稿。</p>
     <div className="story-form">
       <label>参考照片<select aria-label="参考照片" value={source} onChange={event => setSource(event.target.value)}><option value="">请选择</option>{images.map(asset => <option key={asset.id} value={asset.id}>{asset.relativePath.split("/").slice(-1)[0]}</option>)}</select></label>
       <label className="story-prompt">场景和动作提示词<textarea aria-label="场景和动作提示词" value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="例如：照片中的人物在雨中跳舞；或动物在森林奔跑" /></label>
-      <label>时长（秒）<input aria-label="镜头时长" type="number" min="4" max="12" step="1" value={duration} onChange={event => setDuration(Number(event.target.value))} /></label>
+      <label>时长（秒）<select aria-label="镜头时长" value={duration} onChange={event => setDuration(Number(event.target.value))}><option value={5}>5 秒</option><option value={10}>10 秒</option></select></label>
       <label>可选台词<textarea aria-label="可选台词" value={script} onChange={event => setScript(event.target.value)} placeholder="留空则不制作说话镜头" /></label>
       <button type="button" disabled={disabled} onClick={add}>保存分镜草稿</button>
     </div>
     {error && <p className="error" role="alert">{error}</p>}
-    {shots.length > 0 && <ol className="shot-list">{shots.map(shot => <li key={shot.id}><strong>{shot.prompt}</strong><small>{shot.durationSec} 秒 · {shot.speaking ? `说话：${shot.script}` : "无台词"} · {shot.modelId}</small></li>)}</ol>}
+    {shots.length > 0 && <ol className="shot-list">{shots.map(shot => {
+      const job = jobs.filter(item => item.shotId === shot.id && item.provider === "kling").slice(-1)[0];
+      const active = job && !["failed", "succeeded", "draft"].includes(job.state);
+      const eligible = !shot.speaking && shot.modelId === "kling-v2-5-turbo" && [5, 10].includes(shot.durationSec);
+      return <li key={shot.id}><strong>{shot.prompt}</strong><small>{shot.durationSec} 秒 · {shot.speaking ? `说话：${shot.script}` : "无台词"}</small>
+        {job && <small role="status">可灵任务：{jobLabel[job.state]}</small>}
+        {eligible && !active && onGenerate && <button type="button" disabled={disabled} onClick={() => onGenerate(shot.id)}>生成视频（付费）</button>}
+        {active && onRefresh && <button type="button" disabled={disabled} onClick={() => onRefresh(job.id)}>查询原任务状态</button>}
+        {shot.speaking && <small>配音和动物口型仍在开发中</small>}
+      </li>;
+    })}</ol>}
   </div>;
 }

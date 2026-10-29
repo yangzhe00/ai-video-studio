@@ -14,6 +14,6 @@ export function createShotDraft(sourceAssetId: string, prompt: string, durationS
   return {
     id: crypto.randomUUID(), sourceAssetId, prompt: cleanPrompt, durationSec,
     speaking: cleanScript !== null, script: cleanScript, acceptedAudioAssetId: null,
-    modelId: cleanScript ? "kling-ai-avatar-v2-standard" : "seedance-15-pro",
+    modelId: cleanScript ? "kling-digital-character" : "kling-v2-5-turbo",
   };
 }

@@ -54,6 +54,10 @@ pub struct ProjectManifestV2 {
     pub jobs: Vec<GenerationJob>,
     #[serde(default)]
     pub budget_usd: Option<f64>,
+    #[serde(default)]
+    pub studio: Option<serde_json::Value>,
+    #[serde(default)]
+    pub extensions: Option<serde_json::Value>,
 }
 
 fn validate_title(title: &str) -> Result<(), String> {
@@ -120,6 +124,8 @@ pub fn create_project_impl(root: &Path, title: String) -> Result<ProjectManifest
         shots: Vec::new(),
         jobs: Vec::new(),
         budget_usd: None,
+        studio: None,
+        extensions: None,
     };
     save_project_impl(root, &manifest)?;
     Ok(manifest)
@@ -143,6 +149,36 @@ pub fn save_project_impl(root: &Path, manifest: &ProjectManifestV2) -> Result<()
     fs::write(&temp, bytes).map_err(|err| format!("无法保存项目：{err}"))?;
     fs::rename(&temp, root.join(PROJECT_FILE)).map_err(|err| format!("无法替换项目文件：{err}"))?;
     Ok(())
+}
+
+fn copy_project_files(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir(destination).map_err(|err| format!("无法创建备份目录：{err}"))?;
+    for entry in fs::read_dir(source).map_err(|err| format!("无法读取项目目录：{err}"))? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let kind = entry.file_type().map_err(|err| err.to_string())?;
+        if kind.is_symlink() { return Err("项目包含符号链接，无法安全备份".into()); }
+        let target = destination.join(entry.file_name());
+        if kind.is_dir() { copy_project_files(&entry.path(), &target)?; }
+        else if kind.is_file() { fs::copy(entry.path(), target).map_err(|err| format!("备份项目文件失败：{err}"))?; }
+        else { return Err("项目包含不支持的文件类型，无法安全备份".into()); }
+    }
+    Ok(())
+}
+
+pub fn backup_project_impl(root: &Path) -> Result<PathBuf, String> {
+    if !root.is_dir() || !root.join(PROJECT_FILE).is_file() { return Err("项目目录或项目文件不存在".into()); }
+    let parent = root.parent().ok_or("无法确定项目备份位置")?;
+    let name = root.file_name().and_then(|part| part.to_str()).ok_or("项目目录名称无效")?;
+    let destination = parent.join(format!("{name}-backup-{}", Uuid::new_v4()));
+    let result = copy_project_files(root, &destination);
+    if result.is_err() { let _ = fs::remove_dir_all(&destination); }
+    result.map(|_| destination)
+}
+
+#[tauri::command]
+pub async fn backup_project(root: PathBuf) -> Result<PathBuf, String> {
+    tauri::async_runtime::spawn_blocking(move || backup_project_impl(&root))
+        .await.map_err(|err| format!("备份任务失败：{err}"))?
 }
 
 #[tauri::command]
@@ -170,12 +206,28 @@ mod tests {
     }
 
     #[test]
+    fn backup_preserves_project_and_media_before_conflict_resolution() {
+        let root = test_root();
+        let _ = create_project_impl(&root, "演示项目".into()).unwrap();
+        let media = root.join("media/source/photo.jpg");
+        fs::write(&media, b"original-photo").unwrap();
+        let backup = backup_project_impl(&root).unwrap();
+        fs::write(&media, b"changed-photo").unwrap();
+        assert_eq!(fs::read(backup.join("media/source/photo.jpg")).unwrap(), b"original-photo");
+        assert!(backup.join(PROJECT_FILE).is_file());
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(backup).unwrap();
+    }
+
+    #[test]
     fn project_create_save_open_and_move() {
         let root = test_root();
         let mut manifest = create_project_impl(&root, "演示项目".into()).unwrap();
         assert_eq!(manifest.version, 2);
         assert!(root.join("media/source").is_dir());
         manifest.publishing_copy = "第一条视频".into();
+        manifest.studio = Some(serde_json::json!({"version": 1, "activeEpisodeId": "ep-1", "characters": [], "episodes": [{"id": "ep-1", "title": "第 1 集", "nodes": [], "edges": [], "clips": [], "captions": []}]}));
+        manifest.extensions = Some(serde_json::json!({"canvas": {"version": 1, "episodeGraphs": {"ep-1": {"nodes": [], "edges": [], "viewport": {"x": 0, "y": 0, "zoom": 1}}}}, "futurePlugin": {"data": "preserved"}}));
         save_project_impl(&root, &manifest).unwrap();
         let moved = test_root();
         fs::rename(&root, &moved).unwrap();

@@ -20,6 +20,7 @@ pub enum JobState {
     Submitting,
     Queued,
     Running,
+    DownloadPending,
     Succeeded,
     Failed,
     Unknown,

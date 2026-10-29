@@ -14,7 +14,10 @@ async function inspect(directory) {
     for (const [, specifier] of imports) {
       const isReact = specifier === "react" || specifier.startsWith("react/");
       const platformCode = specifier.startsWith("@tauri-apps/") || specifier.startsWith("node:") || specifier.includes("apps/desktop") || specifier.includes("src-tauri");
-      if (platformCode || (isReact && !path.startsWith("packages/ui-web/"))) {
+      const uiLayer = path.startsWith("packages/ui-web/") || path.startsWith("packages/ui-native/")
+        || /^plugins\/canvas\/src\/CanvasPage\.tsx$/.test(path)
+        || path.startsWith("plugins/video-edit/src/web/") || path.startsWith("plugins/video-edit/src/native/");
+      if (platformCode || (isReact && !uiLayer)) {
         violations.push(`${path}: forbidden dependency ${specifier}`);
       }
     }

@@ -33,7 +33,7 @@ fn reserved_usd_micros(job: &GenerationJob) -> Result<u64, String> {
     if let Some(actual) = job.actual_usd { return usd_to_micros(actual); }
     match job.state {
         JobState::Draft | JobState::Failed => Ok(0),
-        JobState::Submitting | JobState::Queued | JobState::Running | JobState::Succeeded | JobState::Unknown => usd_to_micros(job.estimated_usd),
+        JobState::Submitting | JobState::Queued | JobState::Running | JobState::DownloadPending | JobState::Succeeded | JobState::Unknown => usd_to_micros(job.estimated_usd),
     }
 }
 

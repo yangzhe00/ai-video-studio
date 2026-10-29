@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "dependencies": { "@ai-video/agent-core": "workspace:*" },
+  "dependencies": { "@ai-video/agent-core": "workspace:*", "@ai-video/plugin-video-edit": "workspace:*", "@ai-video/project-core": "workspace:*", "@ffmpeg-installer/ffmpeg": "^1.1.0", "@ffprobe-installer/ffprobe": "^2.1.2" },
   "scripts": {
-    "dev": "node --experimental-strip-types src/main.ts",
+    "dev": "node --experimental-transform-types src/main.ts",
     "build": "tsc --noEmit",
     "test": "vitest run"
   },

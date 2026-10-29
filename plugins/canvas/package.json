@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@ai-video/plugin-sdk": "workspace:*" }
+  "exports": { ".": "./src/index.ts", "./desktop": "./src/CanvasPage.tsx", "./canvas": "./src/CanvasPage.tsx", "./web": "./src/CanvasPage.tsx" },
+  "dependencies": { "@ai-video/plugin-sdk": "workspace:*", "@ai-video/project-core": "workspace:*", "@ai-video/ui-web": "workspace:*" },
+  "peerDependencies": { "react": "^19.1.0" },
+  "devDependencies": { "@types/react": "^19.1.8", "react": "^19.1.0" }
 }

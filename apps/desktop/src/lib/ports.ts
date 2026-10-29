@@ -3,7 +3,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import type { PlatformPorts } from "@ai-video/platform-ports";
 import {
   auditAssets, checkShotBudget, createProject, exportProject, importAsset, openProject,
-  providerKeyStatus, quoteShot, readAsset, removeProviderKey, saveProject, setProviderKey,
+  quoteShot, readAsset, saveProject, refreshKlingImageVideo,
 } from "./native";
 
 const chooseDirectory = async (title: string): Promise<string | null> => {
@@ -35,8 +35,6 @@ export const desktopPorts: PlatformPorts = {
   ai: {
     quote: quoteShot,
     checkBudget: checkShotBudget,
-    keyStatus: providerKeyStatus,
-    setKey: setProviderKey,
-    removeKey: removeProviderKey,
+    refreshImageVideo: refreshKlingImageVideo,
   },
 };

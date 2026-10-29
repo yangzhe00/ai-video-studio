@@ -154,8 +154,12 @@ pub fn export_project_impl(root: &Path, output_name: &str, ffmpeg: &Path, ffprob
 }
 
 #[tauri::command]
-pub fn export_project(root: PathBuf, output_name: String) -> Result<ExportArtifacts, String> {
-    export_project_impl(&root, &output_name, &tool_path("ffmpeg"), &tool_path("ffprobe"))
+pub async fn export_project(root: PathBuf, output_name: String) -> Result<ExportArtifacts, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        export_project_impl(&root, &output_name, &tool_path("ffmpeg"), &tool_path("ffprobe"))
+    })
+    .await
+    .map_err(|_| "导出线程意外中断".to_string())?
 }
 
 #[cfg(test)]
