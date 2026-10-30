@@ -1,4 +1,5 @@
 import type { Caption, ProjectManifestV2, TimelineClip } from "./project";
+import type { CloudEpisodeAudio } from "./sync";
 import { migrateStudioGraph, readCanvasDocument, writeCanvasEpisodeGraph } from "./canvas-extension";
 
 export type StudioNodeType = "character" | "image" | "text" | "video" | "timeline";
@@ -41,6 +42,7 @@ export interface StudioEpisode {
   captions: Caption[];
   publishingCopy: string;
   coverTimeMs: number | null;
+  audio?: CloudEpisodeAudio;
 }
 
 export interface StudioDocument {

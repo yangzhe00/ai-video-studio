@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MediaAsset, ProjectManifestV2 } from "@ai-video/project-core";
+import type { CreationBrief, MediaAsset, ProjectManifestV2 } from "@ai-video/project-core";
 import type { ExportArtifacts, MoneyEstimate } from "@ai-video/platform-ports";
 export type { ExportArtifacts, MoneyEstimate } from "@ai-video/platform-ports";
 
-export const createProject = (root: string, title: string) =>
-  invoke<ProjectManifestV2>("create_project", { root, title });
+export const createProject = (root: string, title: string, initialBrief?: CreationBrief) =>
+  invoke<ProjectManifestV2>("create_project", { root, title, ...(initialBrief ? { initialBrief } : {}) });
 
 export const openProject = (root: string) =>
   invoke<ProjectManifestV2>("open_project", { root });

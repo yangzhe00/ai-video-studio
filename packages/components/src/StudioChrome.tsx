@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { StudioIcon } from "@ai-video/ui-web";
 
@@ -26,10 +27,12 @@ const navigation: { id: StudioSection; label: string; icon: "home" | "sparkles" 
   { id: "assets", label: "资产", icon: "folder" },
 ];
 
-export function StudioSidebar({ active, onNavigate, projectTitle, footer }: {
+export function StudioSidebar({ active, onNavigate, projectTitle, footer, mobileOpen = false, id }: {
   active: StudioSection | null; onNavigate: (section: StudioSection) => void; projectTitle?: string; footer?: ReactNode;
+  mobileOpen?: boolean; id?: string;
 }) {
-  return <aside className="avs-studio-sidebar" aria-label="主导航">
+  return <aside id={id} className={`avs-studio-sidebar${mobileOpen ? " avs-studio-sidebar--open" : ""}`}
+    aria-label="主导航" aria-hidden={id && !mobileOpen ? true : undefined}>
     <div className="avs-studio-brand"><span aria-hidden="true">✦</span><strong>AI Video Studio</strong></div>
     <nav>{navigation.map(item => <button type="button" key={item.id} className={active === item.id ? "active" : ""}
       aria-current={active === item.id ? "page" : undefined} onClick={() => onNavigate(item.id)}>
@@ -39,9 +42,28 @@ export function StudioSidebar({ active, onNavigate, projectTitle, footer }: {
   </aside>;
 }
 
-export function StudioShell({ active, onNavigate, projectTitle, footer, children }: {
-  active: StudioSection | null; onNavigate: (section: StudioSection) => void; projectTitle?: string; footer?: ReactNode; children: ReactNode;
+export function StudioShell({ active, onNavigate, projectTitle, footer, children, mobileNavigation = false }: {
+  active: StudioSection | null; onNavigate: (section: StudioSection) => void; projectTitle?: string; footer?: ReactNode;
+  children: ReactNode; mobileNavigation?: boolean;
 }) {
-  return <div className="avs-studio-shell"><StudioSidebar active={active} onNavigate={onNavigate} projectTitle={projectTitle} footer={footer} />
-    <div className="avs-studio-stage">{children}</div></div>;
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
+  const navigate = (section: StudioSection) => { setMenuOpen(false); onNavigate(section); };
+  return <div className={`avs-studio-shell${mobileNavigation ? " avs-studio-shell--h5" : ""}`}>
+    {mobileNavigation && <header className="avs-mobile-header"><strong><span aria-hidden="true">✦</span> AI Video Studio</strong>
+      <button type="button" aria-label="打开账号与项目菜单" aria-expanded={menuOpen} aria-controls="avs-mobile-sidebar"
+        onClick={() => setMenuOpen(open => !open)}><StudioIcon name="more" size={20} /><span>菜单</span></button></header>}
+    {mobileNavigation && menuOpen && <button type="button" className="avs-mobile-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
+    <StudioSidebar id={mobileNavigation ? "avs-mobile-sidebar" : undefined} active={active} onNavigate={navigate}
+      projectTitle={projectTitle} footer={footer} mobileOpen={menuOpen} />
+    <div className="avs-studio-stage">{children}</div>
+    {mobileNavigation && <nav className="avs-mobile-nav" aria-label="手机主导航">{navigation.map(item => <button type="button" key={item.id}
+      className={active === item.id ? "active" : ""} aria-current={active === item.id ? "page" : undefined}
+      onClick={() => navigate(item.id)}><StudioIcon name={item.icon} size={20} /><span>{item.label}</span></button>)}</nav>}
+  </div>;
 }

@@ -12,6 +12,7 @@ const project = () => ({
 describe("shared cloud response contracts", () => {
   it("accepts legacy asset-only timelines on all clients", () => {
     expect(parseCloudEnvelope({ project: project() }).project.document.episodes[0].timeline).toEqual(["asset-1"]);
+    expect(parseCloudProjectSnapshot(project()).document.briefs).toEqual([]);
   });
 
   it("rejects clip metadata whose asset order disagrees with the timeline", () => {

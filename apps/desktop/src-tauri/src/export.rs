@@ -1,5 +1,5 @@
 use crate::project::{open_project_impl, validate_relative_path, ProjectManifestV2};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,6 +11,33 @@ use uuid::Uuid;
 pub struct ExportArtifacts {
     pub video_relative_path: String,
     pub cover_relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioPlacement {
+    asset_id: String,
+    start_ms: u64,
+    in_ms: u64,
+    out_ms: u64,
+    volume: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EpisodeAudio {
+    original_volume: f64,
+    voice_clips: Vec<AudioPlacement>,
+    music_clips: Vec<AudioPlacement>,
+}
+
+fn active_episode_audio(manifest: &ProjectManifestV2) -> Result<Option<EpisodeAudio>, String> {
+    let Some(studio) = manifest.studio.as_ref() else { return Ok(None); };
+    let Some(active_id) = studio.get("activeEpisodeId").and_then(Value::as_str) else { return Ok(None); };
+    let Some(episodes) = studio.get("episodes").and_then(Value::as_array) else { return Ok(None); };
+    let episode = episodes.iter().find(|episode| episode.get("id").and_then(Value::as_str) == Some(active_id));
+    episode.and_then(|episode| episode.get("audio")).map(|audio|
+        serde_json::from_value(audio.clone()).map_err(|_| "分集音轨格式无效".to_string())).transpose()
 }
 
 fn tool_path(name: &str) -> PathBuf {
@@ -38,6 +65,15 @@ fn has_audio(binary: &Path, source: &Path) -> Result<bool, String> {
     if !result.status.success() { return Err("无法读取源视频的音轨".into()); }
     let value: Value = serde_json::from_slice(&result.stdout).map_err(|err| err.to_string())?;
     Ok(value["streams"].as_array().is_some_and(|streams| !streams.is_empty()))
+}
+
+fn has_aac_audio(binary: &Path, source: &Path) -> Result<bool, String> {
+    let result = Command::new(binary)
+        .args(["-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_name", "-of", "json"])
+        .arg(source).output().map_err(|err| format!("无法启动 ffprobe：{err}"))?;
+    if !result.status.success() { return Err("无法读取导出视频的音轨".into()); }
+    let value: Value = serde_json::from_slice(&result.stdout).map_err(|err| err.to_string())?;
+    Ok(value["streams"].as_array().is_some_and(|streams| streams.iter().any(|stream| stream["codec_name"] == "aac")))
 }
 
 fn ass_time(ms: u64) -> String {
@@ -79,7 +115,59 @@ fn validate_export(manifest: &ProjectManifestV2, root: &Path) -> Result<u64, Str
         if caption.start_ms >= caption.end_ms || caption.end_ms > total_ms { return Err("字幕时间超出成片范围".into()); }
     }
     if manifest.cover_time_ms.unwrap_or(0) >= total_ms { return Err("封面时间超出成片范围".into()); }
+    if let Some(audio) = active_episode_audio(manifest)? {
+        if !audio.original_volume.is_finite() || !(0.0..=2.0).contains(&audio.original_volume) ||
+            audio.voice_clips.len() > 100 || audio.music_clips.len() > 100 {
+            return Err("分集音轨参数无效".into());
+        }
+        for (kind, clips) in [("voice", &audio.voice_clips), ("music", &audio.music_clips)] {
+            for clip in clips {
+                let asset = manifest.assets.iter().find(|asset| asset.id == clip.asset_id)
+                    .ok_or("分集音频素材不存在")?;
+                if asset.missing || (asset.kind != kind && asset.kind != "audio") {
+                    return Err("分集音频素材类型无效或已丢失".into());
+                }
+                validate_relative_path(&asset.relative_path)?;
+                let source = fs::canonicalize(root.join(&asset.relative_path)).map_err(|_| "分集音频文件已丢失".to_string())?;
+                if !source.starts_with(&canonical_root) { return Err("音频路径越过项目目录".into()); }
+                if clip.start_ms >= total_ms || clip.out_ms <= clip.in_ms ||
+                    clip.out_ms > asset.duration_ms.unwrap_or(0) ||
+                    !clip.volume.is_finite() || !(0.0..=2.0).contains(&clip.volume) {
+                    return Err("分集音频的时间或音量参数无效".into());
+                }
+            }
+        }
+    }
     Ok(total_ms)
+}
+
+fn mix_episode_audio(root: &Path, manifest: &ProjectManifestV2, audio: &EpisodeAudio,
+    source: &Path, output: &Path, total_ms: u64, ffmpeg: &Path, ffprobe: &Path) -> Result<(), String> {
+    let clips: Vec<&AudioPlacement> = audio.voice_clips.iter().chain(audio.music_clips.iter()).collect();
+    let mut args = vec!["-i".to_string(), source.to_string_lossy().into_owned()];
+    for clip in &clips {
+        let asset = manifest.assets.iter().find(|asset| asset.id == clip.asset_id).ok_or("分集音频素材不存在")?;
+        args.push("-i".to_string());
+        args.push(root.join(&asset.relative_path).to_string_lossy().into_owned());
+    }
+    let seconds = |ms: u64| format!("{:.3}", ms as f64 / 1000.0);
+    let mut filters = vec![format!("[0:a:0]atrim=duration={},asetpts=PTS-STARTPTS,aresample=48000,volume={},apad,atrim=duration={}[original]",
+        seconds(total_ms), audio.original_volume, seconds(total_ms))];
+    for (index, clip) in clips.iter().enumerate() {
+        filters.push(format!("[{}:a:0]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume={},adelay=delays={}|{},apad,atrim=duration={}[audio{}]",
+            index + 1, seconds(clip.in_ms), seconds(clip.out_ms), clip.volume, clip.start_ms, clip.start_ms, seconds(total_ms), index));
+    }
+    let mut inputs = "[original]".to_string();
+    for index in 0..clips.len() { inputs.push_str(&format!("[audio{index}]")); }
+    filters.push(format!("{inputs}amix=inputs={}:duration=longest:dropout_transition=0,volume={},alimiter=limit=0.95,loudnorm=I=-16:TP=-1.5:LRA=11[mixed]", clips.len() + 1, clips.len() + 1));
+    args.extend(["-filter_complex".to_string(), filters.join(";"), "-map".to_string(), "0:v:0".to_string(),
+        "-map".to_string(), "[mixed]".to_string(), "-t".to_string(), seconds(total_ms),
+        "-c:v".to_string(), "copy".to_string(), "-c:a".to_string(), "aac".to_string(),
+        "-ar".to_string(), "48000".to_string(), "-movflags".to_string(), "+faststart".to_string()]);
+    let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+    run_ffmpeg(ffmpeg, &borrowed, output)?;
+    if !has_aac_audio(ffprobe, output)? { return Err("导出视频缺少 AAC 音轨".into()); }
+    Ok(())
 }
 
 pub fn export_project_impl(root: &Path, output_name: &str, ffmpeg: &Path, ffprobe: &Path) -> Result<ExportArtifacts, String> {
@@ -134,15 +222,20 @@ pub fn export_project_impl(root: &Path, output_name: &str, ffmpeg: &Path, ffprob
             let _ = fs::remove_file(subtitle_path);
             subtitle_result?;
         }
+        let mixed = temp.join("mixed.mp4");
+        let final_video = if let Some(audio) = active_episode_audio(&manifest)? {
+            mix_episode_audio(root, &manifest, &audio, &subtitled, &mixed, total_ms, ffmpeg, ffprobe)?;
+            &mixed
+        } else { &subtitled };
         let cover = temp.join("cover.png");
         let cover_seconds = format!("{:.3}", manifest.cover_time_ms.unwrap_or(0).min(total_ms.saturating_sub(100)) as f64 / 1000.0);
-        run_ffmpeg(ffmpeg, &["-ss", &cover_seconds, "-i", &subtitled.to_string_lossy(), "-frames:v", "1"], &cover)?;
+        run_ffmpeg(ffmpeg, &["-ss", &cover_seconds, "-i", &final_video.to_string_lossy(), "-frames:v", "1"], &cover)?;
         let video_relative_path = format!("exports/{output_name}.mp4");
         let cover_relative_path = format!("exports/{output_name}-cover.png");
         let video_destination = root.join(&video_relative_path);
         let cover_destination = root.join(&cover_relative_path);
         if video_destination.exists() || cover_destination.exists() { return Err("同名导出文件已存在，请更换名称".into()); }
-        fs::rename(subtitled, &video_destination).map_err(|err| format!("无法保存视频：{err}"))?;
+        fs::rename(final_video, &video_destination).map_err(|err| format!("无法保存视频：{err}"))?;
         if let Err(err) = fs::rename(cover, &cover_destination) {
             let _ = fs::remove_file(&video_destination);
             return Err(format!("无法保存封面：{err}"));
@@ -203,6 +296,44 @@ mod tests {
         let details: Value = serde_json::from_slice(&probe.stdout).unwrap();
         assert_eq!(details["streams"][0]["width"], 1080);
         assert_eq!(details["streams"][0]["height"], 1920);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn export_mixes_saved_episode_voice_without_replacing_source() {
+        let ffmpeg = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries/ffmpeg");
+        let ffprobe = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries/ffprobe");
+        if !ffmpeg.is_file() || !ffprobe.is_file() { return; }
+        let root = std::env::temp_dir().join(format!("ai-video-voice-export-{}", Uuid::new_v4()));
+        let mut manifest = create_project_impl(&root, "配音导出测试".into()).unwrap();
+        let source = root.join("media/source/source.mp4");
+        let voice = root.join("media/source/voice.mp3");
+        let video = Command::new(&ffmpeg).args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi",
+            "-i", "color=c=blue:s=64x64:r=12:d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p"])
+            .arg(&source).output().unwrap();
+        assert!(video.status.success());
+        let audio = Command::new(&ffmpeg).args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi",
+            "-i", "sine=frequency=800:duration=1"])
+            .arg(&voice).output().unwrap();
+        assert!(audio.status.success());
+        manifest.assets.push(MediaAsset { id: "video-001".into(), kind: "video".into(),
+            relative_path: "media/source/source.mp4".into(), duration_ms: Some(1000),
+            width: Some(64), height: Some(64), missing: false });
+        manifest.assets.push(MediaAsset { id: "voice-001".into(), kind: "voice".into(),
+            relative_path: "media/source/voice.mp3".into(), duration_ms: Some(1000),
+            width: None, height: None, missing: false });
+        manifest.clips.push(TimelineClip { id: "clip-001".into(), asset_id: "video-001".into(),
+            in_ms: 0, out_ms: 1000, volume: 1.0 });
+        manifest.studio = Some(serde_json::json!({ "version": 1, "activeEpisodeId": "episode-001",
+            "characters": [], "episodes": [{ "id": "episode-001", "title": "第一集", "nodes": [], "edges": [],
+            "clips": manifest.clips, "captions": [], "publishingCopy": "", "coverTimeMs": null,
+            "audio": { "originalVolume": 0, "voiceClips": [{ "assetId": "voice-001", "startMs": 200,
+                "inMs": 0, "outMs": 800, "volume": 1 }], "musicClips": [] } }] }));
+        let original = fs::read(&source).unwrap();
+        save_project_impl(&root, &manifest).unwrap();
+        let result = export_project_impl(&root, "voice", &ffmpeg, &ffprobe).unwrap();
+        assert!(has_aac_audio(&ffprobe, &root.join(result.video_relative_path)).unwrap());
+        assert_eq!(fs::read(&source).unwrap(), original);
         fs::remove_dir_all(root).unwrap();
     }
 }

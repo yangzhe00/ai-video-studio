@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "exports": { ".": "./src/index.ts", "./core": "./src/core.ts", "./web": "./src/web/VideoEditor.tsx", "./native": "./src/native/VideoEditor.tsx", "./styles.css": "./src/web/styles.css" },
-  "dependencies": { "@ai-video/plugin-sdk": "workspace:*" },
+  "dependencies": { "@ai-video/api-contracts": "workspace:*", "@ai-video/plugin-sdk": "workspace:*" },
   "peerDependencies": { "react": "^19.1.0" },
   "devDependencies": { "@testing-library/react": "^16.3.0", "@types/react": "^19.1.8", "react": "^19.1.0", "react-native": "0.86.3", "expo-video": "~57.0.5", "typescript": "~6.0.3", "vitest": "^4.0.0", "jsdom": "^27.0.0" },
   "scripts": { "test": "vitest run --environment jsdom", "build": "tsc --noEmit" }

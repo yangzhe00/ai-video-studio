@@ -3,7 +3,7 @@ import { generatePromptVariants, IdeaModelError } from "./idea-model.ts";
 import type { ApiConfig } from "./config.ts";
 
 const base: ApiConfig = {
-  dataDir: "/tmp/idea-model-test", sessionSecret: "x".repeat(32),
+  dataDir: "/tmp/idea-model-test", databaseUrl: "postgresql://unused", sessionSecret: "x".repeat(32),
   ideaModelBaseUrl: "https://model.example/v1", ideaModelApiKey: "server-secret", ideaModelId: "text-model",
   ideaModelTimeoutMs: 1000,
 };

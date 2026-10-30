@@ -21,12 +21,11 @@ export function CreateVideo({ assets, shots, jobs = [], disabled, onAdd, onGener
   const images = assets.filter(asset => asset.kind === "image" && !asset.missing);
   const [source, setSource] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [duration, setDuration] = useState(5);
   const [script, setScript] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function add() {
-    try { onAdd(createShotDraft(source, prompt, duration, script)); setError(null); }
+    try { onAdd(createShotDraft(source, prompt, 5, script)); setError(null); }
     catch (cause) { setError(String(cause)); }
   }
 
@@ -36,7 +35,7 @@ export function CreateVideo({ assets, shots, jobs = [], disabled, onAdd, onGener
     <div className="story-form">
       <label>参考照片<select aria-label="参考照片" value={source} onChange={event => setSource(event.target.value)}><option value="">请选择</option>{images.map(asset => <option key={asset.id} value={asset.id}>{asset.relativePath.split("/").slice(-1)[0]}</option>)}</select></label>
       <label className="story-prompt">场景和动作提示词<textarea aria-label="场景和动作提示词" value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="例如：照片中的人物在雨中跳舞；或动物在森林奔跑" /></label>
-      <label>时长（秒）<select aria-label="镜头时长" value={duration} onChange={event => setDuration(Number(event.target.value))}><option value={5}>5 秒</option><option value={10}>10 秒</option></select></label>
+      <p>新生成镜头时长：5 秒</p>
       <label>可选台词<textarea aria-label="可选台词" value={script} onChange={event => setScript(event.target.value)} placeholder="留空则不制作说话镜头" /></label>
       <button type="button" disabled={disabled} onClick={add}>保存分镜草稿</button>
     </div>
@@ -44,10 +43,11 @@ export function CreateVideo({ assets, shots, jobs = [], disabled, onAdd, onGener
     {shots.length > 0 && <ol className="shot-list">{shots.map(shot => {
       const job = jobs.filter(item => item.shotId === shot.id && item.provider === "kling").slice(-1)[0];
       const active = job && !["failed", "succeeded", "draft"].includes(job.state);
-      const eligible = !shot.speaking && shot.modelId === "kling-v2-5-turbo" && [5, 10].includes(shot.durationSec);
+      const eligible = !shot.speaking && shot.modelId === "kling-v2-5-turbo" && shot.durationSec === 5;
       return <li key={shot.id}><strong>{shot.prompt}</strong><small>{shot.durationSec} 秒 · {shot.speaking ? `说话：${shot.script}` : "无台词"}</small>
         {job && <small role="status">可灵任务：{jobLabel[job.state]}</small>}
         {eligible && !active && onGenerate && <button type="button" disabled={disabled} onClick={() => onGenerate(shot.id)}>生成视频（付费）</button>}
+        {shot.durationSec === 10 && <small>旧 10 秒分镜可继续查看与编辑；新生成仅支持 5 秒。</small>}
         {active && onRefresh && <button type="button" disabled={disabled} onClick={() => onRefresh(job.id)}>查询原任务状态</button>}
         {shot.speaking && <small>配音和动物口型仍在开发中</small>}
       </li>;

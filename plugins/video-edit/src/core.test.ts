@@ -24,4 +24,18 @@ describe("video edit recipe", () => {
       expect(resolvePlugins(platform, ["video-edit"], [videoEditPlugin]).map(plugin => plugin.id)).toEqual(["video-edit"]);
     }
   });
+
+  it("upgrades only the edited recipe to V2 and checks retained-clip audio timing", () => {
+    const original = base();
+    const voice = { assetId: "voice-asset-001", startMs: 500, inMs: 100, outMs: 2100, volume: 1.2 };
+    const result = applyVideoEdit(original, { type: "set-audio-mix", originalVolume: 0.4,
+      voiceClips: [voice], musicClips: [] }, 1);
+    expect(original.version).toBe(1);
+    expect(result.recipe).toMatchObject({ version: 2, revision: 2, audioMix: { originalVolume: 0.4, voiceClips: [voice] } });
+    expect(result.issues).toEqual([]);
+    expect(() => applyVideoEdit(original, { type: "set-audio-mix", originalVolume: 3,
+      voiceClips: [], musicClips: [] }, 1)).toThrow("音量");
+    const trimmed = applyVideoEdit(result.recipe, { type: "set-trim", startMs: 0, endMs: 1000 }, 2);
+    expect(trimmed.issues).toEqual([{ code: "audio-outside-trim", assetId: voice.assetId }]);
+  });
 });

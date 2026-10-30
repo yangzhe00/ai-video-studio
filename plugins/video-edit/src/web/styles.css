@@ -1,12 +1,13 @@
-.video-edit { color: var(--avs-text); background: var(--avs-background); min-height: 100%; border-radius: 16px; overflow: hidden; }
+.video-edit { color: var(--avs-text); background: var(--avs-background); min-height: 100%; border-radius: 16px; }
 .video-edit button { cursor: pointer; border: 1px solid var(--avs-border); border-radius: 10px; background: var(--avs-control-bg); color: var(--avs-text); padding: 8px 12px; }
 .video-edit button:disabled { opacity: .5; cursor: not-allowed; }
 .video-edit-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--avs-border); background: var(--avs-toolbar); }
 .video-edit-header small { color: var(--avs-primary); font-size: 11px; letter-spacing: .12em; }
 .video-edit-header h2 { margin: 4px 0 0; font-size: 22px; }
 .video-edit-header>button { font-size: 20px; width: 38px; height: 38px; }
-.video-edit-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 20px; padding: 20px; }
+.video-edit-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); align-items: start; gap: 20px; padding: 20px; }
 .video-edit-preview, .video-edit-controls section { border: 1px solid var(--avs-border); border-radius: 16px; padding: 16px; background: var(--avs-surface); }
+.video-edit-preview { position: sticky; top: 16px; }
 .video-edit-preview video { width: 100%; max-height: 65vh; background: #000; border-radius: 12px; }
 .video-edit-preview p, .video-edit-controls small { color: var(--avs-text-muted); font-size: 12px; }
 .video-edit-preview-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -20,4 +21,36 @@
 .video-edit-controls ul { margin: 0; padding: 0; list-style: none; max-height: 120px; overflow: auto; }
 .video-edit-controls li { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--avs-border); padding: 6px 0; font-size: 12px; }
 .video-edit [role=alert] { color: var(--avs-danger); }
-@media (max-width: 800px) { .video-edit-body { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .video-edit-body { grid-template-columns: 1fr; } .video-edit-preview { position: static; } }
+.video-edit-agent { border: 1px solid var(--avs-border); border-radius: 16px; padding: 16px; background: var(--avs-surface); display: grid; align-content: start; gap: 12px; }
+.video-edit-agent button, .video-edit-voice button { cursor: pointer; border: 1px solid var(--avs-border); border-radius: 10px; background: var(--avs-control-bg); color: var(--avs-text); padding: 8px 12px; }
+.video-edit-agent button:disabled, .video-edit-voice button:disabled { opacity: .5; cursor: not-allowed; }
+.video-edit-agent-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.video-edit-agent-heading h3 { margin: 0 0 4px; }
+.video-edit-agent p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--avs-text-muted); }
+.video-edit-agent-list { max-height: none !important; display: grid; gap: 10px; }
+.video-edit-agent-list li { display: grid; gap: 8px; border: 1px solid var(--avs-border); border-radius: 10px; padding: 12px; }
+.video-edit-agent-list label { display: flex; align-items: center; gap: 8px; color: var(--avs-text); }
+.video-edit-agent-list input { width: auto; }
+.video-edit-agent-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.video-edit-agent-diff span { background: var(--avs-background); border: 1px solid var(--avs-border); border-radius: 8px; padding: 8px; color: var(--avs-text); font-size: 12px; overflow-wrap: anywhere; }
+.video-edit-agent-diff small { display: block; margin-bottom: 4px; color: var(--avs-text-muted); }
+.video-edit-agent-confirm { display: grid; gap: 8px; border: 1px solid var(--avs-primary); border-radius: 10px; padding: 10px; }
+.video-edit-agent textarea { min-height: 64px; resize: vertical; width: 100%; border: 1px solid var(--avs-border); border-radius: 8px; background: var(--avs-background); color: var(--avs-text); padding: 8px; }
+.video-edit-agent-actions { display: flex; }
+@media (max-width: 640px) { .video-edit-agent-heading { flex-direction: column; } .video-edit-agent-diff { grid-template-columns: 1fr; } }
+.video-edit-voice { border: 1px solid var(--avs-border); border-radius: 16px; padding: 16px; background: var(--avs-surface); display: grid; align-content: start; gap: 14px; }
+.video-edit-voice h3, .video-edit-voice h4 { margin: 0; }
+.video-edit-voice p, .video-edit-voice small { color: var(--avs-text-muted); font-size: 12px; margin: 0; }
+.video-edit-voice-source, .video-edit-voice-tts, .video-edit-voice-mix { display: grid; gap: 9px; border-top: 1px solid var(--avs-border); padding-top: 12px; }
+.video-edit-voice label { display: grid; gap: 5px; color: var(--avs-text-muted); font-size: 12px; }
+.video-edit-voice input, .video-edit-voice select, .video-edit-voice textarea { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--avs-border); border-radius: 8px; background: var(--avs-background); color: var(--avs-text); }
+.video-edit-voice textarea { min-height: 70px; resize: vertical; }
+.video-edit-voice audio { width: 100%; }
+.video-edit-voice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.video-edit-voice-confirm { display: grid; gap: 8px; border: 1px solid var(--avs-primary); border-radius: 9px; padding: 10px; }
+.video-edit-voice-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.video-edit-voice-actions button:last-child { background: var(--avs-primary); color: var(--avs-primary-on); border-color: var(--avs-primary); }
+.video-edit-voice-preview { display: grid; gap: 8px; border: 1px solid var(--avs-border); border-radius: 10px; padding: 10px; }
+.video-edit-voice-preview video { width: 100%; max-height: 320px; border-radius: 8px; background: #000; }
+@media (max-width: 640px) { .video-edit-voice-grid { grid-template-columns: 1fr; } }

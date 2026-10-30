@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
+import type { PgDatabase } from "./db.ts";
 
 const scryptAsync = (password: string, salt: string, length: number): Promise<Buffer> =>
   new Promise((resolve, reject) => scrypt(password, salt, length, (error, derived) =>
@@ -33,21 +33,21 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 function digestSession(id: string, secret: string): string { return createHmac("sha256", secret).update(id).digest("hex"); }
 
-export function createSession(db: DatabaseSync, accountId: string, secret: string): { id: string; expiresAt: number } {
+export async function createSession(db: PgDatabase, accountId: string, secret: string): Promise<{ id: string; expiresAt: number }> {
   const id = randomBytes(32).toString("base64url");
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-  db.prepare("INSERT INTO sessions (id, account_id, expires_at) VALUES (?, ?, ?)").run(digestSession(id, secret), accountId, expiresAt);
+  (await db.prepare("INSERT INTO sessions (id, account_id, expires_at) VALUES (?, ?, ?)").run(digestSession(id, secret), accountId, expiresAt));
   return { id, expiresAt };
 }
 
-export function sessionAccount(db: DatabaseSync, cookie: string | undefined, secret: string): string | null {
+export async function sessionAccount(db: PgDatabase, cookie: string | undefined, secret: string): Promise<string | null> {
   const id = cookie?.split(";").map(part => part.trim()).find(part => part.startsWith("avs_session="))?.slice("avs_session=".length);
   if (!id) return null;
-  const row = db.prepare("SELECT account_id FROM sessions WHERE id = ? AND expires_at > ?").get(digestSession(id, secret), Date.now()) as { account_id: string } | undefined;
+  const row = (await db.prepare("SELECT account_id FROM sessions WHERE id = ? AND expires_at > ?").get(digestSession(id, secret), Date.now())) as { account_id: string } | undefined;
   return row?.account_id ?? null;
 }
 
-export function clearSession(db: DatabaseSync, cookie: string | undefined, secret: string): void {
+export async function clearSession(db: PgDatabase, cookie: string | undefined, secret: string): Promise<void> {
   const id = cookie?.split(";").map(part => part.trim()).find(part => part.startsWith("avs_session="))?.slice("avs_session=".length);
-  if (id) db.prepare("DELETE FROM sessions WHERE id = ?").run(digestSession(id, secret));
+  if (id) (await db.prepare("DELETE FROM sessions WHERE id = ?").run(digestSession(id, secret)));
 }

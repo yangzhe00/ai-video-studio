@@ -18,4 +18,15 @@ describe("cloud timeline conversion", () => {
       { id: "cloud-episode-0001-0", assetId: "local-asset-1", inMs: 0, outMs: 5000, volume: 1 },
     ]);
   });
+
+  it("retains the cloud episode voice mix while syncing local timeline edits", () => {
+    const audio = { originalVolume: 0.6, voiceClips: [
+      { assetId: "cloud-voice-1", startMs: 1000, inMs: 200, outMs: 3200, volume: 0.9 },
+    ], musicClips: [] };
+    const existing = { id: "episode-0001", title: "第一集", shots: [], timeline: [], audio } as CloudEpisode;
+    const episode = { id: "episode-0001", title: "第一集", clips: [
+      { id: "clip-0001", assetId: "local-asset-1", inMs: 0, outMs: 5000, volume: 1 },
+    ] } as StudioEpisode;
+    expect(toCloudEpisode(episode, { "local-asset-1": "cloud-asset-1" }, existing).audio).toEqual(audio);
+  });
 });

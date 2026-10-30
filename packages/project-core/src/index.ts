@@ -1,4 +1,6 @@
 export type { MediaKind, MediaAsset, TimelineClip, Caption, ProjectManifestV2, OpenProject } from "./project";
+export type { CreationBrief } from "./brief";
+export { creationBriefs, countUnicodeCharacters, validateCreationBrief } from "./brief";
 export type { ShotDraft, JobState, GenerationJob } from "./ai";
 export { TimelineError, appendClip, trimClip, moveClip, setClipVolume, upsertCaption } from "./model";
 export { DOG_CHEF_PRESET, createShotDraft } from "./shotDraft";
@@ -6,7 +8,7 @@ export type { StudioCharacter, StudioNode, StudioNodeType, StudioEdge, StudioEpi
 export { ensureStudio, createEpisode, selectEpisode, syncActiveEpisode, createCharacter, addStudioNode, updateStudioNode, moveStudioNode, removeStudioNode, connectStudioNodes, disconnectStudioNodes } from "./studio";
 export type { CanvasDocumentV1, CanvasEpisodeGraphV1 } from "./canvas-extension";
 export { readCanvasDocument, migrateStudioGraph, writeCanvasEpisodeGraph } from "./canvas-extension";
-export type { CloudAsset, CloudShot, CloudEpisode, CloudTimelineClip, CloudCharacter, CloudProjectDocument, SyncCommand, SyncResourceType, SyncResourceRevision } from "./sync";
+export type { CloudAsset, CloudShot, CloudEpisode, CloudEpisodeAudio, CloudAudioPlacement, CloudTimelineClip, CloudCharacter, CloudProjectDocument, SyncCommand, SyncResourceType, SyncResourceRevision } from "./sync";
 export { cloudTimelineClips, timelineWithMetadata } from "./sync";
 export { resourceRevision, applySyncCommand } from "./sync";
 export type { CloudAccountSnapshot, CloudProjectSnapshot, CloudRunSnapshot } from "./cloud-api";

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { createApi } from "./server.ts";
-import { createDb } from "./db.ts";
+import { createTestDb as createDb, testDatabaseUrl, dropTestSchema } from "./test-db.ts";
 import type { ApiConfig } from "./config.ts";
 
 const running: { server: Server; dir?: string }[] = [];
@@ -43,14 +43,14 @@ async function setup(modelHandler?: (response: import("node:http").ServerRespons
   const modelUrl = await listen(model);
   running.push({ server: model });
   const dir = mkdtempSync(join(tmpdir(), "avs-prompt-api-"));
-  const config: ApiConfig = { dataDir: dir, sessionSecret: "test-secret-at-least-thirty-two-characters",
+  const config: ApiConfig = { dataDir: dir, databaseUrl: await testDatabaseUrl(dir), sessionSecret: "test-secret-at-least-thirty-two-characters",
     secureCookies: false, workerEnabled: false, ideaModelBaseUrl: modelUrl, ideaModelApiKey: "server-only-key",
     ideaModelId: "text-model", ideaModelTimeoutMs: 1000, ...overrides };
-  let api = createApi(config);
+  let api = (await createApi(config));
   let base = await listen(api);
   running.push({ server: api, dir });
   async function request(path: string, method = "GET", body?: unknown, cookie?: string) {
-    const response = await fetch(base + path, { method, headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(cookie ? { cookie } : {}) },
+    const response = await fetch(base + path, { method, headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(method === "GET" ? {} : { "x-avs-request": "1" }), ...(cookie ? { cookie } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, payload: await response.json() as Record<string, any>,
       cookie: response.headers.get("set-cookie")?.split(";")[0] ?? "" };
@@ -62,7 +62,7 @@ async function setup(modelHandler?: (response: import("node:http").ServerRespons
     api.closeAllConnections();
     await new Promise<void>(resolve => api.close(() => resolve()));
     running.splice(running.findIndex(entry => entry.server === api), 1);
-    api = createApi(config);
+    api = (await createApi(config));
     base = await listen(api);
     running.push({ server: api, dir });
   }
@@ -104,11 +104,11 @@ describe("account-scoped prompt ideas API", () => {
     expect(selected.payload.ideaSet).toMatchObject({ selectedVariantId: "variant-2", editedPrompt: "小狗在暖光厨房端菜，近景。" });
     expect((await app.request(`/prompt-ideas/${id}`, "GET", undefined, a.cookie)).payload.ideaSet.editedPrompt).toBe("小狗在暖光厨房端菜，近景。");
     expect((await app.request(`/prompt-ideas/${id}/selection`, "POST", { variantId: "variant-2", editedPrompt: "x" }, b.cookie)).status).toBe(404);
-    const db = createDb(app.dir);
-    expect(db.prepare("SELECT COUNT(*) AS count FROM agent_runs").get()).toEqual({ count: 0 });
-    expect(db.prepare("SELECT COUNT(*) AS count FROM operations").get()).toEqual({ count: 0 });
-    expect(db.prepare("SELECT demo_used,demo_reserved FROM accounts WHERE id=?").get(a.payload.account.id)).toEqual({ demo_used: 0, demo_reserved: 0 });
-    db.close();
+    const db = (await createDb(app.dir));
+    expect((await db.prepare("SELECT COUNT(*) AS count FROM agent_runs").get())).toEqual({ count: 0 });
+    expect((await db.prepare("SELECT COUNT(*) AS count FROM operations").get())).toEqual({ count: 0 });
+    expect((await db.prepare("SELECT demo_used,demo_reserved FROM accounts WHERE id=?").get(a.payload.account.id))).toEqual({ demo_used: 0, demo_reserved: 0 });
+    (await db.close());
   });
 
   it("keeps malformed and unconfigured model results honest and limits new rounds", async () => {
@@ -126,7 +126,7 @@ describe("account-scoped prompt ideas API", () => {
     const notConfigured = await empty.request("/prompt-ideas", "POST", { clientRequestId: "idea-request-005", input: "小狗上菜" }, user.cookie);
     expect(notConfigured.payload.ideaSet).toMatchObject({ state: "failed", errorCode: "not_configured", variants: [] });
     expect(empty.calls).toBe(0);
-  });
+  }, 20_000);
 
   it("marks uncertain model calls unknown and never resubmits the same request", async () => {
     const app = await setup(() => { /* provider holds the response until the client times out */ });
@@ -138,19 +138,19 @@ describe("account-scoped prompt ideas API", () => {
     expect(replay.payload.ideaSet.id).toBe(unknown.payload.ideaSet.id);
     expect(replay.payload.ideaSet.state).toBe("unknown");
     expect(app.calls).toBe(1);
-  });
+  }, 20_000);
 
   it("recovers a pending request after process restart as unknown without another model call", async () => {
     const app = await setup();
     const user = await app.register("restart@example.com");
     const id = randomUUID(), requestId = "idea-request-restart", input = "小狗端菜";
     const old = Date.now() - 10_000;
-    const db = createDb(app.dir);
-    db.prepare(`INSERT INTO prompt_idea_sets
+    const db = (await createDb(app.dir));
+    (await db.prepare(`INSERT INTO prompt_idea_sets
       (id,owner_id,client_request_id,input_hash,input_text,state,created_at,updated_at)
       VALUES (?,?,?,?,?,'pending',?,?)`)
-      .run(id, user.payload.account.id, requestId, createHash("sha256").update(input).digest("hex"), input, old, old);
-    db.close();
+      .run(id, user.payload.account.id, requestId, createHash("sha256").update(input).digest("hex"), input, old, old));
+    (await db.close());
     await app.restart();
     const detail = await app.request(`/prompt-ideas/${id}`, "GET", undefined, user.cookie);
     expect(detail.payload.ideaSet).toMatchObject({ id, state: "unknown", errorCode: "uncertain" });

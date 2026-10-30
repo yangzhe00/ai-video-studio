@@ -4,12 +4,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ApiConfig } from "./config.ts";
-import { createDb } from "./db.ts";
+import { createTestDb as createDb, testDatabaseUrl, dropTestSchema } from "./test-db.ts";
 import { IdeaAgentWorker } from "./idea-agent-worker.ts";
 import { createPromptIdea } from "./prompt-ideas.ts";
 import { createIdeaCursorRun, readIdeaCursorRun } from "./idea-cursor.ts";
 
-const config: ApiConfig = { dataDir: "/tmp/cursor-test", sessionSecret: "x".repeat(32),
+const config: ApiConfig = { dataDir: "/tmp/cursor-test", databaseUrl: "postgresql://unused", sessionSecret: "x".repeat(32),
   ideaProvider: "cursor", ideaCursorApiKey: "cursor-test-key", ideaCursorBaseUrl: "http://127.0.0.1:8788/v1" };
 const variants = [
   { title: "叙事", description: "完整动作", prompt: "小狗在厨房切菜，固定镜头。" },
@@ -79,9 +79,9 @@ afterEach(() => { vi.unstubAllGlobals(); for (const dir of dirs.splice(0)) rmSyn
 
 it("persists Cursor agent and run IDs, and replays the request without a second create", async () => {
   const dir = mkdtempSync(join(tmpdir(), "avs-cursor-create-")); dirs.push(dir);
-  const db = createDb(dir);
-  db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
-    .run("owner-1", "owner@example.com", "hash", 1, 3);
+  const db = (await createDb(dir));
+  (await db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
+    .run("owner-1", "owner@example.com", "hash", 1, 3));
   const fetcher = mockFetch((_url, init) => Response.json({
     agent: { id: JSON.parse(String(init?.body)).agentId }, run: { id: runId, agentId: JSON.parse(String(init?.body)).agentId },
   }));
@@ -93,38 +93,38 @@ it("persists Cursor agent and run IDs, and replays the request without a second 
   expect(replay.ideaSet.id).toBe(first.ideaSet.id);
   expect(replay.replayed).toBe(true);
   expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1);
-  expect(db.prepare("SELECT provider,provider_session_id,provider_run_id FROM prompt_idea_sets WHERE id=?").get(first.ideaSet.id))
+  expect((await db.prepare("SELECT provider,provider_session_id,provider_run_id FROM prompt_idea_sets WHERE id=?").get(first.ideaSet.id)))
     .toEqual({ provider: "cursor", provider_session_id: `bc-${first.ideaSet.id}`, provider_run_id: runId });
-  db.close();
+  (await db.close());
 });
 
 it("reconciles an uncertain Cursor create after restart without another POST", async () => {
   const dir = mkdtempSync(join(tmpdir(), "avs-cursor-recover-")); dirs.push(dir);
-  const db = createDb(dir);
-  db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
-    .run("owner-1", "owner@example.com", "hash", 1, 3);
-  db.prepare(`INSERT INTO prompt_idea_sets
+  const db = (await createDb(dir));
+  (await db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
+    .run("owner-1", "owner@example.com", "hash", 1, 3));
+  (await db.prepare(`INSERT INTO prompt_idea_sets
     (id,owner_id,client_request_id,input_hash,input_text,state,created_at,updated_at,provider,provider_session_id)
     VALUES (?,?,?,?,?,'pending',?,?, 'cursor',?)`).run(agentId.slice(3), "owner-1", "request-001",
-    createHash("sha256").update("小狗做饭").digest("hex"), "小狗做饭", Date.now(), Date.now(), agentId);
-  db.close();
-  const reopened = createDb(dir);
+    createHash("sha256").update("小狗做饭").digest("hex"), "小狗做饭", Date.now(), Date.now(), agentId));
+  (await db.close());
+  const reopened = (await createDb(dir));
   const fetcher = mockFetch(url => url.endsWith(`/agents/${agentId}`)
     ? Response.json({ id: agentId, latestRunId: runId })
     : Response.json({ id: runId, agentId, status: "FINISHED", result: JSON.stringify({ variants }) }));
   vi.stubGlobal("fetch", fetcher);
   await new IdeaAgentWorker(reopened, config).tick();
   expect(vi.mocked(fetcher).mock.calls.every(([url]) => String(url).includes(`/agents/${agentId}`))).toBe(true);
-  expect(reopened.prepare("SELECT state,provider_run_id FROM prompt_idea_sets WHERE id=?").get(agentId.slice(3)))
+  expect((await reopened.prepare("SELECT state,provider_run_id FROM prompt_idea_sets WHERE id=?").get(agentId.slice(3))))
     .toEqual({ state: "ready", provider_run_id: runId });
   reopened.close();
 });
 
 it("keeps an uncertain Cursor create pending so a later poll can reconcile it", async () => {
   const dir = mkdtempSync(join(tmpdir(), "avs-cursor-uncertain-")); dirs.push(dir);
-  const db = createDb(dir);
-  db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
-    .run("owner-1", "owner@example.com", "hash", 1, 3);
+  const db = (await createDb(dir));
+  (await db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
+    .run("owner-1", "owner@example.com", "hash", 1, 3));
   const fetcher = mockFetch(() => Response.json({ error: "already exists" }, { status: 409 }));
   vi.stubGlobal("fetch", fetcher);
   const body = { clientRequestId: "request-001", input: "小狗做饭" };
@@ -133,7 +133,7 @@ it("keeps an uncertain Cursor create pending so a later poll can reconcile it", 
   expect(first.ideaSet.state).toBe("pending");
   expect(replay.replayed).toBe(true);
   expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1);
-  expect(db.prepare("SELECT provider_session_id,provider_run_id FROM prompt_idea_sets WHERE id=?").get(first.ideaSet.id))
+  expect((await db.prepare("SELECT provider_session_id,provider_run_id FROM prompt_idea_sets WHERE id=?").get(first.ideaSet.id)))
     .toEqual({ provider_session_id: `bc-${first.ideaSet.id}`, provider_run_id: null });
-  db.close();
+  (await db.close());
 });

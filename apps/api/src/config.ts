@@ -1,19 +1,31 @@
 import { resolve } from "node:path";
+import { parseTtsVoices, type TtsVoice } from "./tts-voices.ts";
 
 export interface ApiConfig {
   dataDir: string;
+  databaseUrl: string;
   sessionSecret: string;
   port?: number;
   secureCookies?: boolean;
   demoQuota?: number;
   maxUploadBytes?: number;
+  uploadTimeoutMs?: number;
+  maxConcurrentUploads?: number;
   maxAccountObjects?: number;
   maxAccountStorageBytes?: number;
   maxTotalStorageBytes?: number;
   maxTotalDemoCredits?: number;
   allowedOrigin?: string;
+  trustedProxyIps?: string[];
+  authLoginAccountLimit?: number;
   klingApiKey?: string;
   klingBaseUrl?: string;
+  klingTtsApiKey?: string;
+  klingTtsBaseUrl?: string;
+  klingTtsVoices?: TtsVoice[];
+  agentEditModelBaseUrl?: string;
+  agentEditModelApiKey?: string;
+  agentEditModelId?: string;
   ideaModelBaseUrl?: string;
   ideaModelApiKey?: string;
   ideaModelId?: string;
@@ -33,8 +45,9 @@ export interface ApiConfig {
 export function configFromEnv(): ApiConfig {
   const dataDir = process.env.API_DATA_DIR;
   const sessionSecret = process.env.API_SESSION_SECRET;
-  if (!dataDir || !sessionSecret || sessionSecret.length < 32) {
-    throw new Error("API_DATA_DIR and API_SESSION_SECRET (at least 32 characters) are required");
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!dataDir || !databaseUrl || !sessionSecret || sessionSecret.length < 32) {
+    throw new Error("API_DATA_DIR, DATABASE_URL and API_SESSION_SECRET (at least 32 characters) are required");
   }
   const ideaProvider = process.env.IDEA_PROVIDER ?? "chat";
   if (ideaProvider !== "chat" && ideaProvider !== "agents" && ideaProvider !== "cursor") {
@@ -47,18 +60,27 @@ export function configFromEnv(): ApiConfig {
     return value;
   };
   return {
-    dataDir: resolve(dataDir), sessionSecret,
+    dataDir: resolve(dataDir), databaseUrl, sessionSecret,
     port: Number(process.env.PORT || 8787),
     secureCookies: process.env.API_SECURE_COOKIES !== "false",
     allowedOrigin: process.env.API_ALLOWED_ORIGIN,
+    trustedProxyIps: process.env.API_TRUSTED_PROXY_IPS?.split(",").map(value => value.trim()).filter(Boolean) ?? [],
     demoQuota: positiveInt("API_DEMO_QUOTA", 3),
     maxUploadBytes: positiveInt("API_MAX_UPLOAD_BYTES", 20_000_000),
+    uploadTimeoutMs: positiveInt("API_UPLOAD_TIMEOUT_MS", 30_000),
+    maxConcurrentUploads: positiveInt("API_MAX_CONCURRENT_UPLOADS", 3),
     maxAccountObjects: positiveInt("API_MAX_ACCOUNT_OBJECTS", 100),
     maxAccountStorageBytes: positiveInt("API_MAX_ACCOUNT_STORAGE_BYTES", 200_000_000),
     maxTotalStorageBytes: positiveInt("API_MAX_TOTAL_STORAGE_BYTES", 2_000_000_000),
     maxTotalDemoCredits: positiveInt("API_MAX_TOTAL_DEMO_CREDITS", 30),
     klingApiKey: process.env.KLING_API_KEY,
     klingBaseUrl: process.env.KLING_BASE_URL || "https://api-beijing.klingai.com",
+    klingTtsApiKey: process.env.KLING_TTS_API_KEY,
+    klingTtsBaseUrl: process.env.KLING_TTS_BASE_URL || "https://api-singapore.klingai.com",
+    klingTtsVoices: parseTtsVoices(process.env.KLING_TTS_VOICES_JSON),
+    agentEditModelBaseUrl: process.env.AGENT_EDIT_MODEL_BASE_URL,
+    agentEditModelApiKey: process.env.AGENT_EDIT_MODEL_API_KEY,
+    agentEditModelId: process.env.AGENT_EDIT_MODEL_ID,
     ideaModelBaseUrl: process.env.IDEA_MODEL_BASE_URL,
     ideaModelApiKey: process.env.IDEA_MODEL_API_KEY,
     ideaModelId: process.env.IDEA_MODEL_ID,

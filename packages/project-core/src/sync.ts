@@ -1,24 +1,29 @@
-import type { CanvasEpisodeGraphV1 } from "./canvas-extension";
+import type { CanvasEpisodeGraphV1 } from "./canvas-extension.ts";
+import type { CreationBrief } from "./brief.ts";
+import { creationBriefs } from "./brief.ts";
 
-export interface CloudAsset { id: string; kind: "image" | "video"; name?: string }
+export interface CloudAsset { id: string; kind: "image" | "video" | "voice" | "music"; name?: string; mimeType?: string; durationMs?: number }
 export interface CloudShot { id: string; runId: string; resultAssetId: string; originalAssetId?: string; selectedAssetId?: string; sourceAssetId: string; prompt: string; durationSec: number }
 export interface CloudTimelineClip { id: string; assetId: string; inMs: number; outMs: number; volume: number }
-export interface CloudEpisode { id: string; title: string; shots: CloudShot[]; timeline: string[]; timelineClips?: CloudTimelineClip[] }
+export interface CloudAudioPlacement { assetId: string; startMs: number; inMs: number; outMs: number; volume: number }
+export interface CloudEpisodeAudio { originalVolume: number; voiceClips: CloudAudioPlacement[]; musicClips: CloudAudioPlacement[] }
+export interface CloudEpisode { id: string; title: string; shots: CloudShot[]; timeline: string[]; timelineClips?: CloudTimelineClip[]; audio?: CloudEpisodeAudio }
 export interface CloudCharacter { id: string; name: string; description: string; assetId: string }
 export interface CloudProjectDocument {
   version: 1;
   episodes: CloudEpisode[];
   assets: CloudAsset[];
   characters: CloudCharacter[];
+  briefs?: CreationBrief[];
   extensions?: Record<string, unknown>;
 }
-export type SyncResourceType = "episode" | "asset" | "character" | "canvas";
+export type SyncResourceType = "episode" | "asset" | "character" | "canvas" | "brief";
 export interface SyncCommand {
   id: string;
   resourceType: SyncResourceType;
   resourceId: string;
   baseRevision: number;
-  payload: CloudEpisode | CloudAsset | CloudCharacter | CanvasEpisodeGraphV1;
+  payload: CloudEpisode | CloudAsset | CloudCharacter | CanvasEpisodeGraphV1 | CreationBrief;
 }
 export interface SyncResourceRevision { resourceType: SyncResourceType; resourceId: string; revision: number }
 
@@ -54,6 +59,12 @@ export function applySyncCommand(document: CloudProjectDocument, command: SyncCo
   if (type === "canvas") {
     const old = document.extensions?.canvas as { version?: number; episodeGraphs?: Record<string, CanvasEpisodeGraphV1> } | undefined;
     return { ...document, extensions: { ...document.extensions, canvas: { version: 1, episodeGraphs: { ...old?.episodeGraphs, [id]: payload as CanvasEpisodeGraphV1 } } } };
+  }
+  if (type === "brief") {
+    const entries = creationBriefs(document);
+    return { ...document, briefs: entries.some(item => item.id === id)
+      ? entries.map(item => item.id === id ? payload as CreationBrief : item)
+      : [...entries, payload as CreationBrief] };
   }
   const field = type === "episode" ? "episodes" : type === "asset" ? "assets" : "characters";
   const entries = document[field] as Array<{ id: string }>;

@@ -1,0 +1,12 @@
+ARG NODE_IMAGE=node:24-bookworm-slim
+FROM ${NODE_IMAGE}
+
+WORKDIR /app
+RUN npm install --global pnpm@10.30.1
+COPY . .
+RUN pnpm install --frozen-lockfile --filter @ai-video/api... --prod \
+    && node -e 'const fs = require("node:fs"); const cp = require("node:child_process"); for (const name of ["@ffmpeg-installer/ffmpeg", "@ffprobe-installer/ffprobe"]) { const path = require("./apps/api/node_modules/" + name).path; fs.chmodSync(path, 0o755); cp.execFileSync(path, ["-version"], { stdio: "ignore" }); }'
+
+ENV NODE_ENV=production
+EXPOSE 8787
+CMD ["node", "--experimental-transform-types", "apps/api/src/main.ts"]

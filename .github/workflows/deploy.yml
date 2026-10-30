@@ -1,0 +1,160 @@
+name: Production release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full 40-character commit SHA already on the default branch
+        required: true
+        type: string
+      phase:
+        description: Prepare and rehearse, cut over data, activate private API, then publish site
+        required: true
+        default: prepare
+        type: choice
+        options:
+          - prepare
+          - cutover
+          - activate
+          - publish
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-video-studio-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a full SHA and default branch workflow
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_REF_NAME" == "$DEFAULT_BRANCH" ]]
+
+  verify-and-package:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: avs_test
+          POSTGRES_PASSWORD: avs_ci_only_password
+          POSTGRES_DB: avs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U avs_test -d avs_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://avs_test:avs_ci_only_password@127.0.0.1:5432/avs_test
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 0
+      - name: Require commit on default branch
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          git merge-base --is-ancestor HEAD "refs/remotes/origin/$DEFAULT_BRANCH"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node --test deploy/ci/verify-public.test.mjs
+      - run: node deploy/ci/check-client-contract.mjs
+      - run: pnpm test
+      - run: pnpm build
+      - name: Pack only committed source and the verified site builds
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/candidate/apps/website/dist" "$RUNNER_TEMP/candidate/apps/web/dist" "$RUNNER_TEMP/bundle"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/candidate"
+          printf '%s\n' "$RELEASE_SHA" > "$RUNNER_TEMP/candidate/.release-commit"
+          cp -a apps/website/dist/. "$RUNNER_TEMP/candidate/apps/website/dist/"
+          cp -a apps/web/dist/. "$RUNNER_TEMP/candidate/apps/web/dist/"
+          test -f "$RUNNER_TEMP/candidate/apps/website/dist/index.html"
+          test -f "$RUNNER_TEMP/candidate/apps/web/dist/index.html"
+          tar -czf "$RUNNER_TEMP/bundle/$RELEASE_SHA.tar.gz" -C "$RUNNER_TEMP/candidate" .
+          sha256sum "$RUNNER_TEMP/bundle/$RELEASE_SHA.tar.gz" | awk '{print $1}' > "$RUNNER_TEMP/bundle/$RELEASE_SHA.bundle-sha256"
+          sha256sum deploy/ci/server-release.sh | awk '{print $1}' > "$RUNNER_TEMP/bundle/$RELEASE_SHA.script-sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-${{ inputs.release_sha }}
+          path: ${{ runner.temp }}/bundle/
+          retention-days: 7
+          if-no-files-found: error
+
+  desktop-native:
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+  production:
+    needs: [verify-and-package, desktop-native]
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: https://39.108.55.176/
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_PHASE: ${{ inputs.phase }}
+      PROD_SSH_HOST: ${{ vars.PROD_SSH_HOST }}
+      PROD_SSH_USER: ${{ vars.PROD_SSH_USER }}
+      PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-${{ inputs.release_sha }}
+          path: ${{ runner.temp }}/bundle
+      - name: Configure pinned SSH identity
+        run: |
+          set -euo pipefail
+          [[ "$PROD_SSH_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$PROD_SSH_USER" =~ ^[A-Za-z0-9_-]+$ ]]
+          test -n "$PROD_SSH_KEY"
+          test -n "$PROD_SSH_KNOWN_HOSTS"
+          umask 077
+          printf '%s\n' "$PROD_SSH_KEY" > "$RUNNER_TEMP/deploy-key"
+          printf '%s\n' "$PROD_SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/known-hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/deploy-key" >/dev/null
+      - name: Stage bundle and run the approved phase
+        run: |
+          set -euo pipefail
+          bundle_sha="$(cat "$RUNNER_TEMP/bundle/$RELEASE_SHA.bundle-sha256")"
+          script_sha="$(cat "$RUNNER_TEMP/bundle/$RELEASE_SHA.script-sha256")"
+          [[ "$bundle_sha" =~ ^[0-9a-f]{64}$ && "$script_sha" =~ ^[0-9a-f]{64}$ ]]
+          ssh_opts=(-i "$RUNNER_TEMP/deploy-key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known-hosts")
+          if [[ "$RELEASE_PHASE" == prepare ]]; then
+            scp "${ssh_opts[@]}" "$RUNNER_TEMP/bundle/$RELEASE_SHA.tar.gz" "$PROD_SSH_USER@$PROD_SSH_HOST:/srv/ai-video-studio/incoming/$RELEASE_SHA.tar.gz"
+          fi
+          ssh "${ssh_opts[@]}" "$PROD_SSH_USER@$PROD_SSH_HOST" "sudo -n /usr/local/sbin/avs-release '$RELEASE_PHASE' '$RELEASE_SHA' '$bundle_sha' '$script_sha'"

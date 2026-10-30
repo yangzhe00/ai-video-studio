@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { creationBriefs } from "../../../packages/project-core/src/brief.ts";
+import type { CreationBrief } from "../../../packages/project-core/src/brief.ts";
 
 interface Resource { id: string; [key: string]: unknown }
 interface Episode extends Resource { shots: Resource[]; timeline: string[]; timelineClips: { id: string; assetId: string; inMs: number; outMs: number; volume: number }[] }
@@ -7,6 +9,7 @@ export interface MigratedCloudDocument {
   episodes: Episode[];
   assets: Resource[];
   characters: Resource[];
+  briefs: CreationBrief[];
   extensions?: Record<string, unknown>;
 }
 
@@ -16,7 +19,8 @@ export function migrateCloudDocument(projectId: string, raw: unknown): { documen
   if (source.version !== 1 || !Array.isArray(source.episodes)) throw new Error(`Unsupported cloud document in ${projectId}`);
   if (source.assets !== undefined && !Array.isArray(source.assets)) throw new Error(`Invalid cloud assets in ${projectId}`);
   if (source.characters !== undefined && !Array.isArray(source.characters)) throw new Error(`Invalid cloud characters in ${projectId}`);
-  let changed = source.assets === undefined || source.characters === undefined;
+  if (source.briefs !== undefined && !Array.isArray(source.briefs)) throw new Error(`Invalid cloud briefs in ${projectId}`);
+  let changed = source.assets === undefined || source.characters === undefined || source.briefs === undefined;
   const episodes = source.episodes.map(value => {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Invalid cloud episode in ${projectId}`);
     const episode = value as Record<string, unknown>;
@@ -42,5 +46,5 @@ export function migrateCloudDocument(projectId: string, raw: unknown): { documen
     return { ...episode, shots, timeline, timelineClips } as Episode;
   });
   return { document: { ...source, version: 1, episodes, assets: (source.assets ?? []) as Resource[],
-    characters: (source.characters ?? []) as Resource[] } as MigratedCloudDocument, changed };
+    characters: (source.characters ?? []) as Resource[], briefs: creationBriefs(source) } as MigratedCloudDocument, changed };
 }

@@ -5,6 +5,7 @@
   "main": "index.ts",
   "scripts": { "start": "expo start", "android": "expo start --android", "ios": "expo start --ios", "build": "tsc --noEmit" },
   "dependencies": {
+    "@ai-video/api-contracts": "workspace:*",
     "@ai-video/plugin-sdk": "workspace:*",
     "@ai-video/project-core": "workspace:*",
     "@ai-video/plugin-video-edit": "workspace:*",

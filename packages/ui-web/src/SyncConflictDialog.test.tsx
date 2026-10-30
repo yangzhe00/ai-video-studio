@@ -37,4 +37,22 @@ describe("SyncConflictDialog", () => {
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onResolve).not.toHaveBeenCalled();
   });
+
+  it("shows both complete brief texts, including different endings after 800 characters", () => {
+    const common = "共同的剧本内容".repeat(120);
+    const localText = `${common}本地结尾：小狗端菜`;
+    const cloudText = `${common}云端结尾：小狗洗菜`;
+    render(<SyncConflictDialog projectTitle="长剧本" resources={[{
+      resourceType: "brief", resourceId: "brief-1", title: "创作原文",
+      local: { revision: 2, preview: "", brief: { source: "manual", originalText: common, finalText: localText } },
+      cloud: { revision: 3, preview: "", brief: { source: "agent", originalText: common, finalText: cloudText } },
+    }]} onCancel={vi.fn()} onResolve={vi.fn()} />);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent).toContain("来源：手写");
+    expect(dialog.textContent).toContain("来源：Agent 灵感");
+    expect(dialog.textContent).toContain("本地结尾：小狗端菜");
+    expect(dialog.textContent).toContain("云端结尾：小狗洗菜");
+    expect(screen.getAllByText(common)).toHaveLength(2);
+    expect(dialog.querySelectorAll(".avs-sync-conflict-brief pre")).toHaveLength(4);
+  });
 });

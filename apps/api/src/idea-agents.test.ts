@@ -3,14 +3,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { createDb } from "./db.ts";
+import { createTestDb as createDb, testDatabaseUrl, dropTestSchema } from "./test-db.ts";
 import type { ApiConfig } from "./config.ts";
 import { createIdeaAgentSession, readIdeaAgentSession } from "./idea-agents.ts";
 import { IdeaAgentWorker } from "./idea-agent-worker.ts";
 import { createPromptIdea } from "./prompt-ideas.ts";
 
 const config: ApiConfig = {
-  dataDir: "/tmp/idea-agent-test", sessionSecret: "x".repeat(32), ideaProvider: "agents",
+  dataDir: "/tmp/idea-agent-test", databaseUrl: "postgresql://unused", sessionSecret: "x".repeat(32), ideaProvider: "agents",
   ideaAgentApiKey: "test-secret", ideaAgentModel: "test-agent-model", ideaAgentBaseUrl: "http://127.0.0.1:8788/v1",
 };
 const variants = [
@@ -74,9 +74,9 @@ afterEach(() => { vi.unstubAllGlobals(); for (const dir of dirs.splice(0)) rmSyn
 
 it("persists one Agents session and replays the same idea request without another create", async () => {
   const dir = mkdtempSync(join(tmpdir(), "avs-agent-create-")); dirs.push(dir);
-  const db = createDb(dir);
-  db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
-    .run("owner-1", "owner@example.com", "hash", 1, 3);
+  const db = (await createDb(dir));
+  (await db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
+    .run("owner-1", "owner@example.com", "hash", 1, 3));
   const fetcher = mockFetch(() => Response.json({ id: "session_001", status: "in_progress" }));
   vi.stubGlobal("fetch", fetcher);
   const body = { clientRequestId: "request-001", input: "小狗做饭" };
@@ -86,28 +86,28 @@ it("persists one Agents session and replays the same idea request without anothe
   expect(replay.ideaSet.id).toBe(first.ideaSet.id);
   expect(replay.replayed).toBe(true);
   expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1);
-  expect(db.prepare("SELECT provider_session_id FROM prompt_idea_sets WHERE id=?").get(first.ideaSet.id))
+  expect((await db.prepare("SELECT provider_session_id FROM prompt_idea_sets WHERE id=?").get(first.ideaSet.id)))
     .toEqual({ provider_session_id: "session_001" });
-  db.close();
+  (await db.close());
 });
 
 it("reconciles a saved session after restart without submitting another one", async () => {
   const dir = mkdtempSync(join(tmpdir(), "avs-agent-recovery-")); dirs.push(dir);
-  const db = createDb(dir);
-  db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
-    .run("owner-1", "owner@example.com", "hash", 1, 3);
+  const db = (await createDb(dir));
+  (await db.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
+    .run("owner-1", "owner@example.com", "hash", 1, 3));
   const input = "小狗做饭";
-  db.prepare(`INSERT INTO prompt_idea_sets
+  (await db.prepare(`INSERT INTO prompt_idea_sets
     (id,owner_id,client_request_id,input_hash,input_text,state,created_at,updated_at,provider,provider_session_id)
     VALUES (?,?,?,?,?,'pending',?,?, 'agents',?)`).run("idea-001", "owner-1", "request-001",
-    createHash("sha256").update(input).digest("hex"), input, Date.now(), Date.now(), "session_001");
-  db.close();
-  const reopened = createDb(dir);
+    createHash("sha256").update(input).digest("hex"), input, Date.now(), Date.now(), "session_001"));
+  (await db.close());
+  const reopened = (await createDb(dir));
   const read = vi.fn(async () => ({ state: "ready" as const, result: { variants: variants.map((value, index) => ({ id: `variant-${index + 1}`, ...value })), usage: { output_tokens: 50 } } }));
   await new IdeaAgentWorker(reopened, config, read).tick();
   expect(read).toHaveBeenCalledTimes(1);
   expect(read).toHaveBeenCalledWith(config, "session_001");
-  expect(reopened.prepare("SELECT state,provider_session_id FROM prompt_idea_sets WHERE id='idea-001'").get())
+  expect((await reopened.prepare("SELECT state,provider_session_id FROM prompt_idea_sets WHERE id='idea-001'").get()))
     .toEqual({ state: "ready", provider_session_id: "session_001" });
   reopened.close();
 });

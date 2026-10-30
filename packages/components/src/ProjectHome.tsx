@@ -10,11 +10,11 @@ export function ProjectHome({ projectTitle, episodeTitle, recentImage, recentMet
   return <main className={ideaSlot ? `avs-project-home avs-project-home--idea-first${soloIdea ? " avs-project-home--solo" : ""}` : "avs-project-home"}>
     <div className="avs-page-meta"><span>首页 / 工作台</span><span>工作台就绪</span></div>
     <div className="avs-home-layout">
-      <section className="avs-home-intro"><span className="avs-kicker">THE STORY STARTS HERE</span>
+      <section className="avs-home-intro">{!ideaSlot && <><span className="avs-kicker">THE STORY STARTS HERE</span>
         <h1>把今天的灵感，<br />剪成一部好故事。</h1>
-        <p>从一张照片和一句描述开始。Agent 帮你构思镜头，你来决定每一集如何展开。</p>
+        <p>从一张照片和一句描述开始。Agent 帮你构思镜头，你来决定每一集如何展开。</p></>}
         {ideaSlot && <div className="avs-home-idea">{ideaSlot}</div>}
-        <div className="avs-home-actions"><button type="button" className="primary" onClick={onCreate}><StudioIcon name="plus" size={17} />开始新项目</button>
+        <div className="avs-home-actions">{!ideaSlot && <button type="button" className="primary" onClick={onCreate}><StudioIcon name="plus" size={17} />开始新项目</button>}
           {onContinue && <button type="button" onClick={onContinue}>继续创作<StudioIcon name="arrowRight" size={17} /></button>}
           {onProjects && <button type="button" onClick={onProjects}>全部项目<StudioIcon name="arrowRight" size={17} /></button>}</div>
       </section>

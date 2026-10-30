@@ -69,3 +69,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .film-idea-login-note, .film-idea-handoff, .project-picker-sync-note { color: var(--avs-text-muted); font-size: 13px; line-height: 1.6; }
 .film-idea-login-note { margin: 28px 0 0; padding: 18px; border: 1px solid var(--avs-border); border-radius: 12px; background: var(--avs-surface); }
 .film-idea-handoff { max-height: 100px; overflow: auto; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--avs-primary-subtle); }
+.film-work-setup-overlay { width: min(1060px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; padding: 0; }
+.film-work-setup-overlay .avs-work-setup { padding: 28px; }
+.film-brief-panel { width: min(680px, calc(100vw - 40px)); max-height: calc(100vh - 40px); overflow: auto; }
+.film-brief-panel label { display: grid; gap: 8px; margin: 16px 0; }
+.film-brief-panel textarea { min-height: 108px; width: 100%; resize: vertical; }
+.film-section-empty { display: grid; justify-content: center; align-content: center; gap: 16px; min-height: 65vh; padding: 32px; text-align: center; color: var(--avs-text); }
+.film-section-empty h1, .film-section-empty p { margin: 0; }
+.film-section-empty p { color: var(--avs-text-muted); }
+.film-section-empty>div { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.film-section-empty button { padding: 10px 15px; border: 1px solid var(--avs-border); border-radius: 9px; background: var(--avs-surface); color: var(--avs-text); cursor: pointer; }
+.film-episode-voice-page { min-height: 100%; overflow: auto; display: grid; align-content: start; gap: 16px; padding: 24px; background: var(--avs-background); color: var(--avs-text); }
+.film-episode-voice-page > header { display: flex; align-items: center; gap: 18px; }
+.film-episode-voice-page > header h2 { margin: 0; font-size: 20px; }
+.film-episode-voice-page > header button { border: 1px solid var(--avs-border); border-radius: 9px; padding: 8px 12px; background: var(--avs-control-bg); color: var(--avs-text); }
+.film-episode-voice-page > .video-edit-voice, .film-episode-voice-page > .video-edit-agent { width: min(720px, 100%); }
+.film-episode-render-status { display: grid; gap: 10px; width: min(720px, 100%); }
+.film-episode-render-status video { width: 100%; max-height: 55vh; background: #000; border-radius: 10px; }
+@media (max-width: 640px) { .film-episode-voice-page { padding: 12px; } .film-episode-voice-page > header { flex-wrap: wrap; } }

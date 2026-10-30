@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const roots = ["packages/project-core", "packages/plugin-sdk", "packages/platform-ports", "packages/design-tokens", "packages/ui-web", "plugins"];
+const roots = ["packages/api-contracts", "packages/project-core", "packages/plugin-sdk", "packages/platform-ports", "packages/design-tokens", "packages/ui-web", "plugins"];
 const violations = [];
 
 async function inspect(directory) {

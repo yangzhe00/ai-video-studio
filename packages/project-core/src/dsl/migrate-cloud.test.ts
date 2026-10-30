@@ -38,6 +38,7 @@ describe("cloud V1 to project DSL", () => {
       sourceAssetIds: ["video-1"], recipeId: "edit-1",
     });
     expect(result.extensions?.["plugin.example"]).toEqual({ opaque: true });
+    expect(result.extensions?.creationBriefs).toEqual([]);
   });
 
   it("rejects disagreeing timeline representations", () => {
@@ -52,5 +53,32 @@ describe("cloud V1 to project DSL", () => {
     const first = migrateCloudV1ToDsl(input, { projectId: "project-1", title: "云项目" });
     const second = migrateCloudV1ToDsl(input, { projectId: "project-1", title: "云项目" });
     expect(first.episodes[0].tracks[0].clips.map(item => item.id)).toEqual(second.episodes[0].tracks[0].clips.map(item => item.id));
+  });
+
+  it("projects cloud briefs as non-executable material without altering clips", () => {
+    const input = legacy();
+    const brief = { id: "brief-cloud-0001", source: "manual" as const, originalText: "完整剧本", finalText: "完整剧本",
+      createdAt: 1, updatedAt: 1 };
+    input.briefs = [brief];
+    const result = migrateCloudV1ToDsl(input, { projectId: "project-1", title: "云项目" });
+    expect(result.extensions?.creationBriefs).toEqual([brief]);
+    expect(result.episodes[0].scenes).toHaveLength(1);
+    expect(result.episodes[0].tracks[0].clips).toHaveLength(2);
+  });
+
+  it("projects uploaded voice and music as positioned DSL tracks", () => {
+    const input = legacy();
+    input.assets.push({ id: "voice-001", kind: "voice", name: "录音", mimeType: "audio/mpeg", durationMs: 6000 });
+    input.assets.push({ id: "music-001", kind: "music", name: "配乐", mimeType: "audio/mp4", durationMs: 6000 });
+    input.episodes[0].audio = { originalVolume: 0.4,
+      voiceClips: [{ assetId: "voice-001", startMs: 500, inMs: 100, outMs: 5100, volume: 1.2 }],
+      musicClips: [{ assetId: "music-001", startMs: 0, inMs: 0, outMs: 6000, volume: 0.2 }] };
+    const result = migrateCloudV1ToDsl(input, { projectId: "project-1", title: "云项目" });
+    expect(result.episodes[0].tracks.find(track => track.kind === "voice")?.clips[0])
+      .toMatchObject({ kind: "voice", startMs: 500, inMs: 100, outMs: 5100, volume: 1.2 });
+    expect(result.episodes[0].tracks.find(track => track.kind === "music")?.clips[0])
+      .toMatchObject({ kind: "music", assetId: "music-001" });
+    expect(result.assets.items.find(asset => asset.id === "voice-001"))
+      .toMatchObject({ kind: "voice", durationMs: 6000 });
   });
 });

@@ -41,6 +41,7 @@ describe("local V2 to project DSL", () => {
     });
     expect(migrated.project.assets.items.find(item => item.kind === "subtitle")).toMatchObject({ text: "你好" });
     expect(migrated.bindings[0]).toEqual({ assetId: "photo-1", relativePath: "media/source/photo.jpg", missing: false });
+    expect(migrated.project.extensions?.creationBriefs).toEqual([]);
   });
 
   it("keeps old paid job identity out of runIds and reports missing media", () => {
@@ -58,5 +59,16 @@ describe("local V2 to project DSL", () => {
     expect(migrated.project.extensions?.legacy).toMatchObject({
       localCoverTimeMs: { [migrated.activeEpisodeId]: 99999 },
     });
+  });
+
+  it("retains a local script as project material while preserving timeline clips", () => {
+    const input = legacy();
+    const brief = { id: "brief-local-0001", source: "manual" as const, originalText: "第一幕\n第二幕", finalText: "第一幕\n第二幕",
+      createdAt: 1, updatedAt: 1 };
+    input.extensions = { creationBriefs: [brief] };
+    const migrated = migrateLocalV2ToDsl(input);
+    expect(migrated.project.extensions?.creationBriefs).toEqual([brief]);
+    expect(migrated.project.episodes[0].tracks[0].clips).toHaveLength(2);
+    expect(migrated.project.episodes[0].scenes).toHaveLength(1);
   });
 });

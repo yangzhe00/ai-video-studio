@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { createDb } from "./db.ts";
+import { createDb } from "./legacy-sqlite.ts";
 
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
@@ -22,7 +22,7 @@ describe("database migrations", () => {
       .run("idea-old", "owner-old", "request-old", "hash", "旧灵感", "ready", 1, 1, "agents", "session-old");
     raw.close();
     const db = createDb(dir);
-    expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: 9 });
+    expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
     expect(db.prepare("SELECT input_text,provider_session_id,provider_run_id FROM prompt_idea_sets WHERE id='idea-old'").get())
       .toEqual({ input_text: "旧灵感", provider_session_id: "session-old", provider_run_id: null });
     db.close();
@@ -42,7 +42,7 @@ describe("database migrations", () => {
       .run("render-old", "edit-old", "owner-old", 1, "{}", "running", 1, 1);
     raw.close();
     const db = createDb(dir);
-    expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: 9 });
+    expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
     expect(db.prepare("SELECT id,state,lease_token,lease_expires_at FROM render_operations WHERE id='render-old'").get())
       .toEqual({ id: "render-old", state: "running", lease_token: null, lease_expires_at: null });
     db.close();
@@ -61,11 +61,31 @@ describe("database migrations", () => {
         episodes: [{ id: "episode-v5", title: "旧分集", shots: [], timeline: [] }], assets: [], characters: [] }), 1234);
     raw.close();
     const db = createDb(dir);
-    expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: 9 });
+    expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
     expect(db.prepare("SELECT title,revision,created_at,updated_at,recent_episode_id FROM projects WHERE id='project-v5'").get())
       .toMatchObject({ title: "旧云项目", revision: 4, created_at: 1234, updated_at: 1234, recent_episode_id: "episode-v5" });
+    expect(JSON.parse((db.prepare("SELECT document_json FROM projects WHERE id='project-v5'").get() as { document_json: string }).document_json).briefs).toEqual([]);
     expect(db.prepare("SELECT COUNT(*) AS count FROM prompt_idea_sets").get()).toEqual({ count: 0 });
     db.close();
+  });
+
+  it("adds empty briefs to a v9 cloud project without changing its timeline or revision", () => {
+    const dir = mkdtempSync(join(tmpdir(), "avs-v9-brief-migration-")); dirs.push(dir);
+    const before = createDb(dir);
+    before.prepare("INSERT INTO accounts (id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
+      .run("owner-v9", "v9@example.com", "hash", 1, 1);
+    const old = { version: 1, assets: [], characters: [], episodes: [{ id: "episode-v9", title: "旧分集",
+      shots: [], timeline: ["asset-v9"], timelineClips: [{ id: "clip-v9", assetId: "asset-v9", inMs: 1000, outMs: 4000, volume: 0.5 }] }] };
+    before.prepare("INSERT INTO projects (id,owner_id,title,revision,document_json,created_at,updated_at,recent_episode_id) VALUES (?,?,?,?,?,?,?,?)")
+      .run("project-v9", "owner-v9", "旧项目", 5, JSON.stringify(old), 1, 1, "episode-v9");
+    before.exec("PRAGMA user_version = 9"); before.close();
+    const after = createDb(dir);
+    const row = after.prepare("SELECT revision,document_json FROM projects WHERE id='project-v9'").get() as { revision: number; document_json: string };
+    const document = JSON.parse(row.document_json);
+    expect(row.revision).toBe(5);
+    expect(document.briefs).toEqual([]);
+    expect(document.episodes[0]).toEqual(old.episodes[0]);
+    after.close();
   });
 
   it("fills old cloud document fields and missing resource revisions transactionally", () => {

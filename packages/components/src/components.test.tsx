@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ResultsPage } from "./ResultsPage";
 import { StudioShell } from "./StudioChrome";
 
@@ -30,5 +30,22 @@ describe("shared C4 components", () => {
     expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
     fireEvent.click(screen.getByRole("button", { name: "画布" }));
     expect(navigate).toHaveBeenCalledWith("canvas");
+  });
+
+  it("offers a phone navigation and closes the account drawer after selection", () => {
+    const navigate = vi.fn();
+    render(<StudioShell mobileNavigation active="generate" onNavigate={navigate} footer={<button type="button">退出登录</button>}>
+      <div>页面</div>
+    </StudioShell>);
+    const phoneNav = within(screen.getByRole("navigation", { name: "手机主导航" }));
+    expect(phoneNav.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(phoneNav.getByRole("button", { name: "结果" }));
+    expect(navigate).toHaveBeenCalledWith("results");
+    fireEvent.click(screen.getByRole("button", { name: "打开账号与项目菜单" }));
+    expect(screen.getByRole("button", { name: "打开账号与项目菜单" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "退出登录" })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("complementary", { name: "主导航" })).getByRole("button", { name: "画布" }));
+    expect(navigate).toHaveBeenCalledWith("canvas");
+    expect(screen.getByRole("button", { name: "打开账号与项目菜单" }).getAttribute("aria-expanded")).toBe("false");
   });
 });

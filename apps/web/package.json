@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": { "dev": "vite --host 127.0.0.1", "build": "tsc && vite build", "test": "vitest run --environment jsdom" },
   "dependencies": {
+    "@ai-video/api-contracts": "workspace:*",
     "@ai-video/agent-core": "workspace:*",
     "@ai-video/components": "workspace:*",
     "@ai-video/design-tokens": "workspace:*",

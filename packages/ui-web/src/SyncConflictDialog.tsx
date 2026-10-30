@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SyncResourceType } from "@ai-video/project-core";
+import type { CreationBrief, SyncResourceType } from "@ai-video/project-core";
 
 export type SyncConflictChoice = "local" | "cloud";
 
@@ -7,8 +7,8 @@ export interface SyncConflictResource {
   resourceType: SyncResourceType;
   resourceId: string;
   title: string;
-  local: { revision: number; preview: string };
-  cloud: { revision: number; preview: string };
+  local: { revision: number; preview: string; brief?: Pick<CreationBrief, "source" | "originalText" | "finalText"> };
+  cloud: { revision: number; preview: string; brief?: Pick<CreationBrief, "source" | "originalText" | "finalText"> };
 }
 
 interface Props {
@@ -24,7 +24,7 @@ export function syncConflictKey(resource: Pick<SyncConflictResource, "resourceTy
 }
 
 const resourceLabels: Record<SyncResourceType, string> = {
-  episode: "分集", asset: "素材", character: "主体", canvas: "画布",
+  episode: "分集", asset: "素材", character: "主体", canvas: "画布", brief: "创作原文",
 };
 
 export function SyncConflictDialog({ projectTitle, resources, busy = false, onCancel, onResolve }: Props) {
@@ -49,7 +49,11 @@ export function SyncConflictDialog({ projectTitle, resources, busy = false, onCa
               <span><input type="radio" name={key} checked={choices[key] === side}
                 onChange={() => setChoices(current => ({ ...current, [key]: side }))} />
                 {side === "local" ? "保留本地并覆盖云端" : "采用云端"} <small>修订 {item[side].revision}</small></span>
-              <pre>{item[side].preview}</pre>
+              {item.resourceType === "brief" && item[side].brief ? <div className="avs-sync-conflict-brief">
+                <p>来源：{item[side].brief.source === "agent" ? "Agent 灵感" : "手写"}</p>
+                <strong>输入原文</strong><pre>{item[side].brief.originalText}</pre>
+                <strong>最终创作内容</strong><pre>{item[side].brief.finalText}</pre>
+              </div> : <pre>{item[side].preview}</pre>}
             </label>)}
           </div>
         </fieldset>;

@@ -1,7 +1,7 @@
 import type { GenerationJob, ShotDraft } from "./ai";
 import type { StudioDocument } from "./studio";
 
-export type MediaKind = "image" | "video" | "audio";
+export type MediaKind = "image" | "video" | "audio" | "voice" | "music";
 
 export interface MediaAsset {
   id: string;

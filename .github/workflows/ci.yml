@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: avs_test
+          POSTGRES_PASSWORD: avs_ci_only_password
+          POSTGRES_DB: avs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U avs_test -d avs_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://avs_test:avs_ci_only_password@127.0.0.1:5432/avs_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node --test deploy/ci/verify-public.test.mjs
+      - run: node deploy/ci/check-client-contract.mjs
+      - run: pnpm test
+      - run: pnpm build
+
+  desktop-native:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml

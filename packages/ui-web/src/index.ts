@@ -18,3 +18,5 @@ export { StudioIcon } from "./StudioIcon";
 export { GeneratePage } from "./GeneratePage";
 export { PromptIdeas, pendingPromptRequestId } from "./PromptIdeas";
 export type { PromptIdeaSet, PromptVariant } from "./PromptIdeas";
+export { WorkSetup, suggestedProjectTitle, validProjectTitle } from "./WorkSetup";
+export type { WorkMode, WorkProjectChoice, WorkSetupSelection } from "./WorkSetup";

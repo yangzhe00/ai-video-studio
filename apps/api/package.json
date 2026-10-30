@@ -3,14 +3,25 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "dependencies": { "@ai-video/agent-core": "workspace:*", "@ai-video/plugin-video-edit": "workspace:*", "@ai-video/project-core": "workspace:*", "@ffmpeg-installer/ffmpeg": "^1.1.0", "@ffprobe-installer/ffprobe": "^2.1.2" },
+  "dependencies": {
+    "@ai-video/agent-core": "workspace:*",
+    "@ai-video/api-contracts": "workspace:*",
+    "@ai-video/plugin-video-edit": "workspace:*",
+    "@ai-video/project-core": "workspace:*",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
+    "pg": "8.23.0"
+  },
   "scripts": {
     "dev": "node --experimental-transform-types src/main.ts",
     "build": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.mjs",
+    "migrate:schema": "node --experimental-transform-types scripts/migrate-schema.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
     "typescript": "~6.0.3",
     "vitest": "^4.0.0"
   }

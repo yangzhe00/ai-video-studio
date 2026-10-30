@@ -1,0 +1,97 @@
+name: ai-video-studio
+
+services:
+  db:
+    image: ${PG_IMAGE:?Set PG_IMAGE to a tested immutable PostgreSQL 17 image}
+    container_name: ai-video-studio-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ai_video_studio
+      POSTGRES_USER: ai_video_studio
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - type: bind
+        source: ${PG_DATA_DIR_HOST:?Set PG_DATA_DIR_HOST to a dedicated persistent PostgreSQL directory}
+        target: /var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_video_studio -d ai_video_studio"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  api:
+    image: ${API_IMAGE:?Set API_IMAGE to a tested immutable release tag}
+    container_name: ai-video-studio-api
+    restart: unless-stopped
+    user: "${API_UID:-1000}:${API_GID:-1000}"
+    env_file:
+      - ${API_ENV_FILE:-/etc/ai-video-studio/api.env}
+    environment:
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${API_BIND_IP:-127.0.0.1}:${API_HOST_PORT:-8787}:8787"
+    networks:
+      - default
+      - database
+    volumes:
+      - type: bind
+        source: ${API_DATA_DIR_HOST:-/var/lib/ai-video-studio}
+        target: /var/lib/ai-video-studio
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+
+  api-migrate:
+    image: ${API_IMAGE:?Set API_IMAGE to a tested immutable release tag}
+    profiles: ["migration"]
+    user: "${API_UID:-1000}:${API_GID:-1000}"
+    env_file:
+      - ${PG_MIGRATION_ENV_FILE:?Set PG_MIGRATION_ENV_FILE to a root-owned 0600 file}
+    environment:
+      API_RUNTIME_PASSWORD_FILE: /run/secrets/postgres_runtime_password
+    secrets:
+      - postgres_runtime_password
+    volumes:
+      - type: bind
+        source: ${API_DATA_DIR_HOST:-/var/lib/ai-video-studio}
+        target: /var/lib/ai-video-studio
+        read_only: true
+    networks:
+      - database
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+secrets:
+  postgres_password:
+    file: ${PG_PASSWORD_FILE:?Set PG_PASSWORD_FILE to a root-owned 0600 password file}
+  postgres_runtime_password:
+    file: ${PG_RUNTIME_PASSWORD_FILE:?Set PG_RUNTIME_PASSWORD_FILE to a root-owned 0600 password file}
+
+networks:
+  database:
+    internal: true

@@ -1,9 +1,9 @@
-import { ensureStudio, readCanvasDocument, resourceRevision } from "@ai-video/project-core";
+import { creationBriefs, ensureStudio, readCanvasDocument, resourceRevision } from "@ai-video/project-core";
 import type { CanvasEpisodeGraphV1, CloudCharacter, MediaAsset, ProjectManifestV2, StudioEpisode, StudioNode, SyncResourceRevision, SyncResourceType } from "@ai-video/project-core";
 import { saveProject } from "./native";
 import { cloudCommand, cloudDownloadAsset, cloudRequest, cloudUploadAsset } from "./cloud";
 import type { CloudAccount, CloudProject } from "./cloud";
-import { fromCloudClips, toCloudEpisode } from "./sync-model";
+import { fromCloudAudio, fromCloudClips, toCloudEpisode } from "./sync-model";
 
 export interface CloudBinding {
   version: 1; accountId: string; projectId: string; revision: number;
@@ -37,7 +37,7 @@ function withBinding(manifest: ProjectManifestV2, binding: CloudBinding): Projec
 
 function fingerprint(manifest: ProjectManifestV2): string {
   const data = JSON.stringify({ assets: manifest.assets, studio: manifest.studio, canvas: manifest.extensions?.canvas,
-    clips: manifest.clips, captions: manifest.captions, cover: manifest.coverTimeMs });
+    briefs: creationBriefs(manifest), clips: manifest.clips, captions: manifest.captions, cover: manifest.coverTimeMs });
   return hashText(data);
 }
 
@@ -58,10 +58,11 @@ function localResourceFingerprints(local: ProjectManifestV2, binding: CloudBindi
   }
   for (const item of studio.characters) result[resourceKey("character", item.id)] = resourceHash(item);
   for (const item of studio.episodes) {
-    result[resourceKey("episode", item.id)] = resourceHash({ title: item.title, clips: item.clips });
+    result[resourceKey("episode", item.id)] = resourceHash({ title: item.title, clips: item.clips, audio: item.audio });
     const graph = readCanvasDocument(local)?.episodeGraphs[item.id];
     if (graph) result[resourceKey("canvas", item.id)] = resourceHash(graph);
   }
+  for (const brief of creationBriefs(local)) result[resourceKey("brief", brief.id)] = resourceHash(brief);
   return result;
 }
 
@@ -78,6 +79,7 @@ function mappedGraph(graph: CanvasEpisodeGraphV1, map: Record<string, string>): 
 
 function findRemoteResource(project: CloudProject, type: string, id: string): unknown {
   if (type === "canvas") return (project.document.extensions?.canvas as { episodeGraphs?: Record<string, unknown> } | undefined)?.episodeGraphs?.[id];
+  if (type === "brief") return creationBriefs(project.document).find(item => item.id === id);
   const field = type === "episode" ? "episodes" : type === "asset" ? "assets" : "characters";
   return (project.document[field] as { id: string }[]).find(item => item.id === id);
 }
@@ -125,6 +127,33 @@ async function fetchProject(id: string): Promise<CloudProject> {
   return (await cloudRequest<{ project: CloudProject }>(`/projects/${id}`)).project;
 }
 
+async function findOrCreateProject(local: ProjectManifestV2): Promise<CloudProject> {
+  const firstEpisode = local.studio!.episodes[0];
+  const firstBrief = creationBriefs(local)[0];
+  try {
+    const existing = await fetchProject(local.id);
+    const remoteBrief = firstBrief && creationBriefs(existing.document).find(item => item.id === firstBrief.id);
+    if (existing.title !== local.title || !existing.document.episodes.some(item => item.id === firstEpisode.id) ||
+        (firstBrief && (!remoteBrief || remoteBrief.source !== firstBrief.source ||
+          remoteBrief.originalText !== firstBrief.originalText || remoteBrief.createdAt !== firstBrief.createdAt ||
+          remoteBrief.ideaSetId !== firstBrief.ideaSetId || remoteBrief.variantId !== firstBrief.variantId))) {
+      throw new Error("云端已有同 ID 项目，请先处理项目关联，避免覆盖云端内容");
+    }
+    return existing;
+  } catch (error) {
+    if (!String(error).includes("项目不存在")) throw error;
+  }
+  return (await cloudRequest<{ project: CloudProject }>("/projects", "POST", { id: local.id, title: local.title,
+    initialEpisodeId: firstEpisode.id, ...(firstBrief ? { initialBrief: firstBrief } : {}) })).project;
+}
+
+function initialResourceRevisions(local: ProjectManifestV2): SyncResourceRevision[] {
+  const firstEpisode = local.studio!.episodes[0];
+  const firstBrief = creationBriefs(local)[0];
+  return [{ resourceType: "episode", resourceId: firstEpisode.id, revision: 1 },
+    ...(firstBrief ? [{ resourceType: "brief" as const, resourceId: firstBrief.id, revision: 1 }] : [])];
+}
+
 async function pull(root: string, local: ProjectManifestV2, remote: CloudProject, binding: CloudBinding): Promise<ProjectManifestV2> {
   const cloudToLocal = Object.fromEntries(Object.entries(binding.assetMap).map(([localId, cloudId]) => [cloudId, localId]));
   const assets: MediaAsset[] = [...local.assets];
@@ -155,13 +184,15 @@ async function pull(root: string, local: ProjectManifestV2, remote: CloudProject
     graphs[item.id] = { nodes, edges: mapped?.edges ?? previous?.edges ?? [], viewport: mapped?.viewport ?? { x: 0, y: 0, zoom: 1 } };
     const clips = fromCloudClips(item, cloudToLocal);
     return { id: item.id, title: item.title, nodes, edges: graphs[item.id].edges, clips,
+      ...(item.audio ? { audio: fromCloudAudio(item, cloudToLocal) } : {}),
       captions: previous?.captions ?? [], publishingCopy: previous?.publishingCopy ?? "", coverTimeMs: previous?.coverTimeMs ?? null };
   });
   const activeEpisodeId = episodes.some(item => item.id === current.activeEpisodeId) ? current.activeEpisodeId : episodes[0].id;
   const active = episodes.find(item => item.id === activeEpisodeId)!;
   const next: ProjectManifestV2 = { ...local, assets, clips: active.clips, captions: active.captions,
     studio: { version: 1, activeEpisodeId, episodes, characters: (remote.document.characters ?? []).map(character => ({ ...character, assetId: cloudToLocal[character.assetId] ?? character.assetId })) },
-    extensions: { ...local.extensions, canvas: { version: 1, episodeGraphs: graphs } } };
+    extensions: { ...local.extensions, canvas: { version: 1, episodeGraphs: graphs },
+      creationBriefs: creationBriefs(remote.document) } };
   binding.revision = remote.revision;
   binding.fingerprint = fingerprint(next);
   binding.resourceFingerprints = localResourceFingerprints(next, binding);
@@ -179,10 +210,13 @@ async function push(root: string, local: ProjectManifestV2, remote: CloudProject
     ...studio.characters.map(item => item.assetId),
     ...studio.episodes.flatMap(episode => [
       ...episode.clips.map(clip => clip.assetId),
+      ...(episode.audio?.voiceClips.map(clip => clip.assetId) ?? []),
+      ...(episode.audio?.musicClips.map(clip => clip.assetId) ?? []),
       ...episode.nodes.flatMap(node => [node.assetId, node.resultAssetId].filter((id): id is string => Boolean(id))),
     ]),
   ]);
-  for (const asset of local.assets.filter(item => usedAssets.has(item.id) && !item.missing && (item.kind === "image" || item.kind === "video"))) {
+  for (const asset of local.assets.filter(item => usedAssets.has(item.id) && !item.missing &&
+    (item.kind === "image" || item.kind === "video" || item.kind === "voice" || item.kind === "music"))) {
     let cloudId = binding.assetMap[asset.id];
     if (!cloudId) {
       cloudId = (await cloudUploadAsset(root, asset.id)).object.id;
@@ -199,10 +233,14 @@ async function push(root: string, local: ProjectManifestV2, remote: CloudProject
   for (const episode of studio.episodes) {
     const existing = current.document.episodes.find(item => item.id === episode.id);
     current = await putLocalResource(root, local, current, binding, baseline, "episode", episode.id, episode.id,
-      { title: episode.title, clips: episode.clips }, toCloudEpisode(episode, binding.assetMap, existing), resolution);
+      { title: episode.title, clips: episode.clips, audio: episode.audio }, toCloudEpisode(episode, binding.assetMap, existing), resolution);
     const graph = readCanvasDocument(local)?.episodeGraphs[episode.id];
     if (graph) current = await putLocalResource(root, local, current, binding, baseline, "canvas", episode.id, episode.id, graph,
       mappedGraph(graph, binding.assetMap), resolution);
+  }
+  for (const brief of creationBriefs(local)) {
+    current = await putLocalResource(root, local, current, binding, baseline, "brief", brief.id, brief.id,
+      brief, brief, resolution);
   }
   binding.revision = current.revision;
   binding.fingerprint = fingerprint(local);
@@ -220,18 +258,17 @@ export async function ensureCloudReference(root: string, manifest: ProjectManife
   if (binding && binding.accountId !== account.id) throw new Error("此本地项目已关联其他账号，请切换回原账号");
   let remote: CloudProject;
   if (!binding) {
-    try { remote = await fetchProject(local.id); }
-    catch (error) {
-      if (!String(error).includes("项目不存在")) throw error;
-      remote = (await cloudRequest<{ project: CloudProject }>("/projects", "POST", {
-        id: local.id, title: local.title, initialEpisodeId: local.studio!.episodes[0].id,
-      })).project;
-      binding = { version: 1, accountId: account.id, projectId: remote.id, revision: remote.revision,
-        assetMap: {}, fingerprint: "", resourceRevisions: remote.resourceRevisions };
-      await saveProject(root, withBinding(local, binding));
-    }
-    if (!binding) throw new Error("云端已有同 ID 项目，请先处理项目关联，避免覆盖云端内容");
+    remote = await findOrCreateProject(local);
+    binding = { version: 1, accountId: account.id, projectId: remote.id, revision: remote.revision,
+      assetMap: {}, fingerprint: "", resourceRevisions: initialResourceRevisions(local) };
+    await saveProject(root, withBinding(local, binding));
   } else remote = await fetchProject(binding.projectId);
+
+  const briefBaseline = [...(binding.resourceRevisions ?? [])];
+  for (const brief of creationBriefs(local)) {
+    remote = await putLocalResource(root, local, remote, binding, briefBaseline, "brief", brief.id, brief.id,
+      brief, brief);
+  }
 
   let cloudAssetId = binding.assetMap[sourceAssetId];
   if (!cloudAssetId || !remote.document.assets.some(asset => asset.id === cloudAssetId)) {
@@ -263,17 +300,10 @@ export async function syncProject(root: string, manifest: ProjectManifestV2, acc
   let binding = bindingOf(local);
   if (binding && binding.accountId !== account.id) throw new Error("此本地项目已关联其他账号，请切换回原账号");
   let remote: CloudProject;
-  let created = false;
   if (!binding) {
-    try { remote = await fetchProject(local.id); }
-    catch (error) {
-      if (!String(error).includes("项目不存在")) throw error;
-      const firstEpisode = local.studio!.episodes[0];
-      remote = (await cloudRequest<{ project: CloudProject }>("/projects", "POST", { id: local.id, title: local.title, initialEpisodeId: firstEpisode.id })).project;
-      created = true;
-    }
-    if (!created) throw new Error("云端已有同 ID 项目，请先处理项目关联，避免覆盖云端内容");
-    binding = { version: 1, accountId: account.id, projectId: remote.id, revision: remote.revision, assetMap: {}, fingerprint: "", resourceRevisions: remote.resourceRevisions };
+    remote = await findOrCreateProject(local);
+    binding = { version: 1, accountId: account.id, projectId: remote.id, revision: remote.revision,
+      assetMap: {}, fingerprint: "", resourceRevisions: initialResourceRevisions(local) };
     await saveProject(root, withBinding(local, binding));
   } else remote = await fetchProject(binding.projectId);
   if (!binding.resourceFingerprints && binding.fingerprint === fingerprint(local)) {
@@ -299,6 +329,7 @@ export async function attachCloudProject(root: string, manifest: ProjectManifest
   const remote = await fetchProject(projectId);
   const local = ensureStudio(manifest);
   const localHasWork = local.assets.length > 0 || local.shots.length > 0 || local.jobs.length > 0 ||
+    creationBriefs(local).length > 0 ||
     local.studio!.characters.length > 0 || local.studio!.episodes.some(episode =>
       episode.clips.length > 0 || episode.nodes.some(node => node.type !== "timeline") || episode.title !== "第 1 集");
   if (localHasWork) throw new Error("本地项目已有内容，不能直接用云端项目覆盖；请先打开本地项目处理同步冲突");

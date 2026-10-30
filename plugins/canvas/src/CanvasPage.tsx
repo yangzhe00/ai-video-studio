@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type {
-  MediaAsset, ProjectManifestV2, StudioEpisode, StudioNode, StudioNodeType,
+  CreationBrief, MediaAsset, ProjectManifestV2, StudioEpisode, StudioNode, StudioNodeType,
 } from "@ai-video/project-core";
 import { StudioIcon } from "@ai-video/ui-web";
 
@@ -34,10 +34,30 @@ interface Props {
   onAddVideoToTimeline: (nodeId: string, assetId: string) => void;
   onReorderClip: (clipId: string, targetIndex: number) => void;
   onExport?: () => void;
+  onOpenVoiceover?: () => void;
+  creationBriefs?: CreationBrief[];
+  onUpdateCreationBrief?: (id: string, finalText: string, expectedRemoteText?: string) => void | Promise<void>;
 }
 
 function shortName(asset: MediaAsset | undefined) { return asset?.relativePath.split("/").pop() ?? "未命名素材"; }
 function duration(ms: number) { return `${Math.round(ms / 1000)} 秒`; }
+
+interface BriefConflict { remoteText: string }
+function briefSessionKey(projectId: string) { return `avs-brief-drafts:${projectId}`; }
+function readBriefSession(projectId: string): { drafts: Record<string, string>; conflicts: Record<string, BriefConflict> } {
+  try {
+    const raw = JSON.parse(window.sessionStorage.getItem(briefSessionKey(projectId)) ?? "{}") as {
+      drafts?: Record<string, string>; conflicts?: Record<string, BriefConflict>;
+    };
+    return { drafts: raw.drafts ?? {}, conflicts: raw.conflicts ?? {} };
+  } catch { return { drafts: {}, conflicts: {} }; }
+}
+function briefConflictFrom(error: unknown): BriefConflict | null {
+  if (!error || typeof error !== "object") return null;
+  const value = error as { kind?: unknown; remoteText?: unknown };
+  return value.kind === "creation-brief-conflict" && typeof value.remoteText === "string"
+    ? { remoteText: value.remoteText } : null;
+}
 
 function nodeSize(type: StudioNodeType) {
   if (type === "character" || type === "image") return { w: 237, h: 272 };
@@ -46,11 +66,33 @@ function nodeSize(type: StudioNodeType) {
   return { w: 440, h: 157 };
 }
 
+interface CanvasRect { left: number; top: number; right: number; bottom: number }
+function inspectorPosition(anchor: CanvasRect, nodes: CanvasRect[], width: number, height: number, panelWidth: number, panelHeight: number) {
+  const gap = 16;
+  const clamp = (value: number, maximum: number) => Math.max(12, Math.min(value, Math.max(12, maximum - 12)));
+  const overlap = (a: CanvasRect, b: CanvasRect) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
+    * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  const choices = [
+    { left: anchor.right + gap, top: anchor.top },
+    { left: anchor.left - panelWidth - gap, top: anchor.top },
+    { left: anchor.left, top: anchor.bottom + gap },
+    { left: anchor.left, top: anchor.top - panelHeight - gap },
+  ];
+  return choices.map((choice, index) => {
+    const left = clamp(choice.left, width - panelWidth);
+    const top = clamp(choice.top, height - panelHeight);
+    const panel = { left, top, right: left + panelWidth, bottom: top + panelHeight };
+    const score = nodes.reduce((sum, node) => sum + overlap(panel, node), 0)
+      + (Math.abs(left - choice.left) + Math.abs(top - choice.top)) * 180 + index;
+    return { left, top, score };
+  }).sort((a, b) => a.score - b.score)[0];
+}
+
 export function CanvasPage({
   manifest, episode, projectRoot, shareMessage, previewUrls, busy, saveState, onOpenGenerate, onOpenEditor,
   onOpenProjects, onSelectEpisode, onCreateEpisode, onImportPhoto, onCreateCharacter, onAddCharacterNode,
   onAddNode, onAddDownstreamVideo, onUpdateNode, onMoveNode, onRemoveNode, onConnect, onDisconnect,
-  onRunVideo, onRefreshJob, onAddVideoToTimeline, onReorderClip, onExport,
+  onRunVideo, onRefreshJob, onAddVideoToTimeline, onReorderClip, onExport, onOpenVoiceover, creationBriefs = [], onUpdateCreationBrief,
 }: Props) {
   const [zoom, setZoom] = useState(50);
   const [handMode, setHandMode] = useState(false);
@@ -70,6 +112,42 @@ export function CanvasPage({
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [briefId, setBriefId] = useState<string | null>(null);
+  const [briefDraft, setBriefDraft] = useState("");
+  const [briefDrafts, setBriefDrafts] = useState<Record<string, string>>(() => readBriefSession(manifest.id).drafts);
+  const [briefConflicts, setBriefConflicts] = useState<Record<string, BriefConflict>>(() => readBriefSession(manifest.id).conflicts);
+  const [briefError, setBriefError] = useState("");
+  const [briefSaving, setBriefSaving] = useState(false);
+  const activeBrief = creationBriefs.find(item => item.id === briefId) ?? creationBriefs[0];
+  const activeBriefConflict = activeBrief ? briefConflicts[activeBrief.id] : undefined;
+  useEffect(() => {
+    try { window.sessionStorage.setItem(briefSessionKey(manifest.id), JSON.stringify({ drafts: briefDrafts, conflicts: briefConflicts })); }
+    catch { /* the current panel still retains the draft */ }
+  }, [manifest.id, briefDrafts, briefConflicts]);
+
+  function setCurrentBriefDraft(id: string, value: string) {
+    setBriefDraft(value);
+    setBriefDrafts(current => ({ ...current, [id]: value }));
+  }
+  function clearBriefDraft(id: string) {
+    setBriefDrafts(current => { const next = { ...current }; delete next[id]; return next; });
+    setBriefConflicts(current => { const next = { ...current }; delete next[id]; return next; });
+  }
+  function saveBrief(id: string, text: string, expectedRemoteText?: string) {
+    if (!onUpdateCreationBrief) return;
+    setBriefSaving(true); setBriefError("");
+    void Promise.resolve().then(() => onUpdateCreationBrief(id, text, expectedRemoteText)).then(() => {
+      clearBriefDraft(id);
+      setBriefDraft(text);
+    }).catch(cause => {
+      const conflict = briefConflictFrom(cause);
+      if (conflict) {
+        setBriefConflicts(current => ({ ...current, [id]: conflict }));
+        setBriefError("这条原文已在另一端修改。请比较两版后明确选择，当前没有覆盖云端。");
+      } else setBriefError(String(cause));
+    }).finally(() => setBriefSaving(false));
+  }
   const dragRef = useRef<{ id: string; sx: number; sy: number; x: number; y: number } | null>(null);
   const connectionDragRef = useRef<{ fromId: string; sx: number; sy: number; moved: boolean } | null>(null);
   const panRef = useRef<{ sx: number; sy: number; x: number; y: number } | null>(null);
@@ -241,12 +319,16 @@ export function CanvasPage({
     const anchorLeft = pan.x + (nodePos?.x ?? edgeMiddle?.x ?? 0) * scale;
     const anchorRight = pan.x + ((nodePos?.x ?? edgeMiddle?.x ?? 0) + nodeWidth) * scale;
     const anchorTop = pan.y + (nodePos?.y ?? edgeMiddle?.y ?? 0) * scale;
+    const anchorBottom = anchorTop + (selectedNode ? nodeSize(selectedNode.type).h * scale : 0);
     const panelWidth = Math.min(300, Math.max(180, width - 24));
     const panelHeight = Math.min(inspectorHeight || 320, Math.max(100, height - 24));
-    let left = anchorRight + 16;
-    if (left + panelWidth > width - 12) left = anchorLeft - panelWidth - 16;
-    left = Math.max(12, Math.min(left, width - panelWidth - 12));
-    const top = Math.max(12, Math.min(anchorTop, height - panelHeight - 12));
+    const nodeRects = episode.nodes.map(node => {
+      const pos = position(node), size = nodeSize(node.type);
+      const left = pan.x + pos.x * scale, top = pan.y + pos.y * scale;
+      return { left, top, right: left + size.w * scale, bottom: top + size.h * scale };
+    });
+    const { left, top } = inspectorPosition({ left: anchorLeft, top: anchorTop, right: anchorRight, bottom: anchorBottom },
+      nodeRects, width, height, panelWidth, panelHeight);
     return { left, top };
   })();
 
@@ -258,10 +340,15 @@ export function CanvasPage({
       <span className="film-node-count">{episode.nodes.length} 个节点 / {episode.edges.length} 条连接</span>
       <span className="film-saved"><i className={saveState === "failed" ? "failed" : ""} />{saveState === "saving" ? "保存中" : saveState === "failed" ? "保存失败" : "已保存"}</span>
       <span className="film-canvas-header-spacer" />
+      <button type="button" className="film-header-share" onClick={() => {
+        const selected = activeBrief;
+        setBriefId(selected?.id ?? null); setBriefDraft(selected ? briefDrafts[selected.id] ?? selected.finalText : ""); setBriefError(""); setBriefOpen(true);
+      }}>创作原文{creationBriefs.length ? ` (${creationBriefs.length})` : ""}</button>
       <button type="button" className="film-header-share" onClick={onOpenGenerate}><StudioIcon name="sparkles" size={17} />生成</button>
       {searchOpen && <input className="film-canvas-search" aria-label="搜索节点" autoFocus value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索节点" />}
       <button type="button" className="film-header-icon-button" title="搜索节点" aria-label="搜索节点" onClick={() => setSearchOpen(value => !value)}><StudioIcon name="search" size={18} /></button>
       <button type="button" className="film-header-share" onClick={() => setModal("share")}><StudioIcon name="share" size={17} />分享</button>
+      {onOpenVoiceover && <button type="button" className="film-header-share" onClick={onOpenVoiceover}>配音与混音</button>}
       <button type="button" className="film-header-export" onClick={onExport} disabled={!onExport || busy || !manifest.clips.length} title={onExport ? "导出整集" : "当前平台暂不支持整集导出"}><StudioIcon name="film" size={17} />导出整集</button>
     </header>
     <div className="film-canvas-body">
@@ -357,12 +444,42 @@ export function CanvasPage({
         : selectedNode && <><small>{selectedNode.type === "character" ? "人物主体" : selectedNode.type === "image" ? "参考图片" : selectedNode.type === "text" ? "镜头描述" : selectedNode.type === "video" ? "视频镜头" : "整集编排"}</small>
           {selectedNode.type !== "timeline" && <label>节点名称<input value={nodeTitle} onChange={event => setNodeTitle(event.target.value)} onBlur={() => { if (nodeTitle.trim() && nodeTitle !== selectedNode.title) onUpdateNode(selectedNode.id, { title: nodeTitle.trim() }); }} /></label>}
           {(selectedNode.type === "text" || selectedNode.type === "video") && <label>镜头提示词<textarea value={nodePrompt} onChange={event => setNodePrompt(event.target.value)} onBlur={() => { if (nodePrompt !== selectedNode.prompt) onUpdateNode(selectedNode.id, { prompt: nodePrompt }); }} placeholder="描述动作、场景和镜头" /></label>}
-          {selectedNode.type === "video" && <><label>镜头时长<select value={selectedNode.durationSec ?? 5} onChange={event => onUpdateNode(selectedNode.id, { durationSec: Number(event.target.value) })}><option value={5}>5 秒</option><option value={10}>10 秒</option></select></label><p>连接人物或图片、文本后，可逐节点运行。</p>{selectedNode.resultAssetId && <button type="button" onClick={() => onRunVideo(selectedNode.id)}>再次生成此节点</button>}</>}
-          {selectedNode.type === "timeline" && <><p>本集片段顺序</p><ol className="film-inspector-clips">{manifest.clips.map((clip, index) => <li key={clip.id}><span>{index + 1}. {shortName(manifest.assets.find(asset => asset.id === clip.assetId))}</span><button type="button" disabled={index === 0} onClick={() => onReorderClip(clip.id, index - 1)} aria-label={`将片段 ${index + 1} 前移`}>↑</button><button type="button" disabled={index === manifest.clips.length - 1} onClick={() => onReorderClip(clip.id, index + 1)} aria-label={`将片段 ${index + 1} 后移`}>↓</button></li>)}</ol><button type="button" onClick={onOpenEditor}>详细剪辑与字幕 →</button></>}
+          {selectedNode.type === "video" && <><p>新生成镜头固定 5 秒。{selectedNode.durationSec === 10 ? "此旧节点原有 10 秒素材仍可编辑；再次运行将生成 5 秒视频。" : "连接人物或图片、文本后，可逐节点运行。"}</p>{selectedNode.resultAssetId && <button type="button" onClick={() => onRunVideo(selectedNode.id)}>再次生成此节点</button>}</>}
+          {selectedNode.type === "timeline" && <><p>本集片段顺序</p><ol className="film-inspector-clips">{manifest.clips.map((clip, index) => <li key={clip.id}><span>{index + 1}. {shortName(manifest.assets.find(asset => asset.id === clip.assetId))}</span><button type="button" disabled={index === 0} onClick={() => onReorderClip(clip.id, index - 1)} aria-label={`将片段 ${index + 1} 前移`}>↑</button><button type="button" disabled={index === manifest.clips.length - 1} onClick={() => onReorderClip(clip.id, index + 1)} aria-label={`将片段 ${index + 1} 后移`}>↓</button></li>)}</ol>{onOpenVoiceover && <button type="button" onClick={onOpenVoiceover}>本集配音与混音 →</button>}<button type="button" onClick={onOpenEditor}>详细剪辑与字幕 →</button></>}
           {selectedNode.type !== "timeline" && <button type="button" className="film-inspector-delete" onClick={() => { if (window.confirm("删除节点会同时断开相关连接，确定删除？")) { onRemoveNode(selectedNode.id); setSelectedId(null); } }}><StudioIcon name="trash" size={16} />删除节点</button>}
         </>}
     </aside>}
     </div>
+    {briefOpen && <div className="film-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setBriefOpen(false); }}><section className="film-modal film-brief-panel" role="dialog" aria-modal="true" aria-label="创作原文">
+      <div className="film-modal-title"><strong>创作原文 · 非执行资料</strong><button type="button" onClick={() => setBriefOpen(false)} aria-label="关闭"><StudioIcon name="x" size={18} /></button></div>
+      <p>这里保存你的原始构思。需要生成时，请手动创建镜头节点并明确运行。</p>
+      {creationBriefs.length === 0 ? <p>这个项目还没有创作原文。</p> : <>
+        {creationBriefs.length > 1 && <label>选择原文<select aria-label="选择创作原文" value={activeBrief?.id} onChange={event => {
+          const next = creationBriefs.find(item => item.id === event.target.value);
+          setBriefId(next?.id ?? null); setBriefDraft(next ? briefDrafts[next.id] ?? next.finalText : ""); setBriefError("");
+        }}>{creationBriefs.map(item => <option key={item.id} value={item.id}>{item.source === "agent" ? "Agent 灵感" : "我的内容"} · {new Date(item.createdAt).toLocaleString("zh-CN")}</option>)}</select></label>}
+        <label>输入原文<textarea aria-label="输入原文" value={activeBrief?.originalText ?? ""} readOnly /></label>
+        <label>最终创作内容<textarea aria-label="最终创作内容" value={briefDraft} onChange={event => {
+          if (activeBrief) setCurrentBriefDraft(activeBrief.id, event.target.value);
+        }} /></label>
+        <small>{Array.from(briefDraft).length} / 10000 字</small>
+        {briefError && <p role="alert">{briefError}</p>}
+        {activeBriefConflict && activeBrief && <section className="film-brief-conflict" aria-label="创作原文冲突比较">
+          <h3>创作原文有两个版本</h3><p>确认处理前，云端内容不会被覆盖。</p>
+          <div><label>本端草稿<textarea aria-label="本端草稿" value={briefDraft} readOnly /></label>
+            <label>云端当前版本<textarea aria-label="云端当前版本" value={activeBriefConflict.remoteText} readOnly /></label></div>
+          <button type="button" onClick={() => setBriefOpen(false)}>保留本端草稿并返回</button>
+          <button type="button" onClick={() => { setBriefDraft(activeBriefConflict.remoteText); clearBriefDraft(activeBrief.id); setBriefError(""); }}>使用云端版本</button>
+          {onUpdateCreationBrief && <button type="button" disabled={briefSaving || !briefDraft.trim() || Array.from(briefDraft).length > 10000} onClick={() => {
+            if (!window.confirm("确定用本端草稿覆盖当前云端版本？原始输入仍会保留。")) return;
+            saveBrief(activeBrief.id, briefDraft, activeBriefConflict.remoteText);
+          }}>确认以本端草稿覆盖云端版本</button>}
+        </section>}
+        {onUpdateCreationBrief && !activeBriefConflict && <button type="button" className="film-modal-primary" disabled={briefSaving || !briefDraft.trim() || Array.from(briefDraft).length > 10000 || briefDraft === activeBrief?.finalText} onClick={() => {
+          if (activeBrief) saveBrief(activeBrief.id, briefDraft);
+        }}>保存原文修改</button>}
+      </>}
+    </section></div>}
     {modal && <div className="film-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setModal(null); }}><div className="film-modal" role="dialog" aria-modal="true" aria-label={modal === "character" ? "创建人物" : modal === "image" ? "添加图片节点" : modal === "clip" ? "加入时间线" : "分享画布"}>
       <div className="film-modal-title"><strong>{modal === "character" ? "创建人物" : modal === "image" ? "添加参考图片" : modal === "clip" ? "选择视频片段" : "分享画布"}</strong><button type="button" onClick={() => setModal(null)} aria-label="关闭"><StudioIcon name="x" size={18} /></button></div>
       {modal === "character" && <>

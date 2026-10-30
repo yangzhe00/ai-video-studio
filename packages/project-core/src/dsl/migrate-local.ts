@@ -2,6 +2,7 @@ import { parseProjectDsl } from "@ai-video/project-schema";
 import type { AssetV1, DslIssue, EpisodeV1, TimelineClipV1, TimelineTrackV1, VideoProjectV1 } from "@ai-video/project-schema";
 import type { ProjectManifestV2 } from "../project";
 import { ensureStudio, syncActiveEpisode } from "../studio";
+import { creationBriefs } from "../brief";
 
 export interface LocalAssetBinding {
   assetId: string;
@@ -106,7 +107,7 @@ export function migrateLocalV2ToDsl(manifest: ProjectManifestV2): LocalDslMigrat
       tracks: [...tracks.values()],
     };
   });
-  const extensions: Record<string, unknown> = { ...current.extensions };
+  const extensions: Record<string, unknown> = { ...current.extensions, creationBriefs: creationBriefs(current) };
   for (let index = 0; index < studio.episodes.length; index++) {
     const episode = studio.episodes[index];
     if (episode.coverTimeMs !== null && episodes[index].cover === null) {

@@ -10,7 +10,7 @@ export function prepareCanvasRun(graph: CanvasEpisodeGraphV1, nodeId: string, in
   const reuse = !regenerate && node.clientRequestId && JSON.stringify(node.runInput) === JSON.stringify(input);
   const clientRequestId = reuse ? node.clientRequestId! : newId();
   return { clientRequestId, graph: { ...graph, nodes: graph.nodes.map(item => item.id === nodeId ? {
-    ...item, clientRequestId, runInput: input,
+    ...item, durationSec: input.durationSec, clientRequestId, runInput: input,
     shotId: reuse ? item.shotId : undefined, resultAssetId: reuse ? item.resultAssetId : undefined,
   } : item) } };
 }

@@ -1,7 +1,8 @@
 import { parseProjectDsl } from "@ai-video/project-schema";
 import type { AssetV1, EpisodeV1, TimelineClipV1, VideoProjectV1 } from "@ai-video/project-schema";
+import { creationBriefs } from "../brief.ts";
 
-interface LegacyCloudAsset { id: string; kind: "image" | "video"; name?: string }
+interface LegacyCloudAsset { id: string; kind: "image" | "video" | "voice" | "music"; name?: string; mimeType?: string; durationMs?: number }
 interface LegacyCloudShot {
   id: string; runId: string; resultAssetId: string; originalAssetId?: string; selectedAssetId?: string;
   sourceAssetId: string; prompt: string; durationSec: number;
@@ -10,6 +11,8 @@ interface LegacyCloudTimelineClip { id: string; assetId: string; inMs: number; o
 interface LegacyCloudEpisode {
   id: string; title: string; shots: LegacyCloudShot[]; timeline: string[];
   timelineClips?: LegacyCloudTimelineClip[];
+  audio?: { originalVolume: number; voiceClips: { assetId: string; startMs: number; inMs: number; outMs: number; volume: number }[];
+    musicClips: { assetId: string; startMs: number; inMs: number; outMs: number; volume: number }[] };
 }
 interface LegacyCloudCharacter { id: string; name: string; description: string; assetId: string }
 export interface LegacyCloudDocumentV1 {
@@ -42,11 +45,12 @@ export function migrateCloudV1ToDsl(document: LegacyCloudDocumentV1, context: Cl
   if (document.version !== 1) throw new Error("不支持的云项目版本");
   const assetById = new Map<string, AssetV1>();
   for (const asset of document.assets) {
-    assetById.set(asset.id, asset.kind === "image"
-      ? { id: asset.id, kind: "image", name: asset.name ?? asset.id,
-        mimeType: null, width: null, height: null }
-      : { id: asset.id, kind: "video", name: asset.name ?? asset.id,
-        mimeType: null, durationMs: null, width: null, height: null });
+    if (asset.kind === "image") assetById.set(asset.id, { id: asset.id, kind: "image", name: asset.name ?? asset.id,
+      mimeType: asset.mimeType ?? null, width: null, height: null });
+    else if (asset.kind === "video") assetById.set(asset.id, { id: asset.id, kind: "video", name: asset.name ?? asset.id,
+      mimeType: asset.mimeType ?? null, durationMs: asset.durationMs ?? null, width: null, height: null });
+    else assetById.set(asset.id, { id: asset.id, kind: asset.kind, name: asset.name ?? asset.id,
+      mimeType: asset.mimeType ?? null, durationMs: asset.durationMs ?? null });
   }
   const ensureVideo = (id: string, sourceAssetId?: string, runId?: string, recipeId?: string) => {
     const existing = assetById.get(id);
@@ -102,8 +106,15 @@ export function migrateCloudV1ToDsl(document: LegacyCloudDocumentV1, context: Cl
       cursor += length;
       return next;
     });
+    const tracks: EpisodeV1["tracks"] = [{ id: `track:visual:${episode.id}`, kind: "visual", clips }];
+    if (episode.audio) {
+      for (const [kind, placements] of [["voice", episode.audio.voiceClips], ["music", episode.audio.musicClips]] as const) {
+        tracks.push({ id: `track:${kind}:${episode.id}`, kind,
+          clips: placements.map((clip, index) => ({ ...clip, id: `cloud-${kind}-${episode.id}-${index}`, kind })) });
+      }
+    }
     return { id: episode.id, title: episode.title, scenes,
-      tracks: [{ id: `track:visual:${episode.id}`, kind: "visual", clips }],
+      tracks,
       publishingCopy: "", cover: null };
   });
   const project: VideoProjectV1 = {
@@ -112,7 +123,8 @@ export function migrateCloudV1ToDsl(document: LegacyCloudDocumentV1, context: Cl
     renderConfig: { fps: 30, format: "mp4" },
     characters: document.characters.map(item => ({ id: item.id, name: item.name,
       description: item.description, referenceAssetId: item.assetId })),
-    episodes, assets: { items: [...assetById.values()] }, extensions: { ...document.extensions },
+    episodes, assets: { items: [...assetById.values()] },
+    extensions: { ...document.extensions, creationBriefs: creationBriefs(document) },
   };
   const parsed = parseProjectDsl(project);
   if (!parsed.ok) throw new Error(`云项目无法转换为 DSL：${parsed.issues.map(issue => `${issue.path} ${issue.message}`).join("；")}`);

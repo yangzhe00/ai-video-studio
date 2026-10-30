@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import { describe, expect, it, vi } from "vitest";
-import { inspectMedia } from "./media-inspect.ts";
+import { inspectMedia, inspectMediaFile } from "./media-inspect.ts";
 
 function image(format: "jpg" | "png"): Buffer {
   const folder = mkdtempSync(join(tmpdir(), "avs-media-test-"));
@@ -45,5 +45,25 @@ describe("uploaded image inspection", () => {
         expect(log).toHaveBeenCalledWith(expect.stringContaining("invalid JSON"));
       } finally { log.mockRestore(); }
     } finally { rmSync(folder, { recursive: true, force: true }); }
+  });
+});
+
+describe("uploaded voice inspection", () => {
+  it.each([["mp3", "audio/mpeg"], ["wav", "audio/wav"], ["m4a", "audio/mp4"]] as const)(
+    "accepts a real %s audio file and reports duration", async (suffix, mime) => {
+      const folder = mkdtempSync(join(tmpdir(), "avs-voice-test-"));
+      try {
+        const file = join(folder, `recording.${suffix}`);
+        execFileSync(ffmpeg.path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi",
+          "-i", "sine=frequency=440:duration=1", "-ac", "1", file]);
+        const inspected = await inspectMediaFile(file, mime);
+        expect(inspected.durationMs).toBeGreaterThanOrEqual(950);
+        expect(inspected.durationMs).toBeLessThanOrEqual(1100);
+        await expect(inspectMedia(readFileSync(file), mime)).resolves.toBeUndefined();
+        await expect(inspectMedia(readFileSync(file), "video/mp4")).rejects.toMatchObject({ status: 400 });
+      } finally { rmSync(folder, { recursive: true, force: true }); }
+    });
+  it("rejects corrupt audio", async () => {
+    await expect(inspectMedia(Buffer.from("not audio"), "audio/mpeg")).rejects.toMatchObject({ status: 400 });
   });
 });

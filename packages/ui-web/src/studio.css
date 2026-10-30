@@ -255,3 +255,44 @@
 .film-canvas-empty-hint>div button + button { border: 1px solid var(--avs-border); background: var(--avs-control-bg); color: var(--avs-text); }
 [data-skin="cyan-night"] .film-canvas-empty-hint>div button + button { border: 1px solid var(--avs-border); background: var(--avs-control-bg); color: var(--avs-text); }
 @media (max-width: 750px) { .film-canvas-empty-hint { padding: 26px 18px; } .film-canvas-empty-hint>div { flex-wrap: wrap; } .film-canvas-empty-hint>div button { min-width: 0; flex: 1; } }
+
+/* The shared creation page remains scrollable inside the Web H5 shell. */
+@media (max-width: 640px) {
+  .web-studio .film-generate-topbar { flex-basis: 48px; height: 48px; gap: 10px; padding: 0 16px; }
+  .web-studio .film-generate-topbar > div { flex: none; }
+  .web-studio .film-generate-topbar > button, .web-studio .film-generate-topbar > .film-avatar { display: none; }
+  .web-studio .film-generate-content { width: calc(100% - 32px); padding-bottom: 28px; }
+  .web-studio .film-hero { padding-top: 28px; }
+  .web-studio .film-hero > span { font-size: 10px; }
+  .web-studio .film-hero h1 { margin: 9px 0 17px; font-size: clamp(26px, 7.4vw, 32px); }
+  .web-studio .film-mode-switch { height: 46px; padding: 4px; }
+  .web-studio .film-mode-switch button { height: 36px; font-size: 15px; }
+  .web-studio .film-hero p { margin: 13px 0 17px; font-size: 12px; }
+  .web-studio .film-composer { height: auto; padding: 14px 14px 0; border-radius: 16px; }
+  .web-studio .film-composer-body { grid-template-columns: minmax(0, 1fr); gap: 13px; height: auto; }
+  .web-studio .film-photo-controls { width: 100%; }
+  .web-studio .film-photo-tile { width: 100%; height: 98px; flex-direction: row; gap: 12px; }
+  .web-studio .film-photo-controls > select { position: static; width: 100%; height: 34px; margin-top: 6px; font-size: 12px; }
+  .web-studio .film-prompt-area label { margin: 0 0 7px; font-size: 14px; }
+  .web-studio .film-prompt-area textarea { flex: none; min-height: 112px; font-size: 16px; }
+  .web-studio .film-prompt-area > span { margin: 6px 0 11px; font-size: 11px; }
+  .web-studio .film-composer-footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; gap: 10px; padding: 12px 0 14px; }
+  .web-studio .film-composer-footer > span, .web-studio .film-composer-footer > label { min-width: 0; gap: 5px; font-size: 11px; }
+  .web-studio .film-composer-kind { margin-right: 0; }
+  .web-studio .film-primary-action { grid-column: 1 / -1; justify-content: center; width: 100%; min-height: 44px; margin: 2px 0 0; border-radius: 10px; }
+  .web-studio .film-quick-start, .web-studio .film-recent { margin-top: 25px; }
+  .web-studio .film-quick-start > div { max-width: 100%; overflow-x: auto; padding-bottom: 5px; scroll-snap-type: x proximity; }
+  .web-studio .film-quick-start button { width: auto; min-width: 126px; height: 40px; scroll-snap-align: start; }
+  .web-studio .film-recent-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .web-studio .film-recent-card { height: 90px; }
+  .web-studio .film-recent-thumb { flex-basis: 106px; }
+  .web-studio .film-toast { right: 12px; bottom: calc(72px + env(safe-area-inset-bottom)); left: 12px; max-width: none; }
+  .web-studio .film-modal-backdrop { padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+  .web-studio .film-modal { max-height: calc(100dvh - 24px); }
+}
+
+@media (min-width: 641px) and (max-width: 740px) {
+  .web-studio .film-quick-start > div { max-width: 100%; overflow-x: auto; padding-bottom: 6px; }
+  .web-studio .film-recent-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .web-studio .film-recent-thumb { flex-basis: 112px; }
+}

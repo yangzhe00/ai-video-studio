@@ -1,4 +1,4 @@
-import type { MediaAsset, ProjectManifestV2 } from "@ai-video/project-core";
+import type { CreationBrief, MediaAsset, ProjectManifestV2 } from "@ai-video/project-core";
 
 export interface ExportArtifacts {
   videoRelativePath: string;
@@ -15,7 +15,7 @@ export interface MoneyEstimate {
 
 export interface PlatformPorts {
   projects: {
-    create(root: string, title: string): Promise<ProjectManifestV2>;
+    create(root: string, title: string, initialBrief?: CreationBrief): Promise<ProjectManifestV2>;
     open(root: string): Promise<ProjectManifestV2>;
     save(root: string, manifest: ProjectManifestV2): Promise<void>;
     chooseParent(): Promise<string | null>;

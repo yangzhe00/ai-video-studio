@@ -19,12 +19,12 @@ AI Video Studio 是一个正在开发的跨端视频创作项目。网页端用�
 
 | 能力 | 状态 |
 | --- | --- |
-| 网页端与 macOS 桌面端 | 网页端已有 HTTPS 体验地址；桌面端可从源码启动，安装包尚未发布 |
+| 网页端与 macOS 桌面端 | 网页端已有 HTTPS 体验地址；桌面端可从源码启动，官网提供未公证的 Apple Silicon 测试版 DMG |
 | 三条镜头脚本 | 已接入 Cursor Cloud Agent；模型与密钥由服务端配置，不向客户端下发 |
 | 云端视频生成 | 已接入可灵任务流程，生成前由用户确认；可灵密钥和任务查询接口已验证，完整视频生成仍待实测 |
 | 分集画布、时间线与视频微调 | 已有实现，仍在持续验收和完善 |
 | 移动端 | 有 Expo 客户端代码，真机交互尚待验收 |
-| 配音与口型同步 | 规划中；当前视频生成路径以无声视频为主 |
+| 配音与口型同步 | 仓库已实现音频上传、文字配音任务、镜头／分集混音与预览；线上尚未发布。文字配音需单独配置可通过 TTS 接口认证的密钥，中文音色需核实供应商权限。口型同步仍在规划中 |
 
 桌面端未登录时创建的项目仅保存在本机；登录和关联云端后，才会出现在同一账号的网页项目库中。
 
@@ -32,7 +32,7 @@ AI Video Studio 是一个正在开发的跨端视频创作项目。网页端用�
 
 - **网页端**：React 19、TypeScript、Vite，位于 `apps/web`。
 - **桌面端**：React、TypeScript、Tauri/Rust，位于 `apps/desktop`。
-- **服务端**：Node.js API、SQLite、后台生成与渲染任务，位于 `apps/api`。第三方模型凭证仅保存在服务端。
+- **服务端**：Node.js API、PostgreSQL、后台生成与渲染任务，位于 `apps/api`。第三方模型凭证仅保存在服务端。
 - **共享能力**：pnpm monorepo 中的项目规则、平台接口、UI 组件与插件，分别位于 `packages/*` 和 `plugins/*`。
 - **项目数据**：`@ai-video/project-schema` 使用 Zod 定义“基础 → 片段 → 资产”三层 DSL，并提供旧格式转换。当前 API 可只读投影该 DSL；项目写入仍处于迁移阶段。
 
@@ -40,16 +40,26 @@ AI Video Studio 是一个正在开发的跨端视频创作项目。网页端用�
 
 ## 本地运行
 
-开发环境使用 Node.js 24、pnpm 10.30.1；运行桌面端还需要 macOS 与 Rust。安装依赖：
+开发环境使用 Node.js 24、pnpm 10.30.1、PostgreSQL；运行桌面端还需要 macOS 与 Rust。安装依赖：
 
 ```sh
 pnpm install
 ```
 
-在独立终端启动 API 和网页端：
+先启动本地 PostgreSQL 并创建空数据库 `ai_video_studio`。用迁移账号创建 schema 3，再启动 API；运行账号只需业务表读写权限。旧 SQLite 数据的导入方式见下文。
+
+先运行一次数据库结构迁移：
+
+```sh
+DATABASE_URL=postgresql://localhost:5432/ai_video_studio \
+pnpm --filter @ai-video/api migrate:schema
+```
+
+然后在独立终端启动 API 和网页端：
 
 ```sh
 API_DATA_DIR=/private/tmp/ai-video-studio-data \
+DATABASE_URL=postgresql://localhost:5432/ai_video_studio \
 API_SESSION_SECRET=replace-with-at-least-32-random-characters \
 API_SECURE_COOKIES=false \
 API_ALLOWED_ORIGIN=http://127.0.0.1:1421 \
@@ -64,11 +74,22 @@ pnpm --filter @ai-video/web dev
 pnpm tauri dev
 ```
 
-默认配置只用于本地功能体验。线上三条脚本由 Cursor Cloud Agent 生成；本地可在 **API 进程**设置 `IDEA_PROVIDER=cursor`、`CURSOR_API_KEY`，并可选填 `IDEA_CURSOR_MODEL`。代码也支持 OpenAI 兼容文字接口和 Codex Agents API 适配器。真实视频生成还需要 `KLING_API_KEY`。配置项见 [`.env.example`](.env.example)。API 不会自动读取 `.env.local`；模型和视频服务密钥只能配置在服务端。
+默认配置只用于本地功能体验。线上三条脚本由 Cursor Cloud Agent 生成；本地可在 **API 进程**设置 `IDEA_PROVIDER=cursor`、`CURSOR_API_KEY`，并可选填 `IDEA_CURSOR_MODEL`。代码也支持 OpenAI 兼容文字接口和 Codex Agents API 适配器。真实视频生成需要 `KLING_API_KEY`；文字配音另外需要 `KLING_TTS_API_KEY`，以免更换 TTS 凭据影响视频生成。配置项见 [`.env.example`](.env.example)。API 不会自动读取 `.env.local`；模型和视频服务密钥只能配置在服务端。
 
 ## 部署状态
 
-网页端构建命令是 `pnpm --filter @ai-video/web build`，产物位于 `apps/web/dist`。当前体验站点使用 HTTPS，并将同源的 `/api` 请求代理到独立运行的 API；服务端持久化 `API_DATA_DIR`。文字灵感和视频生成分别需要服务端模型凭据。当前仍是开发体验环境。
+网页端构建命令是 `pnpm --filter @ai-video/web build`，产物位于 `apps/web/dist`。`20261030-official-04` 已将线上 API 切换到 PostgreSQL；截至本次只读核对，线上数据库为 schema 1，仓库候选代码要求 schema 3。媒体文件仍在 `API_DATA_DIR`。发布新 API 前须按 [schema 1→3 升级手册](deploy/postgres/schema1-to3.md) 在 PostgreSQL 备份副本上演练。文字灵感、视频生成和文字配音分别需要服务端供应商凭据。
+
+### 历史数据导入：SQLite → PostgreSQL
+
+以下命令仅适用于尚未迁移的旧 SQLite 数据副本。当前线上已是 PostgreSQL，**不可对线上数据库运行 SQLite 导入脚本或旧切换脚本**。若另有旧库需要导入，先停止其写入，对活动 SQLite 数据库和整个 `API_DATA_DIR` 做备份，再准备空 PostgreSQL 数据库。确认旧库已由上一版 API 升级到 schema 10 后运行：
+
+```sh
+DATABASE_URL=postgresql://localhost:5432/ai_video_studio \
+pnpm --filter @ai-video/api migrate:postgres -- /absolute/path/to/studio.sqlite
+```
+
+导入程序在一个 PostgreSQL 事务中复制账号、会话、项目、素材、任务、事件、灵感和渲染记录，核对每张表行数，并报告 `missingObjectFiles`；目标已有业务数据时拒绝导入。原 SQLite 文件保持只读。切换前须确认 `missingObjectFiles=0`。新 API 必须继续使用原 `API_DATA_DIR` 或同时迁移其中的素材文件，并验证对象路径可读。上线前再跑 API 健康、登录、项目读取、素材读取和未完成任务恢复。若要回滚，先停写并评估 PostgreSQL 中是否已有新数据，不能直接用旧 SQLite 备份覆盖新写入。
 
 ## 仓库说明
 

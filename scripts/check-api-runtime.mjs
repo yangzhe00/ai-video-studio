@@ -8,6 +8,23 @@ const requireApi = createRequire(new URL("../apps/api/package.json", import.meta
 const execFileAsync = promisify(execFile);
 const issues = [];
 
+if (!process.env.DATABASE_URL?.trim()) {
+  issues.push("DATABASE_URL is missing");
+} else {
+  let client;
+  try {
+    const { Client } = requireApi("pg");
+    client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5_000 });
+    await client.connect();
+    await client.query("SELECT 1");
+    process.stdout.write("PostgreSQL connection: OK\n");
+  } catch (error) {
+    issues.push(`PostgreSQL connection failed (${error?.code ?? "unknown"})`);
+  } finally {
+    await client?.end().catch(() => {});
+  }
+}
+
 for (const key of ["IDEA_MODEL_BASE_URL", "IDEA_MODEL_API_KEY", "IDEA_MODEL_ID"]) {
   if (!process.env[key]?.trim()) issues.push(`${key} is missing`);
 }

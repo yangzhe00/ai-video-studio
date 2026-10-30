@@ -1,4 +1,5 @@
 import type { CloudProjectDocument, SyncResourceRevision } from "./sync";
+import { creationBriefs } from "./brief";
 
 /** Common response contracts used by desktop, web, and mobile transport adapters. */
 export interface CloudAccountSnapshot {
@@ -51,7 +52,7 @@ export function parseCloudProjectSnapshot(value: unknown): CloudProjectSnapshot 
       throw new Error("云端时间线片段不一致");
     }
   }
-  return value as unknown as CloudProjectSnapshot;
+  return { ...value, document: { ...document, briefs: creationBriefs(document) } } as unknown as CloudProjectSnapshot;
 }
 
 export function parseCloudRunSnapshot(value: unknown): CloudRunSnapshot {

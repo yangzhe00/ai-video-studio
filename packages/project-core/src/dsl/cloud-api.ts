@@ -19,7 +19,7 @@ export function parseProjectDslSnapshot(raw: unknown): ProjectDslSnapshot {
       typeof raw.title !== "string" || !Number.isSafeInteger(raw.revision) ||
       (raw.revision as number) < 0 || !Array.isArray(raw.resourceRevisions) ||
       !raw.resourceRevisions.every(item => record(item) &&
-        ["episode", "asset", "character", "canvas"].includes(String(item.resourceType)) &&
+        ["episode", "asset", "character", "canvas", "brief"].includes(String(item.resourceType)) &&
         typeof item.resourceId === "string" && Number.isSafeInteger(item.revision) && (item.revision as number) >= 0)) {
     throw new Error("项目 DSL 响应格式无效");
   }

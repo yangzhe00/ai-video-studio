@@ -23,7 +23,6 @@ interface Props {
   topbarActions?: ReactNode;
   initialSourceAssetId?: string;
   initialPrompt?: string;
-  initialDuration?: 5 | 10;
   showSidebar?: boolean;
 }
 
@@ -46,12 +45,11 @@ function nameOf(asset: MediaAsset | undefined) {
 export function GeneratePage({
   manifest, previewUrls, busy, saveState, onImportPhoto, onGenerate, onRefresh,
   onAddToCanvas, onEditVideo, onOpenCanvas, onOpenEditor, onOpenProjects,
-  sidebarContent, statusSlot, topbarActions, initialSourceAssetId, initialPrompt, initialDuration, showSidebar = true,
+  sidebarContent, statusSlot, topbarActions, initialSourceAssetId, initialPrompt, showSidebar = true,
 }: Props) {
   const images = manifest.assets.filter(asset => asset.kind === "image" && !asset.missing);
   const [sourceAssetId, setSourceAssetId] = useState(initialSourceAssetId ?? images[0]?.id ?? "");
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
-  const [duration, setDuration] = useState(initialDuration ?? 5);
   const [localError, setLocalError] = useState<string | null>(null);
   const selectedPhoto = images.find(asset => asset.id === sourceAssetId);
   const jobs = [...manifest.jobs].filter(job => job.provider === "kling").reverse().slice(0, 3);
@@ -59,7 +57,6 @@ export function GeneratePage({
 
   useEffect(() => { if (initialSourceAssetId) setSourceAssetId(initialSourceAssetId); }, [initialSourceAssetId]);
   useEffect(() => { if (initialPrompt !== undefined) setPrompt(initialPrompt); }, [initialPrompt]);
-  useEffect(() => { if (initialDuration) setDuration(initialDuration); }, [initialDuration]);
 
   async function upload() {
     const id = await onImportPhoto();
@@ -70,7 +67,7 @@ export function GeneratePage({
     if (!sourceAssetId) { setLocalError("请先上传或选择一张参考照片"); return; }
     if (!prompt.trim()) { setLocalError("请输入场景和动作提示词"); return; }
     setLocalError(null);
-    await onGenerate(sourceAssetId, prompt, duration);
+    await onGenerate(sourceAssetId, prompt, 5);
   }
 
   return <div className={showSidebar ? "film-generate-layout" : "film-generate-layout film-generate-layout--embedded"}>
@@ -131,7 +128,7 @@ export function GeneratePage({
               <span className="film-composer-kind"><StudioIcon name="clapper" size={17} />视频生成</span>
               <span><StudioIcon name="box" size={16} />无声图生视频</span>
               <span><StudioIcon name="scan" size={16} />跟随原图比例</span>
-              <label><StudioIcon name="clock" size={16} /><select aria-label="镜头时长" value={duration} onChange={event => setDuration(Number(event.target.value) === 10 ? 10 : 5)}><option value={5}>5 秒</option><option value={10}>10 秒</option></select></label>
+              <span aria-label="新生成镜头时长"><StudioIcon name="clock" size={16} />5 秒</span>
               <button type="button" className="film-primary-action" onClick={() => void generate()} disabled={busy}><StudioIcon name="arrowUp" size={18} />生成视频</button>
             </div>
           </section>

@@ -60,6 +60,41 @@ pub struct ProjectManifestV2 {
     pub extensions: Option<serde_json::Value>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreationBrief {
+    pub id: String,
+    pub source: String,
+    pub original_text: String,
+    pub final_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idea_set_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variant_id: Option<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+fn valid_brief_id(id: &str) -> bool {
+    (8..=80).contains(&id.len()) && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+fn validate_creation_brief(brief: &CreationBrief) -> Result<(), String> {
+    if !valid_brief_id(&brief.id) ||
+        [brief.original_text.as_str(), brief.final_text.as_str()].iter().any(|text|
+            text.trim().is_empty() || text.chars().count() > 10_000) ||
+        brief.created_at > 9_007_199_254_740_991 || brief.updated_at > 9_007_199_254_740_991 ||
+        brief.updated_at < brief.created_at {
+        return Err("创作原文格式无效".into());
+    }
+    match brief.source.as_str() {
+        "manual" if brief.idea_set_id.is_none() && brief.variant_id.is_none() => Ok(()),
+        "agent" if brief.idea_set_id.as_deref().is_some_and(valid_brief_id) &&
+            brief.variant_id.as_deref().is_some_and(valid_brief_id) => Ok(()),
+        _ => Err("创作原文来源无效".into()),
+    }
+}
+
 fn validate_title(title: &str) -> Result<(), String> {
     if title.trim().is_empty() || title == "." || title == ".." || title.contains(['/', '\\']) {
         return Err("请输入不含路径分隔符的项目名称".into());
@@ -80,6 +115,10 @@ fn validate_manifest(manifest: &ProjectManifestV2) -> Result<(), String> {
         return Err(format!("不支持的项目版本：{}", manifest.version));
     }
     validate_title(&manifest.title)?;
+    if let Some(briefs) = manifest.extensions.as_ref().and_then(|extensions| extensions.get("creationBriefs")) {
+        let briefs: Vec<CreationBrief> = serde_json::from_value(briefs.clone()).map_err(|_| "创作原文列表无效".to_string())?;
+        for brief in &briefs { validate_creation_brief(brief)?; }
+    }
     for asset in &manifest.assets {
         validate_relative_path(&asset.relative_path)?;
     }
@@ -103,15 +142,19 @@ fn validate_manifest(manifest: &ProjectManifestV2) -> Result<(), String> {
 }
 
 pub fn create_project_impl(root: &Path, title: String) -> Result<ProjectManifestV2, String> {
+    create_project_with_brief_impl(root, title, None)
+}
+
+pub fn create_project_with_brief_impl(root: &Path, title: String, initial_brief: Option<CreationBrief>) -> Result<ProjectManifestV2, String> {
     validate_title(&title)?;
-    if root.exists() {
+    if let Some(brief) = &initial_brief { validate_creation_brief(brief)?; }
+    if fs::symlink_metadata(root).is_ok() {
         return Err("项目目录已存在，请选择其他名称或打开现有项目".into());
     }
-    fs::create_dir(root).map_err(|err| format!("无法创建项目目录：{err}"))?;
-    fs::create_dir_all(root.join("media/source")).map_err(|err| err.to_string())?;
-    fs::create_dir_all(root.join("media/generated")).map_err(|err| err.to_string())?;
-    fs::create_dir_all(root.join("exports")).map_err(|err| err.to_string())?;
-
+    let parent = root.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let name = root.file_name().ok_or("项目目录名称无效")?.to_string_lossy();
+    let staging = parent.join(format!(".{name}.{}.creating", Uuid::new_v4()));
+    fs::create_dir(&staging).map_err(|err| format!("无法创建项目暂存目录：{err}"))?;
     let manifest = ProjectManifestV2 {
         version: 2,
         id: Uuid::new_v4().to_string(),
@@ -125,9 +168,20 @@ pub fn create_project_impl(root: &Path, title: String) -> Result<ProjectManifest
         jobs: Vec::new(),
         budget_usd: None,
         studio: None,
-        extensions: None,
+        extensions: initial_brief.map(|brief| serde_json::json!({ "creationBriefs": [brief] })),
     };
-    save_project_impl(root, &manifest)?;
+    let write = (|| {
+        fs::create_dir_all(staging.join("media/source")).map_err(|err| err.to_string())?;
+        fs::create_dir_all(staging.join("media/generated")).map_err(|err| err.to_string())?;
+        fs::create_dir_all(staging.join("exports")).map_err(|err| err.to_string())?;
+        save_project_impl(&staging, &manifest)?;
+        if fs::symlink_metadata(root).is_ok() {
+            return Err("项目目录已存在，请选择其他名称或打开现有项目".into());
+        }
+        fs::rename(&staging, root).map_err(|err| format!("无法完成项目创建：{err}"))
+    })();
+    if write.is_err() { let _ = fs::remove_dir_all(&staging); }
+    write?;
     Ok(manifest)
 }
 
@@ -182,8 +236,8 @@ pub async fn backup_project(root: PathBuf) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn create_project(root: PathBuf, title: String) -> Result<ProjectManifestV2, String> {
-    create_project_impl(&root, title)
+pub fn create_project(root: PathBuf, title: String, initial_brief: Option<CreationBrief>) -> Result<ProjectManifestV2, String> {
+    create_project_with_brief_impl(&root, title, initial_brief)
 }
 
 #[tauri::command]
@@ -203,6 +257,36 @@ mod tests {
 
     fn test_root() -> PathBuf {
         std::env::temp_dir().join(format!("ai-video-project-{}", Uuid::new_v4()))
+    }
+
+    fn test_brief(text: &str) -> CreationBrief {
+        CreationBrief { id: "brief-native-0001".into(), source: "manual".into(),
+            original_text: text.into(), final_text: text.into(), idea_set_id: None, variant_id: None,
+            created_at: 10, updated_at: 10 }
+    }
+
+    #[test]
+    fn project_first_write_contains_brief_without_a_followup_save() {
+        let root = test_root();
+        let brief = test_brief("🐶做饭\n然后上菜");
+        let created = create_project_with_brief_impl(&root, "原子项目".into(), Some(brief.clone())).unwrap();
+        let on_disk: serde_json::Value = serde_json::from_slice(&fs::read(root.join(PROJECT_FILE)).unwrap()).unwrap();
+        assert_eq!(on_disk["extensions"]["creationBriefs"][0], serde_json::to_value(&brief).unwrap());
+        assert_eq!(open_project_impl(&root).unwrap(), created);
+        assert!(root.join("media/source").is_dir());
+        let original = fs::read(root.join(PROJECT_FILE)).unwrap();
+        assert!(create_project_with_brief_impl(&root, "别的项目".into(), Some(test_brief("覆盖"))).is_err());
+        assert_eq!(fs::read(root.join(PROJECT_FILE)).unwrap(), original);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn invalid_initial_brief_never_creates_the_project_directory() {
+        let root = test_root();
+        let mut brief = test_brief("正文");
+        brief.source = "agent".into();
+        assert!(create_project_with_brief_impl(&root, "项目".into(), Some(brief)).is_err());
+        assert!(!root.exists());
     }
 
     #[test]
