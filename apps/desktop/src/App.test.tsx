@@ -351,10 +351,12 @@ describe("C4 studio entry", () => {
     localStorage.setItem("ai-video-studio:last-project-root", "/tmp/last-project");
     mocks.open.mockResolvedValue(withResult);
     mocks.audit.mockResolvedValue([image, video]);
-    vi.spyOn(window, "prompt").mockReturnValue("第 2 集");
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "加入画布 →" }));
     fireEvent.click(screen.getByRole("button", { name: /新建分集/ }));
+    const episodeDialog = await screen.findByRole("dialog", { name: "新建分集" });
+    expect((within(episodeDialog).getByRole("textbox", { name: "分集名称" }) as HTMLInputElement).value).toBe("第 2 集");
+    fireEvent.click(within(episodeDialog).getByRole("button", { name: "创建分集" }));
     await waitFor(() => expect(screen.getByRole("toolbar", { name: "添加节点" })).toBeTruthy());
     expect(document.querySelector(".film-canvas-chapter")?.textContent).toMatch(/第 2 集/);
     fireEvent.click(screen.getByRole("button", { name: "加入时间线" }));
@@ -366,7 +368,6 @@ describe("C4 studio entry", () => {
     localStorage.setItem("ai-video-studio:last-project-root", "/tmp/last-project");
     mocks.open.mockResolvedValue({ ...manifest, assets: [image] });
     mocks.audit.mockResolvedValue([image]);
-    vi.spyOn(window, "prompt").mockReturnValue("第 2 集");
     render(<App />);
     fireEvent.click(await screen.findByRole("tab", { name: "画布" }));
     fireEvent.click(screen.getByRole("button", { name: "主体" }));
@@ -378,6 +379,7 @@ describe("C4 studio entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "新建视频节点" }));
     await waitFor(() => expect(mocks.save.mock.calls.some(([, value]) => value.studio?.episodes[0].edges.length === 1)).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: "新建分集" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "新建分集" })).getByRole("button", { name: "创建分集" }));
     await waitFor(() => expect(document.querySelector(".film-canvas-chapter")?.textContent).toMatch(/第 2 集/));
     fireEvent.click(screen.getByRole("button", { name: "主体" }));
     fireEvent.click(screen.getByRole("button", { name: "小狗" }));

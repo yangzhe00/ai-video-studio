@@ -5,3 +5,6 @@ export type { SurfaceState } from "./contracts";
 export { ProjectHome } from "./ProjectHome";
 export { ResultsPage } from "./ResultsPage";
 export type { StudioResult } from "./contracts";
+export { FeedbackDialog, useFeedbackDialog } from "./FeedbackDialog";
+export { feedbackMessages } from "./feedback";
+export type { FeedbackKind, FeedbackMessage } from "./feedback";

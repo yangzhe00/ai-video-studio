@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { AssetUploadStatus, GeneratePage, SyncConflictDialog, TaskStatus, ThemeToggle } from "@ai-video/ui-web";
-import { ProjectHome, ResultsPage, StudioShell, StudioTitleBar } from "@ai-video/components";
+import { ProjectHome, ResultsPage, StudioShell, StudioTitleBar, feedbackMessages, useFeedbackDialog } from "@ai-video/components";
 import type { StudioResult, StudioSection } from "@ai-video/components";
 import type { AssetUploadItem, AssetUploadState } from "@ai-video/ui-web";
 import {
@@ -42,6 +42,7 @@ function briefConflictContent(value: unknown): Pick<CreationBrief, "source" | "o
 }
 
 export function StudioWorkspace({ project, account, onAccountChange, onOpenProjects, ideaSlot, incomingPrompt, onIdeaConsumed }: Props) {
+  const feedback = useFeedbackDialog();
   const [manifest, setManifest] = useState<ProjectManifestV2>(() => ensureStudio(project.manifest));
   const manifestRef = useRef(manifest);
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
@@ -663,7 +664,7 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
   }
 
   async function makeEpisode(job?: GenerationJob) {
-    const title = window.prompt("新分集名称", `第 ${manifestRef.current.studio!.episodes.length + 1} 集`);
+    const title = await feedback.input(feedbackMessages.info.newEpisode, `第 ${manifestRef.current.studio!.episodes.length + 1} 集`);
     if (title === null) return;
     try {
       await commit(current => {
@@ -908,5 +909,6 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
       </div> : <button type="button" onClick={() => setApprovalExpanded(true)}>查看待确认计划</button>)}
       {cloudRun.state !== "saved" && cloudRun.state !== "failed" && <button type="button" onClick={() => void refreshJob(cloudRun.runId)}>刷新</button>}</div>}
     {message && <div className="film-toast" role="status">{message}<button type="button" onClick={() => setMessage(null)} aria-label="关闭提示"><StudioIcon name="x" size={15} /></button></div>}
+    {feedback.dialog}
   </div>;
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { CanvasPage } from "@ai-video/plugin-canvas/canvas";
 import { ensureStudio } from "@ai-video/project-core";
 import type { ProjectManifestV2, StudioNode } from "@ai-video/project-core";
@@ -22,15 +22,16 @@ function setup() {
   ];
   episode.nodes = nodes;
   const onConnect = vi.fn();
+  const onRemoveNode = vi.fn();
   render(<CanvasPage manifest={manifest} episode={episode} previewUrls={{}} busy={false} saveState="saved"
     onOpenGenerate={() => {}} onOpenEditor={() => {}} onOpenProjects={() => {}}
     onSelectEpisode={() => {}} onCreateEpisode={() => {}} onImportPhoto={async () => null}
     onCreateCharacter={() => {}} onAddCharacterNode={() => {}} onAddNode={() => {}}
     onAddDownstreamVideo={() => {}} onUpdateNode={() => {}} onMoveNode={() => {}}
-    onRemoveNode={() => {}} onConnect={onConnect} onDisconnect={() => {}}
+    onRemoveNode={onRemoveNode} onConnect={onConnect} onDisconnect={() => {}}
     onRunVideo={() => {}} onRefreshJob={() => {}} onAddVideoToTimeline={() => {}}
     onReorderClip={() => {}} />);
-  return { onConnect, nodes };
+  return { onConnect, onRemoveNode, nodes };
 }
 
 describe("canvas connection and editing", () => {
@@ -67,5 +68,17 @@ describe("canvas connection and editing", () => {
     const videoLeft = Number.parseFloat((screen.getByRole("complementary", { name: "节点设置" }) as HTMLElement).style.left);
     expect(imageLeft).toBeGreaterThan(0);
     expect(videoLeft).not.toBe(imageLeft);
+  });
+
+  it("cancels node deletion without changing the graph, then confirms through the themed warning", async () => {
+    const { onRemoveNode } = setup();
+    fireEvent.click(screen.getByText("图片 / 参考照片"));
+    fireEvent.click(screen.getByRole("button", { name: "删除节点" }));
+    expect(screen.getByRole("alertdialog", { name: "删除这个节点？" }).textContent).toContain("断开相关连接");
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(onRemoveNode).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "删除节点" }));
+    fireEvent.click(within(screen.getByRole("alertdialog", { name: "删除这个节点？" })).getByRole("button", { name: "删除节点" }));
+    await waitFor(() => expect(onRemoveNode).toHaveBeenCalledExactlyOnceWith("image"));
   });
 });

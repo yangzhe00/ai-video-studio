@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, GeneratePage, PromptIdeas, StudioIcon, TaskStatus, ThemeToggle, WorkSetup, pendingPromptRequestId, suggestedProjectTitle } from "@ai-video/ui-web";
 import type { PromptIdeaSet, WorkProjectChoice, WorkSetupSelection } from "@ai-video/ui-web";
-import { ProjectHome, ResultsPage, StudioShell } from "@ai-video/components";
+import { ProjectHome, ResultsPage, StudioShell, feedbackMessages, useFeedbackDialog } from "@ai-video/components";
 import type { StudioResult, StudioSection } from "@ai-video/components";
 import { canvasPlugin } from "@ai-video/plugin-canvas";
 import { CanvasPage } from "@ai-video/plugin-canvas/canvas";
@@ -101,6 +101,7 @@ export function webManifest(project: CloudProject, episodeId: string, run: Agent
 
 export default function App() {
   const phoneViewport = usePhoneViewport();
+  const feedback = useFeedbackDialog();
   const [account, setAccount] = useState<Account | null>(null);
   const accountEpoch = useRef(0);
   const activeAccountId = useRef<string | null>(null);
@@ -651,7 +652,7 @@ export default function App() {
     if (!project) return;
     const scope = scopeForAccount();
     if (!scope) return;
-    const title = window.prompt("新分集名称", `第 ${project.document.episodes.length + 1} 集`)?.trim();
+    const title = await feedback.input(feedbackMessages.info.newEpisode, `第 ${project.document.episodes.length + 1} 集`);
     if (!title) return;
     const id = crypto.randomUUID();
     try {
@@ -825,7 +826,7 @@ export default function App() {
       const graph = currentGraph();
       const existing = graph.nodes.find(node => node.id === nodeId);
       const regenerate = Boolean(existing?.resultAssetId);
-      if (regenerate && !window.confirm("该节点已有视频，确定再次生成新版本？")) return;
+      if (regenerate && !await feedback.confirm(feedbackMessages.warning.regenerateVideo)) return;
       const prepared = prepareCanvasRun(graph, nodeId, { episodeId, sourceAssetId: photo, input: prompt, durationSec: length },
         () => crypto.randomUUID(), regenerate);
       canvasDraft.current = prepared.graph;
@@ -1380,5 +1381,6 @@ export default function App() {
       </section></div>}
     </div>}
     {error && <div className="web-error" role="alert">{error}<button type="button" onClick={() => setError("")}>关闭</button></div>}
+    {feedback.dialog}
   </div>;
 }

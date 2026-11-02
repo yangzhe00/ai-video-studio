@@ -4,6 +4,7 @@ import type {
   CreationBrief, MediaAsset, ProjectManifestV2, StudioEpisode, StudioNode, StudioNodeType,
 } from "@ai-video/project-core";
 import { StudioIcon } from "@ai-video/ui-web";
+import { feedbackMessages, useFeedbackDialog } from "@ai-video/components";
 
 type SaveState = "saved" | "saving" | "failed";
 interface Props {
@@ -119,6 +120,7 @@ export function CanvasPage({
   const [briefConflicts, setBriefConflicts] = useState<Record<string, BriefConflict>>(() => readBriefSession(manifest.id).conflicts);
   const [briefError, setBriefError] = useState("");
   const [briefSaving, setBriefSaving] = useState(false);
+  const feedback = useFeedbackDialog();
   const activeBrief = creationBriefs.find(item => item.id === briefId) ?? creationBriefs[0];
   const activeBriefConflict = activeBrief ? briefConflicts[activeBrief.id] : undefined;
   useEffect(() => {
@@ -446,7 +448,11 @@ export function CanvasPage({
           {(selectedNode.type === "text" || selectedNode.type === "video") && <label>镜头提示词<textarea value={nodePrompt} onChange={event => setNodePrompt(event.target.value)} onBlur={() => { if (nodePrompt !== selectedNode.prompt) onUpdateNode(selectedNode.id, { prompt: nodePrompt }); }} placeholder="描述动作、场景和镜头" /></label>}
           {selectedNode.type === "video" && <><p>新生成镜头固定 5 秒。{selectedNode.durationSec === 10 ? "此旧节点原有 10 秒素材仍可编辑；再次运行将生成 5 秒视频。" : "连接人物或图片、文本后，可逐节点运行。"}</p>{selectedNode.resultAssetId && <button type="button" onClick={() => onRunVideo(selectedNode.id)}>再次生成此节点</button>}</>}
           {selectedNode.type === "timeline" && <><p>本集片段顺序</p><ol className="film-inspector-clips">{manifest.clips.map((clip, index) => <li key={clip.id}><span>{index + 1}. {shortName(manifest.assets.find(asset => asset.id === clip.assetId))}</span><button type="button" disabled={index === 0} onClick={() => onReorderClip(clip.id, index - 1)} aria-label={`将片段 ${index + 1} 前移`}>↑</button><button type="button" disabled={index === manifest.clips.length - 1} onClick={() => onReorderClip(clip.id, index + 1)} aria-label={`将片段 ${index + 1} 后移`}>↓</button></li>)}</ol>{onOpenVoiceover && <button type="button" onClick={onOpenVoiceover}>本集配音与混音 →</button>}<button type="button" onClick={onOpenEditor}>详细剪辑与字幕 →</button></>}
-          {selectedNode.type !== "timeline" && <button type="button" className="film-inspector-delete" onClick={() => { if (window.confirm("删除节点会同时断开相关连接，确定删除？")) { onRemoveNode(selectedNode.id); setSelectedId(null); } }}><StudioIcon name="trash" size={16} />删除节点</button>}
+          {selectedNode.type !== "timeline" && <button type="button" className="film-inspector-delete" onClick={() => {
+            void feedback.confirm(feedbackMessages.warning.deleteNode).then(confirmed => {
+              if (confirmed) { onRemoveNode(selectedNode.id); setSelectedId(null); }
+            });
+          }}><StudioIcon name="trash" size={16} />删除节点</button>}
         </>}
     </aside>}
     </div>
@@ -471,8 +477,9 @@ export function CanvasPage({
           <button type="button" onClick={() => setBriefOpen(false)}>保留本端草稿并返回</button>
           <button type="button" onClick={() => { setBriefDraft(activeBriefConflict.remoteText); clearBriefDraft(activeBrief.id); setBriefError(""); }}>使用云端版本</button>
           {onUpdateCreationBrief && <button type="button" disabled={briefSaving || !briefDraft.trim() || Array.from(briefDraft).length > 10000} onClick={() => {
-            if (!window.confirm("确定用本端草稿覆盖当前云端版本？原始输入仍会保留。")) return;
-            saveBrief(activeBrief.id, briefDraft, activeBriefConflict.remoteText);
+            void feedback.confirm(feedbackMessages.warning.overwriteCloudBrief).then(confirmed => {
+              if (confirmed) saveBrief(activeBrief.id, briefDraft, activeBriefConflict.remoteText);
+            });
           }}>确认以本端草稿覆盖云端版本</button>}
         </section>}
         {onUpdateCreationBrief && !activeBriefConflict && <button type="button" className="film-modal-primary" disabled={briefSaving || !briefDraft.trim() || Array.from(briefDraft).length > 10000 || briefDraft === activeBrief?.finalText} onClick={() => {
@@ -488,8 +495,12 @@ export function CanvasPage({
       </>}
       {(modal === "character" || modal === "image") && <><label>参考照片<select aria-label="人物参考照片" value={photoId} onChange={event => setPhotoId(event.target.value)}><option value="">请选择照片</option>{imageAssets.map(asset => <option key={asset.id} value={asset.id}>{shortName(asset)}</option>)}</select></label><button type="button" className="film-modal-secondary" onClick={() => void importForModal()}><StudioIcon name="upload" size={16} />上传本地照片</button><button type="button" className="film-modal-primary" disabled={!photoId || modal === "character" && !characterName.trim()} onClick={() => { if (modal === "character") onCreateCharacter(characterName, characterDescription, photoId); else onAddNode("image", photoId); setModal(null); setCharacterName(""); setCharacterDescription(""); }}>确认添加</button></>}
       {modal === "clip" && <>{episode.nodes.filter(node => node.type === "video").map(node => { const result = videoResult(node); return result.resultAssetId ? <button type="button" className="film-episode-option" key={node.id} onClick={() => { onAddVideoToTimeline(node.id, result.resultAssetId!); setModal(null); }}><StudioIcon name="video" size={17} />{node.title}<StudioIcon name="plus" size={15} /></button> : null; })}{!episode.nodes.some(node => node.type === "video" && videoResult(node).resultAssetId) && <p>还没有已生成的视频节点。先生成视频，再加入这一集。</p>}</>}
-      {modal === "share" && <><p>{shareMessage ?? "项目保存在本地文件夹。可以复制路径，与协作者传递整个项目文件夹。"}</p><code>{projectRoot ?? window.location.href}</code><button type="button" className="film-modal-primary" onClick={() => { void navigator.clipboard.writeText(projectRoot ?? window.location.href); setModal(null); }}>复制{projectRoot ? "项目路径" : "页面地址"}</button><button type="button" className="film-modal-secondary" onClick={onOpenProjects}>打开项目管理</button></>}
+      {modal === "share" && <><p>{shareMessage ?? "项目保存在本地文件夹。可以复制路径，与协作者传递整个项目文件夹。"}</p><code>{projectRoot ?? window.location.href}</code><button type="button" className="film-modal-primary" onClick={() => {
+        void Promise.resolve().then(() => navigator.clipboard.writeText(projectRoot ?? window.location.href))
+          .then(() => setModal(null)).catch(() => void feedback.show(feedbackMessages.failure.copyShareAddress));
+      }}>复制{projectRoot ? "项目路径" : "页面地址"}</button><button type="button" className="film-modal-secondary" onClick={onOpenProjects}>打开项目管理</button></>}
     </div></div>}
     {playingUrl && <div className="film-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setPlayingUrl(null); }}><div className="film-video-player" role="dialog" aria-modal="true" aria-label="播放视频"><button type="button" onClick={() => setPlayingUrl(null)} aria-label="关闭"><StudioIcon name="x" /></button><video src={playingUrl} autoPlay controls /></div></div>}
+    {feedback.dialog}
   </div>;
 }

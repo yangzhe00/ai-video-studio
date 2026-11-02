@@ -1,4 +1,22 @@
 .avs-titlebar { height: 48px; flex: 0 0 48px; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0 18px; border-bottom: 1px solid var(--avs-border); background: var(--avs-shell); color: var(--avs-text); }
+.avs-feedback-backdrop { position: fixed; z-index: 300; inset: 0; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: #171b1db0; }
+.avs-feedback-dialog { width: min(440px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 26px; border: 1px solid var(--avs-border); border-radius: 18px; background: var(--avs-surface); color: var(--avs-text); box-shadow: 0 24px 80px #14100d55; }
+.avs-feedback-heading { display: flex; align-items: center; gap: 13px; }
+.avs-feedback-heading h2 { margin: 0; font-size: 20px; line-height: 1.35; }
+.avs-feedback-symbol { display: grid; flex: 0 0 36px; place-items: center; height: 36px; border-radius: 11px; background: var(--avs-primary-subtle); color: var(--avs-primary-strong); font-size: 21px; font-weight: 750; }
+.avs-feedback-dialog[data-kind="warning"] .avs-feedback-symbol { background: var(--avs-warning-bg); color: var(--avs-warning); }
+.avs-feedback-dialog[data-kind="failure"] .avs-feedback-symbol { background: color-mix(in srgb, var(--avs-danger) 14%, var(--avs-surface)); color: var(--avs-danger); }
+.avs-feedback-dialog[data-kind="success"] .avs-feedback-symbol { background: var(--avs-success-bg); color: var(--avs-success); }
+.avs-feedback-dialog > p { margin: 17px 0 23px; color: var(--avs-text-muted); font-size: 14px; line-height: 1.7; }
+.avs-feedback-field { display: grid; gap: 8px; margin: 0 0 22px; color: var(--avs-text); font-size: 13px; font-weight: 700; }
+.avs-feedback-field input { width: 100%; min-width: 0; height: 46px; padding: 0 12px; border: 1px solid var(--avs-border); border-radius: 9px; background: var(--avs-background); color: var(--avs-text); font: inherit; font-size: 16px; }
+.avs-feedback-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.avs-feedback-actions button { min-width: 100px; min-height: 44px; padding: 10px 16px; border: 1px solid var(--avs-border); border-radius: 9px; background: var(--avs-control-bg); color: var(--avs-text); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.avs-feedback-actions button.primary { border-color: var(--avs-primary); background: var(--avs-primary); color: var(--avs-primary-on); }
+.avs-feedback-dialog[data-kind="warning"] .avs-feedback-actions button.primary { border-color: var(--avs-danger); background: var(--avs-danger); color: #fff; }
+.avs-feedback-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.avs-feedback-dialog :is(button, input):focus-visible { outline: 3px solid var(--avs-primary); outline-offset: 2px; }
+@media (max-width: 480px) { .avs-feedback-dialog { padding: 20px; } .avs-feedback-actions button { flex: 1; min-width: 0; } }
 .avs-titlebar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; max-width: 250px; height: 36px; padding: 0 14px; overflow: hidden; border: 0; border-radius: 9px; background: transparent; color: var(--avs-text-muted); white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
 .avs-titlebar button.active { min-width: 170px; background: var(--avs-surface); color: var(--avs-text); font-weight: 700; }
 .avs-titlebar .avs-theme-toggle { flex: none; width: auto; min-width: 0; border: 1px solid var(--avs-border); border-radius: 18px; background: var(--avs-surface); color: var(--avs-text); }

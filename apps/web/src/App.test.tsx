@@ -4,7 +4,7 @@ import { ThemeProvider } from "@ai-video/ui-web";
 import App, { webManifest } from "./App";
 import type { AgentRunSnapshot, CloudProject } from "./api";
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.localStorage.clear(); window.sessionStorage.clear(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.localStorage.clear(); window.sessionStorage.clear(); });
 
 function deferredResponse() {
   let resolve!: (response: Response) => void;
@@ -370,10 +370,11 @@ describe("web entry", () => {
     fireEvent.click(within(comparison).getByRole("button", { name: "保留本端草稿并返回" }));
     fireEvent.click(screen.getByRole("button", { name: /创作原文/ }));
     expect((screen.getByRole("textbox", { name: "本端草稿" }) as HTMLTextAreaElement).value).toBe("本端编辑的第三稿");
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.click(screen.getByRole("button", { name: "确认以本端草稿覆盖云端版本" }));
+    const warning = screen.getByRole("alertdialog", { name: "覆盖云端原文？" });
+    expect(warning.textContent).toContain("原始输入仍会保留");
+    fireEvent.click(within(warning).getByRole("button", { name: "取消" }));
     expect(commands).toBe(1);
-    confirm.mockRestore();
     fireEvent.click(screen.getByRole("button", { name: "使用云端版本" }));
     expect((screen.getByRole("textbox", { name: "最终创作内容" }) as HTMLTextAreaElement).value).toBe("服务端已修改的第二稿");
     expect(commands).toBe(1);
