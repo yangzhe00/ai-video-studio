@@ -17,9 +17,9 @@ export { AgentEditWorkflow } from "./AgentEditWorkflow";
 export { EpisodeTimelineEditor } from "./EpisodeTimelineEditor";
 export type { TimelineOperationView } from "./EpisodeTimelineEditor";
 export { TtsLibraryPanel } from "./TtsLibraryPanel";
-export { orderSavedVisuals, timelineFromCloud, timelineToCloud } from "./timeline-model";
+export { editSavedVisuals, orderSavedVisuals, timelineFromCloud, timelineToCloud } from "./timeline-model";
 export { resumeMediaOperation } from "./media-operation";
-export type { TimelineAsset, TimelineSnapshot, TimelineAudioClip, TimelineVisualClip, TimelineAudioKind, } from "./timeline-model";
+export type { TimelineAsset, TimelineSnapshot, TimelineReadView, TimelineAudioClip, TimelineVisualClip, TimelineAudioKind, } from "./timeline-model";
 export type { AgentEditContext } from "./AgentEditWorkflow";
 
 export interface VideoEditView {

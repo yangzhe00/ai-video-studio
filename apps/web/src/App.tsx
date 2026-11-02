@@ -6,8 +6,8 @@ import type { StudioResult, StudioSection } from "@ai-video/components";
 import { canvasPlugin } from "@ai-video/plugin-canvas";
 import { CanvasPage } from "@ai-video/plugin-canvas/canvas";
 import { videoEditPlugin } from "@ai-video/plugin-video-edit";
-import { AgentEditWorkflow, EpisodeTimelineEditor, TtsLibraryPanel, VideoEditor, orderSavedVisuals, readAudioDuration, resumeMediaOperation, timelineFromCloud, timelineToCloud } from "@ai-video/plugin-video-edit/web";
-import type { RenderView, TimelineAsset, TimelineAudioKind, TimelineSnapshot, VideoEditView, VoiceAssetView } from "@ai-video/plugin-video-edit/web";
+import { AgentEditWorkflow, EpisodeTimelineEditor, TtsLibraryPanel, VideoEditor, editSavedVisuals, orderSavedVisuals, readAudioDuration, resumeMediaOperation, timelineFromCloud, timelineToCloud } from "@ai-video/plugin-video-edit/web";
+import type { RenderView, TimelineAsset, TimelineAudioKind, TimelineReadView, TimelineSnapshot, VideoEditView, VoiceAssetView } from "@ai-video/plugin-video-edit/web";
 import type { VideoEditCommand } from "@ai-video/plugin-video-edit/core";
 import { cloudEpisodeAudio, cloudTimelineClips, countUnicodeCharacters, creationBriefs, resourceRevision, timelineWithMetadata, validateCreationBrief } from "@ai-video/project-core";
 import type { CanvasDocumentV1, CanvasEpisodeGraphV1, CloudTimelineClip, CreationBrief, SyncResourceType } from "@ai-video/project-core";
@@ -118,6 +118,7 @@ export default function App() {
   const renderRequestId = useRef<string | null>(null);
   const [episodeRender, setEpisodeRender] = useState<EpisodeRenderView | null>(null);
   const [episodePreview, setEpisodePreview] = useState<PreviewView | null>(null);
+  const [timelineRead, setTimelineRead] = useState<(TimelineReadView & { projectId: string }) | null>(null);
   const timelineExpectedRevision = useRef<{ episodeId: string; revision: number } | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -972,11 +973,21 @@ export default function App() {
       const revision = resourceRevision(current.resourceRevisions ?? [], "episode", currentEpisodeId);
       const expected = timelineExpectedRevision.current;
       if (expected?.episodeId !== currentEpisodeId || expected.revision !== revision) throw new Error("409：分集已在另一端更新，请核对云端版本");
-      const orderedClips = orderSavedVisuals(cloudTimelineClips(currentEpisode), snapshot.visuals);
+      const orderedClips = snapshot.sourceAudio === undefined
+        ? orderSavedVisuals(cloudTimelineClips(currentEpisode), snapshot.visuals)
+        : editSavedVisuals(cloudTimelineClips(currentEpisode), snapshot.visuals);
+      const writtenAudio = timelineToCloud(snapshot);
       const updated = await sendCommand(current, "episode", currentEpisodeId, { ...currentEpisode,
-        timeline: orderedClips.map(clip => clip.assetId), timelineClips: orderedClips, audio: timelineToCloud(snapshot) });
-      timelineExpectedRevision.current = { episodeId: currentEpisodeId,
-        revision: resourceRevision(updated.resourceRevisions ?? [], "episode", currentEpisodeId) };
+        timeline: orderedClips.map(clip => clip.assetId), timelineClips: orderedClips, audio: writtenAudio });
+      const read = await api<TimelineReadView>(`/projects/${updated.id}/episodes/${currentEpisodeId}/timeline`);
+      const savedRevision = resourceRevision(updated.resourceRevisions ?? [], "episode", currentEpisodeId);
+      if (read.episodeRevision !== savedRevision ||
+          JSON.stringify(read.timelineClips) !== JSON.stringify(orderedClips) ||
+          snapshot.sourceAudio !== undefined &&
+            (read.audio.version !== 3 || JSON.stringify(read.audio.originalClips) !== JSON.stringify(writtenAudio.originalClips)))
+        throw new Error("云端时间线读回与保存结果不一致，请刷新后核对");
+      timelineExpectedRevision.current = { episodeId: currentEpisodeId, revision: read.episodeRevision };
+      setTimelineRead({ ...read, projectId: updated.id });
       setEpisodePreview(null); setEpisodeRender(null);
     });
   }
@@ -990,11 +1001,12 @@ export default function App() {
     projectRef.current = fresh; setProject(fresh);
     const episode = fresh.document.episodes.find(item => item.id === episodeId);
     if (!episode) throw new Error("云端分集不存在");
-    timelineExpectedRevision.current = { episodeId,
-      revision: resourceRevision(fresh.resourceRevisions ?? [], "episode", episodeId) };
-    const visuals = cloudTimelineClips(episode).map((clip, index) => ({ ...clip,
+    const read = await api<TimelineReadView>(`/projects/${fresh.id}/episodes/${episodeId}/timeline`);
+    timelineExpectedRevision.current = { episodeId, revision: read.episodeRevision };
+    setTimelineRead({ ...read, projectId: fresh.id });
+    const visuals = read.timelineClips.map((clip, index) => ({ ...clip,
       title: episode.shots.find(shot => shot.resultAssetId === clip.assetId)?.prompt || `镜头 ${index + 1}` }));
-    return timelineFromCloud(visuals, cloudEpisodeAudio(episode));
+    return timelineFromCloud(visuals, read.audio);
   }
 
   async function previewCloudEpisode() {
@@ -1180,20 +1192,29 @@ export default function App() {
 
   const manifest = project ? webManifest(project, episodeId, run) : null;
   const previewUrls = Object.fromEntries(project?.document.assets.map(asset => [asset.id, `/api/objects/${asset.id}`]) ?? []);
-  const timelineVisuals = activeEpisode ? cloudTimelineClips(activeEpisode).map((clip, index) => ({ ...clip,
+  const activeTimelineRead = timelineRead?.projectId === project?.id && timelineRead?.episodeId === episodeId ? timelineRead : null;
+  const timelineVisuals = activeEpisode ? (activeTimelineRead?.timelineClips ?? cloudTimelineClips(activeEpisode)).map((clip, index) => ({ ...clip,
     title: activeEpisode.shots.find(shot => shot.resultAssetId === clip.assetId)?.prompt || `镜头 ${index + 1}` })) : [];
-  const timelineSnapshot = timelineFromCloud(timelineVisuals, activeEpisode ? cloudEpisodeAudio(activeEpisode) : undefined);
+  const timelineSnapshot = timelineFromCloud(timelineVisuals, activeTimelineRead?.audio ?? (activeEpisode ? cloudEpisodeAudio(activeEpisode) : undefined));
   const timelineAssets: TimelineAsset[] = project?.document.assets.filter(asset => ["video", "voice", "music"].includes(asset.kind))
     .map(asset => ({ id: asset.id, kind: asset.kind as TimelineAsset["kind"], name: asset.name ?? asset.id,
       durationMs: asset.durationMs ?? (activeEpisode?.shots.find(shot => shot.resultAssetId === asset.id)?.durationSec
         ? activeEpisode.shots.find(shot => shot.resultAssetId === asset.id)!.durationSec * 1000
         : timelineVisuals.find(clip => clip.assetId === asset.id)?.outMs ?? 0),
       url: previewUrls[asset.id] })) ?? [];
-  const openTimeline = () => {
+  const openTimeline = async () => {
     const current = projectRef.current;
-    timelineExpectedRevision.current = { episodeId,
-      revision: current ? resourceRevision(current.resourceRevisions ?? [], "episode", episodeId) : activeEpisodeRevision };
-    setView("timeline");
+    if (!current) return;
+    try {
+      const scope = scopeForAccount();
+      if (!scope) throw new StaleAccountResponse();
+      const read = await api<TimelineReadView>(`/projects/${current.id}/episodes/${episodeId}/timeline`);
+      requireCurrentScope(scope);
+      if (projectRef.current?.id !== current.id) return;
+      timelineExpectedRevision.current = { episodeId, revision: read.episodeRevision };
+      setTimelineRead({ ...read, projectId: current.id });
+      setView("timeline");
+    } catch (cause) { setError(`打开整集剪辑失败：${String(cause)}`); }
   };
   const results: StudioResult[] = manifest ? [...manifest.jobs].filter(job => job.provider === "kling").reverse().map(job => {
     const shot = manifest.shots.find(item => item.id === job.shotId);
@@ -1365,7 +1386,8 @@ export default function App() {
         onRefresh={result => { void refreshRun(result.id); }} />
       : view === "timeline" && activeEpisode ? <div className="web-timeline-shell"><EpisodeTimelineEditor
         key={`${project.id}:${activeEpisode.id}`} projectTitle={project.title} episodeTitle={activeEpisode.title}
-        revision={activeEpisodeRevision} snapshot={timelineSnapshot} assets={timelineAssets}
+        revision={activeTimelineRead?.episodeRevision ?? activeEpisodeRevision} snapshot={timelineSnapshot} assets={timelineAssets}
+        clipEditingAvailable={!!activeTimelineRead && timelineSnapshot.sourceAudio !== undefined}
         draftStorageKey={`avs-timeline-draft:${account.id}:${project.id}:${activeEpisode.id}`}
         onSave={saveEpisodeTimeline} onRefresh={refreshEpisodeTimeline} onUploadAudio={uploadTimelineAudio}
         onPreview={previewCloudEpisode} preview={episodePreview && episodePreview.scope === "episode" && episodePreview.targetId === activeEpisode.id

@@ -1,4 +1,5 @@
 export type TimelineAudioKind = "voice" | "music";
+import type { SourceAudioClip } from "./clip-edit-model";
 
 export interface TimelineAsset {
   id: string;
@@ -36,6 +37,7 @@ export interface TimelineSnapshot {
   visuals: TimelineVisualClip[];
   audio: TimelineAudioClip[];
   originalVolume: number;
+  sourceAudio?: SourceAudioClip[];
 }
 
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
@@ -52,6 +54,24 @@ export function orderSavedVisuals<T extends { id: string; assetId: string; inMs:
       [clip.assetId, clip.inMs, clip.outMs, clip.volume]))
       throw new Error("409：本集镜头已变化，请查看云端版本");
     return original;
+  });
+}
+
+/** v3 permits split, trim and delete while retaining source assets already owned by this episode. */
+export function editSavedVisuals<T extends { id: string; assetId: string; inMs: number; outMs: number; volume: number }>(
+  saved: T[], requested: TimelineVisualClip[],
+): T[] {
+  const sourceAssets = new Set(saved.map(item => item.assetId));
+  if (!requested.length || requested.length > 100 || new Set(requested.map(item => item.id)).size !== requested.length)
+    throw new Error("画面片段数量或 ID 无效");
+  return requested.map(clip => {
+    if (!sourceAssets.has(clip.assetId) || !Number.isSafeInteger(clip.inMs) || !Number.isSafeInteger(clip.outMs) ||
+        clip.inMs < 0 || clip.outMs - clip.inMs < 300 || !Number.isFinite(clip.volume) || clip.volume < 0 || clip.volume > 2)
+      throw new Error("画面片段必须引用本集原有视频，且至少保留 0.3 秒");
+    const original = saved.find(item => item.id === clip.id);
+    if (original && original.assetId !== clip.assetId) throw new Error("画面片段素材已变化，请刷新云端版本");
+    return { ...(original ?? {}), id: clip.id, assetId: clip.assetId,
+      inMs: clip.inMs, outMs: clip.outMs, volume: clip.volume } as T;
   });
 }
 
@@ -78,6 +98,8 @@ export function mergeTimelineDraft(base: TimelineSnapshot, local: TimelineSnapsh
   if (visuals.conflict) conflicts.push("镜头顺序或裁剪同时被两端修改");
   const originalVolume = mergeField(base.originalVolume, local.originalVolume, cloud.originalVolume);
   if (originalVolume.conflict) conflicts.push("镜头原声音量同时被两端修改");
+  const sourceAudio = mergeField(base.sourceAudio, local.sourceAudio, cloud.sourceAudio);
+  if (sourceAudio.conflict) conflicts.push("镜头原声片段同时被两端修改");
   const baseById = new Map(base.audio.map(clip => [clip.id, clip]));
   const localById = new Map(local.audio.map(clip => [clip.id, clip]));
   const cloudById = new Map(cloud.audio.map(clip => [clip.id, clip]));
@@ -100,7 +122,8 @@ export function mergeTimelineDraft(base: TimelineSnapshot, local: TimelineSnapsh
     }
     audio.push(next);
   }
-  return { snapshot: { visuals: visuals.value, originalVolume: originalVolume.value, audio }, conflicts };
+  return { snapshot: { visuals: visuals.value, originalVolume: originalVolume.value, audio,
+    ...(sourceAudio.value === undefined ? {} : { sourceAudio: sourceAudio.value }) }, conflicts };
 }
 
 export function timelineDifferences(local: TimelineSnapshot, cloud: TimelineSnapshot, assets: TimelineAsset[]): string[] {
@@ -120,6 +143,7 @@ export function timelineDifferences(local: TimelineSnapshot, cloud: TimelineSnap
   }
   if (local.originalVolume !== cloud.originalVolume)
     differences.push(`镜头原声音量：本地 ${Math.round(local.originalVolume * 100)}%；云端 ${Math.round(cloud.originalVolume * 100)}%`);
+  if (!same(local.sourceAudio, cloud.sourceAudio)) differences.push("镜头原声片段：两端的分割、静音或音量不同");
   const clips = [...new Set([...local.audio.map(clip => clip.id), ...cloud.audio.map(clip => clip.id)])];
   for (const id of clips) {
     const mine = local.audio.find(clip => clip.id === id), remote = cloud.audio.find(clip => clip.id === id);
@@ -137,27 +161,38 @@ export function timelineDifferences(local: TimelineSnapshot, cloud: TimelineSnap
 }
 
 export interface TimelineCloudAudio {
-  version?: 2;
+  version?: 2 | 3;
   originalVolume: number;
+  originalClips?: SourceAudioClip[];
   voiceClips: Array<{ id?: string; assetId: string; startMs: number; inMs: number; outMs: number; volume: number; anchor?: TimelineAnchor }>;
   musicClips: Array<{ id?: string; assetId: string; startMs: number; inMs: number; outMs: number; volume: number; anchor?: TimelineAnchor }>;
 }
 
+export interface TimelineReadView {
+  episodeId: string;
+  episodeRevision: number;
+  timelineClips: Array<{ id: string; assetId: string; inMs: number; outMs: number; volume: number }>;
+  audio: TimelineCloudAudio & { version: 3; originalClips: SourceAudioClip[] };
+  projectedFromLegacy: boolean;
+}
+
 export function timelineFromCloud(visuals: TimelineVisualClip[], audio?: TimelineCloudAudio): TimelineSnapshot {
   const toClips = (kind: TimelineAudioKind, clips: TimelineCloudAudio["voiceClips"]) => clips.map((item, index) => ({
-    ...item, id: item.id ?? `legacy-${kind}-${index}`, kind, historical: audio?.version !== 2,
+    ...item, id: item.id ?? `legacy-${kind}-${index}`, kind, historical: audio?.version !== 2 && audio?.version !== 3,
   }));
   return { visuals, originalVolume: audio?.originalVolume ?? 1,
+    ...(audio?.version === 3 ? { sourceAudio: audio.originalClips ?? [] } : {}),
     audio: [...toClips("voice", audio?.voiceClips ?? []), ...toClips("music", audio?.musicClips ?? [])] };
 }
 
 /** Persist the complete multi-track set in the shared episode audio v2 contract. */
-export function timelineToCloud(snapshot: TimelineSnapshot): TimelineCloudAudio & { version: 2 } {
+export function timelineToCloud(snapshot: TimelineSnapshot): TimelineCloudAudio & { version: 2 | 3 } {
   const placements = (kind: TimelineAudioKind) => snapshot.audio.filter(clip => clip.kind === kind).map(clip => ({
     id: clip.id, assetId: clip.assetId, startMs: clipStart(clip, snapshot.visuals),
     inMs: clip.inMs, outMs: clip.outMs, volume: clip.volume, anchor: clip.anchor ?? { kind: "absolute" as const },
   }));
-  return { version: 2, originalVolume: snapshot.originalVolume,
+  return { version: snapshot.sourceAudio === undefined ? 2 : 3, originalVolume: snapshot.originalVolume,
+    ...(snapshot.sourceAudio === undefined ? {} : { originalClips: snapshot.sourceAudio }),
     voiceClips: placements("voice"), musicClips: placements("music") };
 }
 
@@ -198,6 +233,22 @@ export function validateTimeline(snapshot: TimelineSnapshot, assets: TimelineAss
   for (const visual of snapshot.visuals) {
     if (!visual.id || !visual.assetId || !Number.isSafeInteger(visual.inMs) || !Number.isSafeInteger(visual.outMs)
       || visual.inMs < 0 || visual.outMs <= visual.inMs) return "画面片段时间无效";
+  }
+  if (snapshot.sourceAudio) {
+    const ids = new Set<string>();
+    const byVisual = new Map<string, Array<{ inMs: number; outMs: number }>>();
+    for (const clip of snapshot.sourceAudio) {
+      const owner = snapshot.visuals.find(item => item.id === clip.visualClipId);
+      if (!owner || owner.assetId !== clip.assetId || !Number.isSafeInteger(clip.inMs) || !Number.isSafeInteger(clip.outMs) ||
+          typeof clip.muted !== "boolean" || clip.inMs < owner.inMs || clip.outMs > owner.outMs ||
+          clip.outMs - clip.inMs < 300 || !Number.isFinite(clip.volume) || clip.volume < 0 || clip.volume > 2 ||
+          ids.has(clip.id)) return "镜头原声片段范围或音量无效";
+      const siblings = byVisual.get(clip.visualClipId) ?? [];
+      if (siblings.some(item => clip.inMs < item.outMs && clip.outMs > item.inMs)) return "同一画面的原声片段不能重叠";
+      siblings.push({ inMs: clip.inMs, outMs: clip.outMs });
+      byVisual.set(clip.visualClipId, siblings);
+      ids.add(clip.id);
+    }
   }
   if (snapshot.audio.filter(item => item.kind === "voice").length > 100 ||
       snapshot.audio.filter(item => item.kind === "music").length > 100) return "音频片段过多";

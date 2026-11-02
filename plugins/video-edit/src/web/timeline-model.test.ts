@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { audioLength, clipStart, makeAudioClip, mergeTimelineDraft, moveAudioClip, orderSavedVisuals, positionedVisuals, reorderVisual, snapTime, timelineDifferences, timelineDuration, timelineFromCloud, timelineToCloud, trimAudioClip, validateTimeline } from "./timeline-model";
+import { audioLength, clipStart, editSavedVisuals, makeAudioClip, mergeTimelineDraft, moveAudioClip, orderSavedVisuals, positionedVisuals, reorderVisual, snapTime, timelineDifferences, timelineDuration, timelineFromCloud, timelineToCloud, trimAudioClip, validateTimeline } from "./timeline-model";
 import type { TimelineAsset, TimelineAudioClip, TimelineVisualClip } from "./timeline-model";
 
 const visuals: TimelineVisualClip[] = [1, 2, 3].map(index => ({
@@ -57,6 +57,20 @@ describe("episode timeline model", () => {
     expect(saved.version).toBe(2);
     expect(saved.voiceClips.map(clip => clip.id)).toEqual(["legacy-voice-0", "legacy-voice-1"]);
     expect(saved.musicClips).toHaveLength(1);
+  });
+
+  it("round-trips v3 source sound and permits same-asset split without downgrading", () => {
+    const originalClips = [{ id: "original-shot-1", visualClipId: "shot-1", assetId: "video-1",
+      inMs: 0, outMs: 5000, volume: 0.6, muted: false }];
+    const snapshot = timelineFromCloud(visuals, { version: 3, originalVolume: 0.8,
+      originalClips, voiceClips: [], musicClips: [] });
+    expect(snapshot.sourceAudio).toEqual(originalClips);
+    expect(timelineToCloud(snapshot)).toMatchObject({ version: 3, originalClips });
+    const split = [{ ...visuals[0], outMs: 2300 },
+      { ...visuals[0], id: "new-shot-1", inMs: 2300 }, ...visuals.slice(1)];
+    expect(editSavedVisuals(visuals, split).map(clip => clip.id)).toEqual(split.map(clip => clip.id));
+    expect(() => editSavedVisuals(visuals, [{ ...visuals[0], assetId: "foreign-video" }])).toThrow(/本集原有视频/);
+    expect(() => editSavedVisuals(visuals, [{ ...visuals[0], outMs: 200 }])).toThrow(/至少保留/);
   });
 
   it("reorders only saved shots and keeps an anchored voice attached to its shot", () => {

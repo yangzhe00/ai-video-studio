@@ -164,6 +164,30 @@
 .episode-editor-playhead:before { content:""; display:block; width:10px; height:10px; margin-left:-6px; transform:rotate(45deg); background:#ecbd77; }
 .episode-editor-timeline footer { padding:8px 17px; border-top:1px solid #455457; color:#b2c1be; font-size:11px; }
 .episode-editor-inspector > strong { display:block; margin-top:13px; font-size:13px; }
+.episode-editor-clip-tools { display:flex; align-items:center; gap:6px; min-width:0; }
+.episode-editor-clip-tools > span { max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.episode-editor-clip-tools button { white-space:nowrap; }
+.episode-editor-clip-tools button:last-child { color:#a8503c; }
+.episode-editor-original { display:block; padding:0; }
+.episode-editor-audio-clip.source { background:#dfe9ec; border-color:#91acb6; color:#385862; cursor:pointer; }
+.episode-editor-audio-clip.source .label strong { background:#f4f8f8d9; }
+.episode-editor-audio-clip.source .episode-editor-waveform line { stroke:#6e909c; }
+.episode-editor-audio-clip.source.muted { opacity:.53; }
+.episode-editor-trim-handle { position:absolute; z-index:6; top:0; bottom:0; width:9px; background:#ffffffa8; cursor:ew-resize; touch-action:none; }
+.episode-editor-trim-handle.left { left:0; border-right:1px solid #74969b; }
+.episode-editor-trim-handle.right { right:0; border-left:1px solid #74969b; }
+.episode-editor-visual-clip .episode-editor-trim-handle { background:#edf5f3d9; }
+.episode-editor-visual-fields { display:grid; gap:6px; margin-top:12px; }
+.episode-editor-visual-fields button,.episode-editor-source-inspector button { width:100%; }
+.episode-editor-source-inspector { margin:12px 0; padding:11px; border:1px solid var(--avs-border); border-radius:9px; background:var(--avs-background); }
+.episode-editor-source-inspector h3 { margin:0 0 7px; }
+.episode-editor-inspector .episode-editor-danger { color:#b35041; border-color:#e2aaa1; }
+.episode-editor-impact { width:min(510px,100%); max-height:min(80vh,700px); overflow:auto; }
+.episode-editor-impact fieldset { margin:13px 0; padding:10px; border:1px solid var(--avs-border); border-radius:8px; }
+.episode-editor-impact legend { padding:0 4px; font-weight:700; font-size:12px; }
+.episode-editor-impact fieldset label { display:flex; align-items:flex-start; gap:7px; margin:8px 0; font-size:12px; line-height:1.4; }
+.episode-editor-impact fieldset input { flex:none; width:auto; margin:2px 0 0; }
+.episode-editor-impact ul { margin:7px 0; padding-left:19px; font-size:12px; line-height:1.55; }
 .episode-editor-inspector label { display:grid; gap:6px; margin:10px 0; font-size:12px; font-weight:650; }
 .episode-editor-inspector :is(input,select) { width:100%; min-width:0; border:1px solid var(--avs-border); border-radius:7px; padding:8px 9px; background:var(--avs-background); color:var(--avs-text); }
 .episode-editor-inspector > button { width:100%; margin-top:7px; font-size:12px; }

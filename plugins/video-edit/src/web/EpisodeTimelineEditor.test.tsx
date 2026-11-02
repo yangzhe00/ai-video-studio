@@ -29,6 +29,29 @@ beforeAll(() => { HTMLMediaElement.prototype.pause = vi.fn(); HTMLMediaElement.p
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
 
 describe("EpisodeTimelineEditor", () => {
+  it("splits a selected visual at 7.3s and confirms each overflowing audio clip before deletion", async () => {
+    const sourceAudio = visuals.map(clip => ({ id: `original-${clip.id}`, visualClipId: clip.id,
+      assetId: clip.assetId, inMs: clip.inMs, outMs: clip.outMs, volume: 1, muted: false }));
+    const onSave = vi.fn(async (_snapshot: TimelineSnapshot) => {});
+    render(<EpisodeTimelineEditor {...props} snapshot={{ ...snapshot, sourceAudio }} clipEditingAvailable onSave={onSave} />);
+    fireEvent.change(screen.getByLabelText("播放头位置"), { target: { value: "7300" } });
+    fireEvent.click(screen.getByRole("button", { name: "选择镜头：镜头 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "分割片段 S" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0]![0].visuals).toHaveLength(4);
+    expect(onSave.mock.calls[0]![0].sourceAudio).toHaveLength(4);
+    fireEvent.click(document.querySelectorAll(".episode-editor-visual-clip")[2]!);
+    fireEvent.click(screen.getByRole("button", { name: "删除本段 Delete" }));
+    const dialog = screen.getByRole("dialog", { name: "片段编辑影响确认" });
+    expect(within(dialog).getByText(/15.0 秒 → 12.3 秒/)).toBeTruthy();
+    expect((within(dialog).getByRole("button", { name: "确认删除本段" }) as HTMLButtonElement).disabled).toBe(true);
+    for (const box of within(dialog).getAllByRole("checkbox")) fireEvent.click(box);
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认删除本段" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0].visuals.reduce((total, clip) => total + clip.outMs - clip.inMs, 0)).toBe(12300);
+    expect(onSave.mock.calls[1]![0].audio.find(clip => clip.id === "music-clip-one")?.outMs).toBe(12300);
+  });
+
   it("keeps narration creation with voice assets and music upload separate", () => {
     render(<EpisodeTimelineEditor {...props} onUploadAudio={vi.fn(async () => assets[3]!)} ttsSlot={<p>旁白生成任务</p>} />);
     const voiceSection = screen.getByRole("heading", { name: "配音" }).closest("section")!;
