@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, uploadObject, uploadVoiceObject } from "./api";
+import { ApiHttpError, api, uploadObject, uploadVoiceObject } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -25,6 +25,12 @@ describe("photo upload", () => {
 });
 
 describe("state-changing API requests", () => {
+  it("keeps the HTTP status for expired task recovery", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: "混音预览已过期" }, { status: 410 })));
+    await expect(api("/previews/expired")).rejects.toMatchObject({
+      name: "ApiHttpError", status: 410, message: "混音预览已过期",
+    } satisfies Partial<ApiHttpError>);
+  });
   it("sends the security marker for a bodyless logout and leaves GET alone", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);

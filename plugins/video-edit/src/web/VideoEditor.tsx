@@ -4,10 +4,9 @@ import { validateRecipe } from "../core";
 import type { VideoEditCommand, VideoEditRecipe } from "../core";
 import { AgentSuggestionPanel } from "./AgentSuggestionPanel";
 import type { AgentSuggestionPanelProps } from "./AgentSuggestionPanel";
-import { VoiceoverPanel } from "./VoiceoverPanel";
-import type { VoiceoverPanelProps } from "./VoiceoverPanel";
 
-export { AgentSuggestionPanel, VoiceoverPanel };
+export { AgentSuggestionPanel };
+export { VoiceoverPanel } from "./VoiceoverPanel";
 export type { AgentSuggestionPanelProps, EditSuggestionSetView, EditSuggestionView } from "./AgentSuggestionPanel";
 export type { VoiceoverPanelProps, VoiceAssetView, VoiceDraftView, TtsVoiceView, TtsQuoteView, TtsJobView, MixPreviewView } from "./VoiceoverPanel";
 export { draftFromAudioMix, audioMixFromDraft } from "./voice-adapter";
@@ -15,6 +14,12 @@ export type { AudioMixView } from "./voice-adapter";
 export { readAudioDuration } from "./audio-duration";
 export { VoiceoverWorkflow } from "./VoiceoverWorkflow";
 export { AgentEditWorkflow } from "./AgentEditWorkflow";
+export { EpisodeTimelineEditor } from "./EpisodeTimelineEditor";
+export type { TimelineOperationView } from "./EpisodeTimelineEditor";
+export { TtsLibraryPanel } from "./TtsLibraryPanel";
+export { orderSavedVisuals, timelineFromCloud, timelineToCloud } from "./timeline-model";
+export { resumeMediaOperation } from "./media-operation";
+export type { TimelineAsset, TimelineSnapshot, TimelineAudioClip, TimelineVisualClip, TimelineAudioKind, } from "./timeline-model";
 export type { AgentEditContext } from "./AgentEditWorkflow";
 
 export interface VideoEditView {
@@ -26,9 +31,7 @@ interface Props {
   onCommand: (command: VideoEditCommand, expectedRevision: number) => Promise<VideoEditView>;
   onRender: (revision: number) => Promise<void>;
   onUseInTimeline?: (assetId: string) => Promise<void>;
-  voiceover?: VoiceoverPanelProps;
   agentSuggestions?: AgentSuggestionPanelProps;
-  voiceoverSlot?: ReactNode;
   agentSlot?: ReactNode;
   onClose: () => void;
 }
@@ -36,7 +39,7 @@ interface Props {
 const seconds = (ms: number) => (ms / 1000).toFixed(1);
 const millis = (value: string) => Math.round(Number(value) * 1000);
 
-export function VideoEditor({ edit, sourceUrl, currentUrl, render, onCommand, onRender, onUseInTimeline, voiceover, agentSuggestions, voiceoverSlot, agentSlot, onClose }: Props) {
+export function VideoEditor({ edit, sourceUrl, currentUrl, render, onCommand, onRender, onUseInTimeline, agentSuggestions, agentSlot, onClose }: Props) {
   const recipe = edit.recipe;
   const [start, setStart] = useState(seconds(recipe.trimStartMs));
   const [end, setEnd] = useState(seconds(recipe.trimEndMs));
@@ -81,12 +84,10 @@ export function VideoEditor({ edit, sourceUrl, currentUrl, render, onCommand, on
       <section><h3>裁剪首尾时长</h3><div className="video-edit-two"><label>开始（秒）<input aria-label="裁剪开始秒数" type="number" min="0" max={seconds(recipe.sourceDurationMs)} step="0.1" value={start} onChange={event => setStart(event.target.value)} /></label><label>结束（秒）<input aria-label="裁剪结束秒数" type="number" min="0" max={seconds(recipe.sourceDurationMs)} step="0.1" value={end} onChange={event => setEnd(event.target.value)} /></label></div><button type="button" disabled={busy} onClick={() => void command({ type: "set-trim", startMs: millis(start), endMs: millis(end) })}>保存裁剪</button><small>原视频 {seconds(recipe.sourceDurationMs)} 秒，保留 {seconds(recipe.trimEndMs - recipe.trimStartMs)} 秒</small></section>
       <section><h3>手动字幕</h3><label>字幕内容<input aria-label="新增字幕内容" value={captionText} onChange={event => setCaptionText(event.target.value)} /></label><div className="video-edit-two"><label>开始（秒）<input aria-label="字幕开始秒数" type="number" step="0.1" value={captionStart} onChange={event => setCaptionStart(event.target.value)} /></label><label>结束（秒）<input aria-label="字幕结束秒数" type="number" step="0.1" value={captionEnd} onChange={event => setCaptionEnd(event.target.value)} /></label></div><button type="button" disabled={busy || !captionText.trim()} onClick={() => { void command({ type: "upsert-caption", caption: { id: crypto.randomUUID(), startMs: millis(captionStart), endMs: millis(captionEnd), text: captionText } }); setCaptionText(""); }}>添加字幕</button><ul>{recipe.captions.map(caption => <li key={caption.id}><span>{seconds(caption.startMs)}–{seconds(caption.endMs)} 秒 · {caption.text}</span><button type="button" onClick={() => void command({ type: "remove-caption", captionId: caption.id })} aria-label={`删除字幕 ${caption.text}`}>删除</button></li>)}</ul>{issues.length > 0 && <p role="alert">{issues.length} 条字幕超出保留片段，请调整裁剪或字幕。</p>}</section>
       <section><h3>封面帧</h3><label>原视频时间（秒）<input aria-label="封面时间秒数" type="number" min={seconds(recipe.trimStartMs)} max={seconds(recipe.trimEndMs)} step="0.1" value={cover} onChange={event => setCover(event.target.value)} /></label><button type="button" disabled={busy} onClick={() => void command({ type: "set-cover", sourceMs: millis(cover) })}>保存封面时间</button></section>
-      {voiceover && <VoiceoverPanel {...voiceover} />}
-      {voiceoverSlot}
       {agentSuggestions && <AgentSuggestionPanel {...agentSuggestions} />}
       {agentSlot}
       {error && <p role="alert">{error}</p>}
-      {!voiceover && !voiceoverSlot && <button className="video-edit-render" type="button" disabled={busy || issues.length > 0 || render?.state === "pending" || render?.state === "running"} onClick={() => void finish()}>完成并云端渲染</button>}
+      <button className="video-edit-render" type="button" disabled={busy || issues.length > 0 || render?.state === "pending" || render?.state === "running"} onClick={() => void finish()}>完成并云端渲染</button>
     </div></div>
   </section>;
 }

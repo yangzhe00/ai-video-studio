@@ -1,6 +1,6 @@
 :root { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans SC", sans-serif; color: var(--avs-text); background: var(--avs-background); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 1100px; }
+body { margin: 0; min-width: 900px; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .5; }
@@ -79,11 +79,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .film-section-empty p { color: var(--avs-text-muted); }
 .film-section-empty>div { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .film-section-empty button { padding: 10px 15px; border: 1px solid var(--avs-border); border-radius: 9px; background: var(--avs-surface); color: var(--avs-text); cursor: pointer; }
-.film-episode-voice-page { min-height: 100%; overflow: auto; display: grid; align-content: start; gap: 16px; padding: 24px; background: var(--avs-background); color: var(--avs-text); }
-.film-episode-voice-page > header { display: flex; align-items: center; gap: 18px; }
-.film-episode-voice-page > header h2 { margin: 0; font-size: 20px; }
-.film-episode-voice-page > header button { border: 1px solid var(--avs-border); border-radius: 9px; padding: 8px 12px; background: var(--avs-control-bg); color: var(--avs-text); }
-.film-episode-voice-page > .video-edit-voice, .film-episode-voice-page > .video-edit-agent { width: min(720px, 100%); }
-.film-episode-render-status { display: grid; gap: 10px; width: min(720px, 100%); }
-.film-episode-render-status video { width: 100%; max-height: 55vh; background: #000; border-radius: 10px; }
-@media (max-width: 640px) { .film-episode-voice-page { padding: 12px; } .film-episode-voice-page > header { flex-wrap: wrap; } }
+.film-episode-timeline-shell { position:fixed; inset:48px 0 0; z-index:250; min-width:0; min-height:0; }
+.film-episode-timeline-empty { padding:32px; background:var(--avs-background); height:100%; }
+.film-episode-timeline-empty button { margin-right:8px; }
+@media (max-width: 1050px) {
+  .film-app .avs-titlebar > button[title]:not(.active) { display: none; }
+  .film-app .avs-titlebar { gap: 6px; padding: 0 10px; }
+  .film-app .avs-titlebar .avs-window-lights { flex-basis: 70px; }
+  .film-app .avs-titlebar .cloud-account-trigger { max-width: 115px; }
+}

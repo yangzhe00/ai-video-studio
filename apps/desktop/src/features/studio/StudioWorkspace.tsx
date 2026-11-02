@@ -6,7 +6,7 @@ import type { StudioResult, StudioSection } from "@ai-video/components";
 import type { AssetUploadItem, AssetUploadState } from "@ai-video/ui-web";
 import {
   addStudioNode, appendClip, connectStudioNodes, createCharacter, createEpisode,
-  createShotDraft, creationBriefs, disconnectStudioNodes, ensureStudio, moveClip, moveStudioNode,
+  createShotDraft, creationBriefs, cloudEpisodeAudio, cloudTimelineClips, disconnectStudioNodes, ensureStudio, moveClip, moveStudioNode,
   removeStudioNode, resourceRevision, selectEpisode, syncActiveEpisode, updateStudioNode,
 } from "@ai-video/project-core";
 import type { CreationBrief, GenerationJob, OpenProject, ProjectManifestV2, StudioNode, StudioNodeType } from "@ai-video/project-core";
@@ -16,10 +16,10 @@ import { backupProject } from "../../lib/native";
 import { hasDesktopFeature } from "../../lib/plugins";
 import { CanvasPage } from "./CanvasPage";
 import { StudioIcon } from "@ai-video/ui-web";
-import { AgentEditWorkflow, VideoEditor, VoiceoverWorkflow, readAudioDuration } from "@ai-video/plugin-video-edit/web";
-import type { RenderView, VideoEditView, VoiceAssetView } from "@ai-video/plugin-video-edit/web";
+import { AgentEditWorkflow, EpisodeTimelineEditor, TtsLibraryPanel, VideoEditor, orderSavedVisuals, readAudioDuration, resumeMediaOperation, timelineFromCloud, timelineToCloud } from "@ai-video/plugin-video-edit/web";
+import type { RenderView, TimelineAsset, TimelineAudioKind, TimelineSnapshot, VideoEditView, VoiceAssetView } from "@ai-video/plugin-video-edit/web";
 import type { VideoEditCommand } from "@ai-video/plugin-video-edit/core";
-import type { EpisodeRenderView } from "@ai-video/api-contracts";
+import type { EpisodeRenderView, PreviewView } from "@ai-video/api-contracts";
 import { CloudAccountControl } from "../account/CloudAccountControl";
 import { cloudCommand, cloudDownloadAsset, cloudRequest, cloudUploadAsset } from "../../lib/cloud";
 import type { CloudAccount, CloudProject, CloudRun } from "../../lib/cloud";
@@ -28,10 +28,11 @@ import type { CloudBinding } from "../../lib/sync";
 
 interface Props { project: OpenProject; account: CloudAccount | null; onAccountChange: (account: CloudAccount | null) => void;
   onOpenProjects: () => void; ideaSlot?: ReactNode; incomingPrompt?: { id: string; prompt: string; mode: "direct" | "canvas" } | null; onIdeaConsumed?: () => void }
-type View = "home" | "generate" | "canvas" | "results" | "editor" | "video-edit" | "episode-voice";
+type View = "home" | "generate" | "canvas" | "results" | "editor" | "video-edit" | "timeline";
 type SaveState = "saved" | "saving" | "failed";
 
 function fileName(path: string) { return path.split("/").pop() ?? path; }
+const isMissingMediaOperation = (cause: unknown) => /混音预览不存在|混音预览已过期|整集导出任务不存在/.test(String(cause));
 
 function briefConflictContent(value: unknown): Pick<CreationBrief, "source" | "originalText" | "finalText"> | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -69,11 +70,14 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
   const [cloudProject, setCloudProject] = useState<CloudProject | null>(null);
   const [episodeRender, setEpisodeRender] = useState<EpisodeRenderView | null>(null);
   const [episodeOutputUrl, setEpisodeOutputUrl] = useState("");
-  const episodeRenderId = useRef<string | null>(null);
+  const [episodePreview, setEpisodePreview] = useState<PreviewView | null>(null);
+  const [previewOutputUrl, setPreviewOutputUrl] = useState("");
+  const timelineExpectedRevision = useRef<{ episodeId: string; revision: number } | null>(null);
   const voicePreviewUrls = useRef<string[]>([]);
   const observedRun = useRef("");
   const activeEpisode = manifest.studio!.episodes.find(episode => episode.id === manifest.studio!.activeEpisodeId)!;
   const cloudBinding = manifest.extensions?.cloudSync as CloudBinding | undefined;
+  const cloudEpisodeRevision = cloudProject ? resourceRevision(cloudProject.resourceRevisions ?? [], "episode", activeEpisode.id) : 0;
   const validCloudBinding = Boolean(account && cloudBinding?.accountId === account.id && cloudBinding.projectId);
   const cloudLabel = !account ? "仅保存在本机" : syncState === "syncing" ? "云端同步中"
     : syncState === "conflict" ? "同步未完成" : !validCloudBinding ? "尚未同步到云端"
@@ -90,6 +94,22 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
     const localId = Object.entries(cloudBinding?.assetMap ?? {}).find(([, id]) => id === cloudId)?.[0] ?? cloudId;
     return previewUrls[localId] ?? "";
   };
+
+  async function openTimeline() {
+    if (!account) { setView("timeline"); return; }
+    try {
+      await runSync();
+      const binding = manifestRef.current.extensions?.cloudSync as CloudBinding | undefined;
+      const episodeId = manifestRef.current.studio!.activeEpisodeId;
+      const remote = binding?.projectId ? (await cloudRequest<{ project: CloudProject }>(`/projects/${binding.projectId}`)).project : null;
+      if (remote) {
+        setCloudProject(remote);
+        timelineExpectedRevision.current = { episodeId,
+          revision: resourceRevision(remote.resourceRevisions ?? [], "episode", episodeId) };
+      }
+      setView("timeline");
+    } catch (cause) { setMessage(`打开整集剪辑失败：${String(cause)}`); setView("timeline"); }
+  }
 
   function adopt(next: ProjectManifestV2) {
     manifestRef.current = next;
@@ -296,19 +316,23 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
 
   useEffect(() => {
     const binding = manifestRef.current.extensions?.cloudSync as CloudBinding | undefined;
-    if (!account || !binding) { setEpisodeRender(null); episodeRenderId.current = null; return; }
+    if (!account || !binding) { setEpisodeRender(null); return; }
     const episodeId = manifestRef.current.studio!.activeEpisodeId;
-    const key = `avs-episode-render:${account.id}:${binding.projectId}:${episodeId}`;
+    const revision = resourceRevision(cloudProject?.resourceRevisions ?? [], "episode", episodeId);
+    const key = `avs-episode-render:${account.id}:${binding.projectId}:${episodeId}:${revision}`;
     const id = window.localStorage.getItem(key);
-    episodeRenderId.current = id;
     setEpisodeRender(null);
     if (!id || !/^[a-zA-Z0-9-]{8,80}$/.test(id)) return;
     let live = true;
     void cloudRequest<{ episodeRender: EpisodeRenderView }>(`/episode-renders/${id}`).then(result => {
-      if (live) setEpisodeRender(result.episodeRender);
-    }).catch(error => { if (live) setMessage(`查询整集导出失败：${String(error)}`); });
+      if (live) { window.localStorage.setItem(key, result.episodeRender.id); setEpisodeRender(result.episodeRender); }
+    }).catch(error => {
+      if (!live) return;
+      if (isMissingMediaOperation(error)) window.localStorage.removeItem(key);
+      setMessage(isMissingMediaOperation(error) ? "整集导出任务已失效，请重新导出" : `查询整集导出失败：${String(error)}`);
+    });
     return () => { live = false; };
-  }, [account?.id, cloudBinding?.projectId, activeEpisode.id]);
+  }, [account?.id, cloudBinding?.projectId, activeEpisode.id, cloudEpisodeRevision]);
 
   useEffect(() => {
     if (!episodeRender || ["succeeded", "failed"].includes(episodeRender.state)) return;
@@ -338,6 +362,45 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
     return () => { live = false; if (url) URL.revokeObjectURL(url); };
   }, [episodeRender?.id, episodeRender?.state, episodeRender?.outputAssetId, project.root]);
 
+  useEffect(() => {
+    setEpisodePreview(null); setPreviewOutputUrl("");
+    if (!account || !cloudBinding || !cloudEpisodeRevision) return;
+    const key = `avs-episode-preview:${account.id}:${cloudBinding.projectId}:${activeEpisode.id}:${cloudEpisodeRevision}`;
+    const id = window.localStorage.getItem(key);
+    if (!id || !/^[a-zA-Z0-9-]{8,80}$/.test(id)) return;
+    let live = true;
+    void cloudRequest<{ preview: PreviewView }>(`/previews/${id}`).then(result => {
+      if (live) { window.localStorage.setItem(key, result.preview.id); setEpisodePreview(result.preview); }
+    }).catch(cause => {
+      if (!live) return;
+      if (isMissingMediaOperation(cause)) window.localStorage.removeItem(key);
+      setMessage(isMissingMediaOperation(cause) ? "精准预览任务已失效，请重新预览" : `查询精准预览失败：${String(cause)}`);
+    });
+    return () => { live = false; };
+  }, [account?.id, cloudBinding?.projectId, activeEpisode.id, cloudEpisodeRevision]);
+
+  useEffect(() => {
+    if (!episodePreview || ["succeeded", "failed"].includes(episodePreview.state)) return;
+    let live = true;
+    const poll = async () => {
+      try {
+        const next = (await cloudRequest<{ preview: PreviewView }>(`/previews/${episodePreview.id}`)).preview;
+        if (live) setEpisodePreview(next);
+      } catch (cause) { if (live) setMessage(`查询精准预览失败：${String(cause)}`); }
+    };
+    const timer = window.setInterval(() => { void poll(); }, 3000);
+    void poll();
+    return () => { live = false; window.clearInterval(timer); };
+  }, [episodePreview?.id, episodePreview?.state]);
+
+  useEffect(() => {
+    if (episodePreview?.state !== "succeeded" || !episodePreview.outputAssetId) return;
+    let live = true;
+    void previewVideoReady(episodePreview.outputAssetId).then(url => { if (live) setPreviewOutputUrl(url); })
+      .catch(cause => { if (live) setMessage(`精准预览已完成，但下载失败：${String(cause)}`); });
+    return () => { live = false; };
+  }, [episodePreview?.id, episodePreview?.state, episodePreview?.outputAssetId, project.root]);
+
   async function useEditedInTimeline(cloudId: string) {
     if (!videoEdit) throw new Error("编辑记录不存在");
     await runSync();
@@ -364,12 +427,12 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
     return url;
   }
 
-  async function pickVoiceAudio(): Promise<VoiceAssetView | null> {
+  async function pickVoiceAudio(kind: TimelineAudioKind = "voice"): Promise<VoiceAssetView | null> {
     if (!account) throw new Error("请先登录云端账号");
     const paths = await desktopPorts.media.chooseFiles();
     if (!paths.length) return null;
     const local = await desktopPorts.media.import(project.root, paths[0]);
-    if (local.kind !== "audio") throw new Error("请选择 MP3、WAV 或 M4A 录音");
+    if (local.kind !== "audio") throw new Error("请选择 MP3、WAV 或 M4A 音频");
     await commit(current => ({ ...current, assets: [...current.assets, local] }), false);
     const object = (await cloudUploadAsset(project.root, local.id)).object;
     const binding = manifestRef.current.extensions?.cloudSync as CloudBinding | undefined;
@@ -378,7 +441,7 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
       (await cloudRequest<{ project: CloudProject }>(`/projects/${binding.projectId}`)).project;
     const durationMs = object.durationMs ?? local.durationMs;
     if (!durationMs) throw new Error("录音时长不可用");
-    const asset = { id: object.id, kind: "voice" as const, name: fileName(paths[0]), mimeType: object.mime, durationMs };
+    const asset = { id: object.id, kind, name: fileName(paths[0]), mimeType: object.mime, durationMs };
     const updated = await cloudCommand(remote, "asset", object.id, asset);
     setCloudProject(updated);
     await commit(current => {
@@ -419,17 +482,55 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
     return localVoicePreview(local.id, "video/mp4");
   }
 
-  async function saveEpisodeAudio(mix: { originalVolume: number; voiceClips: { assetId: string; startMs: number; inMs: number; outMs: number; volume: number }[];
-    musicClips: { assetId: string; startMs: number; inMs: number; outMs: number; volume: number }[] }) {
+  async function saveEpisodeTimeline(snapshot: TimelineSnapshot) {
     const binding = manifestRef.current.extensions?.cloudSync as CloudBinding | undefined;
-    if (!binding) throw new Error("项目尚未同步到云端");
+    if (!account || !binding || binding.accountId !== account.id) throw new Error("请先登录并同步项目");
     const remote = (await cloudRequest<{ project: CloudProject }>(`/projects/${binding.projectId}`)).project;
     const episodeId = manifestRef.current.studio!.activeEpisodeId;
     const episode = remote.document.episodes.find(item => item.id === episodeId);
     if (!episode) throw new Error("云端分集不存在");
-    const updated = await cloudCommand(remote, "episode", episodeId, { ...episode, audio: mix });
-    setCloudProject(updated);
+    const revision = resourceRevision(remote.resourceRevisions ?? [], "episode", episodeId);
+    const expected = timelineExpectedRevision.current;
+    if (expected?.episodeId !== episodeId || expected.revision !== revision) throw new Error("409：分集已在另一端更新，请核对云端版本");
+    const orderedClips = orderSavedVisuals(cloudTimelineClips(episode), snapshot.visuals);
+    const updated = await cloudCommand(remote, "episode", episodeId, { ...episode,
+      timeline: orderedClips.map(clip => clip.assetId), timelineClips: orderedClips, audio: timelineToCloud(snapshot) });
+    timelineExpectedRevision.current = { episodeId,
+      revision: resourceRevision(updated.resourceRevisions ?? [], "episode", episodeId) };
+    setCloudProject(updated); setEpisodePreview(null); setPreviewOutputUrl(""); setEpisodeRender(null); setEpisodeOutputUrl("");
     await runSync();
+  }
+
+  async function refreshEpisodeTimeline(): Promise<TimelineSnapshot> {
+    const binding = manifestRef.current.extensions?.cloudSync as CloudBinding | undefined;
+    if (!binding) throw new Error("项目尚未同步到云端");
+    const remote = (await cloudRequest<{ project: CloudProject }>(`/projects/${binding.projectId}`)).project;
+    setCloudProject(remote);
+    const episodeId = manifestRef.current.studio!.activeEpisodeId;
+    const episode = remote.document.episodes.find(item => item.id === episodeId);
+    if (!episode) throw new Error("云端分集不存在");
+    timelineExpectedRevision.current = { episodeId,
+      revision: resourceRevision(remote.resourceRevisions ?? [], "episode", episodeId) };
+    return timelineFromCloud(cloudTimelineClips(episode).map((clip, index) => ({ ...clip,
+      title: episode.shots.find(shot => shot.resultAssetId === clip.assetId)?.prompt || `镜头 ${index + 1}` })),
+      cloudEpisodeAudio(episode));
+  }
+
+  async function previewCloudEpisode() {
+    const binding = manifestRef.current.extensions?.cloudSync as CloudBinding | undefined;
+    if (!account || !binding) throw new Error("请先登录并同步项目");
+    const remote = (await cloudRequest<{ project: CloudProject }>(`/projects/${binding.projectId}`)).project;
+    const episodeId = manifestRef.current.studio!.activeEpisodeId;
+    const revision = resourceRevision(remote.resourceRevisions ?? [], "episode", episodeId);
+    const key = `avs-episode-preview:${account.id}:${remote.id}:${episodeId}:${revision}`;
+    setPreviewOutputUrl("");
+    const created = await resumeMediaOperation(window.localStorage, key,
+      async id => (await cloudRequest<{ preview: PreviewView }>(`/previews/${id}`)).preview,
+      async previewOperationId => (await cloudRequest<{ preview: PreviewView }>(`/projects/${remote.id}/episodes/${episodeId}/previews`, "POST", {
+        previewOperationId, expectedEpisodeRevision: revision,
+      })).preview,
+      isMissingMediaOperation);
+    setEpisodePreview(created);
   }
 
   async function exportCloudEpisode() {
@@ -440,31 +541,31 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
     const episodeId = manifestRef.current.studio!.activeEpisodeId;
     const episode = remote.document.episodes.find(item => item.id === episodeId);
     if (!episode?.timeline.length) throw new Error("请先把视频加入本集时间线");
-    const key = `avs-episode-render:${account?.id ?? ""}:${remote.id}:${episodeId}`;
-    const rememberedId = episodeRenderId.current ?? window.localStorage.getItem(key);
-    let latestRender = episodeRender;
-    if (rememberedId && (!episodeRender || episodeRender.id !== rememberedId)) {
-      const previous = (await cloudRequest<{ episodeRender: EpisodeRenderView }>(`/episode-renders/${rememberedId}`)).episodeRender;
-      setEpisodeRender(previous);
-      latestRender = previous;
-      if (!["succeeded", "failed"].includes(previous.state)) throw new Error("整集导出仍在进行，请查看原任务状态");
-    }
-    if (latestRender && latestRender.episodeId === episodeId && ["succeeded", "failed"].includes(latestRender.state)) {
-      episodeRenderId.current = null;
-    }
-    episodeRenderId.current ??= crypto.randomUUID();
-    window.localStorage.setItem(key, episodeRenderId.current);
-    const next = (await cloudRequest<{ episodeRender: EpisodeRenderView }>(`/projects/${remote.id}/episodes/${episodeId}/render`, "POST", {
-      renderOperationId: episodeRenderId.current,
-      expectedEpisodeRevision: resourceRevision(remote.resourceRevisions ?? [], "episode", episodeId),
-    })).episodeRender;
+    const revision = resourceRevision(remote.resourceRevisions ?? [], "episode", episodeId);
+    const key = `avs-episode-render:${account?.id ?? ""}:${remote.id}:${episodeId}:${revision}`;
+    if (episodeRender?.episodeRevision === revision && episodeRender.state === "succeeded") return;
+    setEpisodeOutputUrl("");
+    const next = await resumeMediaOperation(window.localStorage, key,
+      async id => (await cloudRequest<{ episodeRender: EpisodeRenderView }>(`/episode-renders/${id}`)).episodeRender,
+      async renderOperationId => (await cloudRequest<{ episodeRender: EpisodeRenderView }>(`/projects/${remote.id}/episodes/${episodeId}/render`, "POST", {
+        renderOperationId, expectedEpisodeRevision: revision,
+      })).episodeRender,
+      isMissingMediaOperation);
     setEpisodeRender(next); setCloudProject(remote);
   }
 
   async function refreshAgentApplied(editId?: string) {
     await runSync();
     const binding = manifestRef.current.extensions?.cloudSync as CloudBinding | undefined;
-    if (binding) setCloudProject((await cloudRequest<{ project: CloudProject }>(`/projects/${binding.projectId}`)).project);
+    if (binding) {
+      const remote = (await cloudRequest<{ project: CloudProject }>(`/projects/${binding.projectId}`)).project;
+      setCloudProject(remote);
+      if (!editId) {
+        const episodeId = manifestRef.current.studio!.activeEpisodeId;
+        timelineExpectedRevision.current = { episodeId,
+          revision: resourceRevision(remote.resourceRevisions ?? [], "episode", episodeId) };
+      }
+    }
     if (editId) setVideoEdit((await cloudRequest<{ edit: VideoEditView }>(`/video-edits/${editId}`)).edit);
   }
 
@@ -633,7 +734,7 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
     } catch (error) { setMessage(`加入画布失败：${String(error)}`); }
   }
 
-  async function addResultToTimeline(job: GenerationJob) {
+  async function addResultToTimeline(job: GenerationJob, openAfter = false) {
     if (!job.outputAssetId) return;
     try {
       await commit(current => {
@@ -650,7 +751,8 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
         if (!node || episode.edges.some(edge => edge.from === node.id && edge.to === timeline.id)) return next;
         return syncActiveEpisode(appendClip(connectStudioNodes(next, episodeId, node.id, timeline.id), job.outputAssetId!));
       });
-      setView("canvas"); setMessage("已加入本集时间线");
+      if (openAfter) await openTimeline(); else setView("canvas");
+      setMessage("已加入本集时间线");
     } catch (error) { setMessage(`加入时间线失败：${String(error)}`); }
   }
 
@@ -765,6 +867,19 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
       durationSec: shot?.durationSec ?? 5, taskId: job.id, videoUrl: job.outputAssetId ? previewUrls[job.outputAssetId] : undefined,
       status: job.state === "succeeded" ? "succeeded" : job.state === "failed" ? "failed" : job.state === "unknown" ? "unknown" : "loading" };
   });
+  const cloudEpisode = cloudProject?.document?.episodes?.find(item => item.id === activeEpisode.id);
+  const timelineVisuals = cloudEpisode ? cloudTimelineClips(cloudEpisode).map((clip, index) => ({ ...clip,
+    title: cloudEpisode.shots.find(shot => shot.resultAssetId === clip.assetId)?.prompt || `镜头 ${index + 1}` })) : [];
+  const timelineSnapshot = timelineFromCloud(timelineVisuals, cloudEpisode ? cloudEpisodeAudio(cloudEpisode) : undefined);
+  const timelineAssets: TimelineAsset[] = cloudProject?.document?.assets?.filter(asset => ["video", "voice", "music"].includes(asset.kind))
+    .map(asset => {
+      const localId = Object.entries(cloudBinding?.assetMap ?? {}).find(([, remoteId]) => remoteId === asset.id)?.[0] ?? asset.id;
+      const local = manifest.assets.find(item => item.id === localId);
+      const shot = cloudEpisode?.shots.find(item => item.resultAssetId === asset.id);
+      return { id: asset.id, kind: asset.kind as TimelineAsset["kind"], name: asset.name ?? fileName(local?.relativePath ?? asset.id),
+        durationMs: asset.durationMs ?? local?.durationMs ?? (shot?.durationSec ? shot.durationSec * 1000 : 0),
+        url: cloudPreview(asset.id) || undefined };
+    }) ?? [];
   const navigate = (section: StudioSection) => {
     if (section === "assets") { setView("editor"); return; }
     setView(section);
@@ -777,14 +892,14 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
       { id: "results", label: "结果", active: view === "results", onClick: () => setView("results") },
       ...(view === "editor" ? [{ id: "editor", label: "剪辑工作台", active: true, onClick: () => void returnFromEditor() }] : []),
       ...(view === "video-edit" ? [{ id: "video-edit", label: "视频微调", active: true, onClick: () => setView("video-edit" as const) }] : []),
-      ...(view === "episode-voice" ? [{ id: "episode-voice", label: "整集配音", active: true, onClick: () => setView("episode-voice" as const) }] : []),
+      ...(view === "timeline" ? [{ id: "timeline", label: "整集剪辑", active: true, onClick: () => void openTimeline() }] : []),
     ]} actions={<>
       <button type="button" className="cloud-sync-trigger" onClick={() => { if (account) void runSync(true).catch(() => {}); }}
         disabled={!account || syncState === "syncing"}>{cloudLabel}</button>
       <CloudAccountControl account={account} onChange={onAccountChange} /><ThemeToggle />
     </>} />
     {uploadItems.length > 0 && <AssetUploadStatus items={uploadItems} onRetry={assetId => { void uploadReference(assetId).catch(() => {}); }} />}
-    <StudioShell active={view === "editor" ? "assets" : view === "video-edit" ? "results" : view === "episode-voice" ? "canvas" : view} onNavigate={navigate}
+    <StudioShell active={view === "editor" ? "assets" : view === "video-edit" ? "results" : view === "timeline" ? "canvas" : view} onNavigate={navigate}
       projectTitle={`${activeEpisode.title} · ${manifest.title}`}>
     {view === "home" ? <ProjectHome projectTitle={manifest.title} episodeTitle={activeEpisode.title}
       recentImage={manifest.assets.find(asset => asset.kind === "image")?.id ? previewUrls[manifest.assets.find(asset => asset.kind === "image")!.id] : undefined}
@@ -793,7 +908,7 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
       : view === "results" ? <ResultsPage results={results} episodeTitle={activeEpisode.title} storageLabel={cloudLabel}
         onGenerate={() => setView("generate")}
         onEdit={result => { const job = manifest.jobs.find(item => item.id === result.id); if (job) void openVideoEdit(job); }}
-        onAddToTimeline={result => { const job = manifest.jobs.find(item => item.id === result.id); if (job) void addResultToTimeline(job); }}
+        onAddToTimeline={result => { const job = manifest.jobs.find(item => item.id === result.id); if (job) void addResultToTimeline(job, true); }}
         onRefresh={result => { void refreshJob(result.id); }} />
       : view === "generate" ? <GeneratePage manifest={manifest} previewUrls={previewUrls} busy={busy} saveState={saveState} initialPrompt={ideaPrompt}
       onImportPhoto={importPhoto} onGenerate={(photo, prompt) => submitShot(photo, prompt)} onRefresh={refreshJob} onAddToCanvas={setTargetJob} onEditVideo={job => void openVideoEdit(job)}
@@ -828,27 +943,11 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
         onRefreshJob={jobId => void refreshJob(jobId)}
         onAddVideoToTimeline={(nodeId, assetId) => void addVideoToTimeline(nodeId, assetId)}
         onReorderClip={(clipId, target) => void change(current => syncActiveEpisode(moveClip(current, clipId, target)))}
-        onOpenVoiceover={() => setView("episode-voice")}
+        onOpenTimeline={() => void openTimeline()}
         onExport={() => void (account ? exportCloudEpisode() : exportEpisode()).catch(error => setMessage(String(error)))} />
       : view === "video-edit" && videoEdit ? <div className="film-cloud-video-edit"><VideoEditor edit={videoEdit}
         sourceUrl={cloudPreview(videoEdit.sourceAssetId)} currentUrl={cloudPreview(videoEdit.currentOutputId)} render={renderTask}
         onCommand={saveVideoEdit} onRender={renderVideoEdit} onUseInTimeline={useEditedInTimeline}
-        voiceoverSlot={account && cloudBinding ? <VoiceoverWorkflow accountId={account.id} projectId={cloudBinding.projectId}
-          scope="shot" targetId={videoEdit.id} targetRevision={videoEdit.recipe.revision}
-          durationMs={videoEdit.recipe.trimEndMs - videoEdit.recipe.trimStartMs}
-          audioMix={videoEdit.recipe.version === 2 ? videoEdit.recipe.audioMix : { originalVolume: 1, voiceClips: [], musicClips: [] }}
-          voiceAssets={(cloudProject?.document.assets ?? []).filter(item => item.kind === "voice").flatMap(item => {
-            const localId = Object.entries(cloudBinding.assetMap).find(([, remoteId]) => remoteId === item.id)?.[0] ?? item.id;
-            const local = manifest.assets.find(asset => asset.id === localId);
-            const url = previewUrls[localId];
-            return url && (item.durationMs ?? local?.durationMs) ? [{ id: item.id, name: item.name ?? "配音录音",
-              durationMs: (item.durationMs ?? local!.durationMs)!, url }] : [];
-          })}
-          request={cloudRequest} onUpload={async () => { throw new Error("请从本机选择录音"); }} onPickNativeAudio={pickVoiceAudio}
-          onTtsAssetReady={ttsVoiceReady} onPreviewAssetReady={previewVideoReady}
-          onSave={async mix => { await saveVideoEdit({ type: "set-audio-mix", ...mix }, videoEdit.recipe.revision); }}
-          onExport={() => renderVideoEdit(videoEdit.recipe.revision)}
-          exportBusy={renderTask?.state === "pending" || renderTask?.state === "running"} /> : undefined}
         agentSlot={account && cloudBinding ? <AgentEditWorkflow accountId={account.id} projectId={cloudBinding.projectId}
           episodeId={videoEdit.recipe.episodeId} targetRevision={videoEdit.recipe.revision}
           context={{ trim: { startMs: videoEdit.recipe.trimStartMs, endMs: videoEdit.recipe.trimEndMs }, captions: videoEdit.recipe.captions,
@@ -856,29 +955,30 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
             shotIds: cloudProject?.document.episodes.find(item => item.id === videoEdit.recipe.episodeId)?.shots.map(item => item.id) }}
           request={cloudRequest} onApplied={() => refreshAgentApplied(videoEdit.id)} /> : undefined}
         onClose={() => setView("generate")} /></div>
-      : view === "episode-voice" ? <div className="film-episode-voice-page"><header><button type="button" onClick={() => setView("canvas")}>← 返回画布</button><h2>{activeEpisode.title} · 配音与导出</h2></header>
-        {!account || !cloudBinding || !cloudProject ? <p role="status">请先登录并等待项目同步完成，再编辑整集配音。</p>
-          : <><VoiceoverWorkflow accountId={account.id} projectId={cloudBinding.projectId} scope="episode" targetId={activeEpisode.id}
-              targetRevision={resourceRevision(cloudProject.resourceRevisions ?? [], "episode", activeEpisode.id)}
-              durationMs={activeEpisode.clips.reduce((sum, clip) => sum + clip.outMs - clip.inMs, 0)}
-              audioMix={cloudProject.document.episodes.find(item => item.id === activeEpisode.id)?.audio ?? { originalVolume: 1, voiceClips: [], musicClips: [] }}
-              voiceAssets={cloudProject.document.assets.filter(item => item.kind === "voice").flatMap(item => {
-                const localId = Object.entries(cloudBinding.assetMap).find(([, remoteId]) => remoteId === item.id)?.[0] ?? item.id;
-                const local = manifest.assets.find(asset => asset.id === localId);
-                const url = previewUrls[localId];
-                return url && (item.durationMs ?? local?.durationMs) ? [{ id: item.id, name: item.name ?? "配音录音",
-                  durationMs: (item.durationMs ?? local!.durationMs)!, url }] : [];
-              })}
-              request={cloudRequest} onUpload={async () => { throw new Error("请从本机选择录音"); }} onPickNativeAudio={pickVoiceAudio}
-              onTtsAssetReady={ttsVoiceReady} onPreviewAssetReady={previewVideoReady}
-              onSave={saveEpisodeAudio} onExport={exportCloudEpisode}
-              exportBusy={episodeRender?.state === "pending" || episodeRender?.state === "running"} />
-            <AgentEditWorkflow accountId={account.id} projectId={cloudBinding.projectId} episodeId={activeEpisode.id}
-              targetRevision={resourceRevision(cloudProject.resourceRevisions ?? [], "episode", activeEpisode.id)}
-              context={{ shotIds: cloudProject.document.episodes.find(item => item.id === activeEpisode.id)?.shots.map(item => item.id) }}
-              request={cloudRequest} onApplied={() => refreshAgentApplied()} />
-            {episodeRender && <div className="film-episode-render-status" role="status">整集导出：{episodeRender.state}{episodeRender.error ? ` · ${episodeRender.error}` : ""}
-              {episodeOutputUrl && <video controls preload="metadata" src={episodeOutputUrl} aria-label="整集成片" />}</div>}</>}
+      : view === "timeline" ? <div className="film-episode-timeline-shell">
+        {!account || !cloudBinding || !cloudProject || !cloudEpisode ? <div className="film-episode-timeline-empty" role="status">
+          <h2>整集剪辑需要云端项目</h2><p>请先登录并同步当前项目，完成后可编辑本集的配音与音乐。</p>
+          <button type="button" onClick={() => void openTimeline()}>重新同步</button><button type="button" onClick={() => setView("canvas")}>返回画布</button>
+        </div> : <EpisodeTimelineEditor key={`${cloudProject.id}:${activeEpisode.id}`}
+          projectTitle={manifest.title} episodeTitle={activeEpisode.title} revision={cloudEpisodeRevision}
+          snapshot={timelineSnapshot} assets={timelineAssets}
+          draftStorageKey={`avs-timeline-draft:${account.id}:${cloudProject.id}:${activeEpisode.id}`}
+          onSave={saveEpisodeTimeline} onRefresh={refreshEpisodeTimeline}
+          onPickNativeAudio={async kind => { const asset = await pickVoiceAudio(kind);
+            return asset ? { ...asset, kind } : null; }}
+          onPreview={previewCloudEpisode} preview={episodePreview?.scope === "episode" && episodePreview.targetId === activeEpisode.id
+            ? { state: episodePreview.state, revision: episodePreview.revision, error: episodePreview.error,
+              url: previewOutputUrl || undefined } : null}
+          onExport={exportCloudEpisode} export={episodeRender?.episodeId === activeEpisode.id
+            ? { state: episodeRender.state, revision: episodeRender.episodeRevision, error: episodeRender.error,
+              url: episodeOutputUrl || undefined } : null}
+          ttsSlot={<TtsLibraryPanel accountId={account.id} projectId={cloudProject.id} episodeId={activeEpisode.id}
+            request={cloudRequest} onAssetReady={async id => { await ttsVoiceReady(id); }} />}
+          agentSlot={<AgentEditWorkflow accountId={account.id} projectId={cloudProject.id} episodeId={activeEpisode.id}
+            targetRevision={cloudEpisodeRevision} context={{ shotIds: cloudEpisode.shots.map(item => item.id),
+              shotTitles: Object.fromEntries(cloudEpisode.shots.map((item, index) => [item.id, `镜头 ${index + 1}`])) }}
+            request={cloudRequest} onApplied={() => refreshAgentApplied()} />}
+          onBack={() => setView("canvas")} />}
       </div> : null}
     {view === "editor" && <div className="film-editor-mode"><div className="film-editor-return"><button type="button" onClick={() => void returnFromEditor()}>← 返回画布</button><span>详细剪辑、字幕与发布设置</span></div><ProjectWorkspace key={project.root} project={{ root: project.root, manifest }} onCloudGenerate={() => setView("generate")} /></div>}
     </StudioShell>

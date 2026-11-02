@@ -6,15 +6,15 @@ import type { StudioResult, StudioSection } from "@ai-video/components";
 import { canvasPlugin } from "@ai-video/plugin-canvas";
 import { CanvasPage } from "@ai-video/plugin-canvas/canvas";
 import { videoEditPlugin } from "@ai-video/plugin-video-edit";
-import { AgentEditWorkflow, VideoEditor, VoiceoverWorkflow, readAudioDuration } from "@ai-video/plugin-video-edit/web";
-import type { RenderView, VideoEditView, VoiceAssetView } from "@ai-video/plugin-video-edit/web";
+import { AgentEditWorkflow, EpisodeTimelineEditor, TtsLibraryPanel, VideoEditor, orderSavedVisuals, readAudioDuration, resumeMediaOperation, timelineFromCloud, timelineToCloud } from "@ai-video/plugin-video-edit/web";
+import type { RenderView, TimelineAsset, TimelineAudioKind, TimelineSnapshot, VideoEditView, VoiceAssetView } from "@ai-video/plugin-video-edit/web";
 import type { VideoEditCommand } from "@ai-video/plugin-video-edit/core";
-import { cloudTimelineClips, countUnicodeCharacters, creationBriefs, resourceRevision, timelineWithMetadata, validateCreationBrief } from "@ai-video/project-core";
+import { cloudEpisodeAudio, cloudTimelineClips, countUnicodeCharacters, creationBriefs, resourceRevision, timelineWithMetadata, validateCreationBrief } from "@ai-video/project-core";
 import type { CanvasDocumentV1, CanvasEpisodeGraphV1, CloudTimelineClip, CreationBrief, SyncResourceType } from "@ai-video/project-core";
 import type { GenerationJob, ProjectManifestV2, StudioEpisode } from "@ai-video/project-core";
 import { resolvePlugins } from "@ai-video/plugin-sdk";
-import type { EpisodeRenderView, ProjectSummary } from "@ai-video/api-contracts";
-import { api as requestApi, uploadObject, uploadVoiceObject } from "./api";
+import type { EpisodeRenderView, PreviewView, ProjectSummary } from "@ai-video/api-contracts";
+import { ApiHttpError, api as requestApi, uploadObject, uploadVoiceObject } from "./api";
 import type { Account, AgentRunSnapshot, CloudDocument, CloudProject } from "./api";
 import { attachCanvasRun, pendingCanvasRuns, prepareCanvasRun } from "./canvas-run";
 
@@ -33,11 +33,12 @@ function readCreateAttempt(accountId: string): ProjectCreateAttempt | null {
       && typeof parsed.title === "string" && Boolean(parsed.title.trim()) ? parsed as ProjectCreateAttempt : null;
   } catch { return null; }
 }
-type WebView = "home" | "projects" | "work-setup" | "idea-prepare" | "generate" | "canvas" | "results" | "assets" | "edit";
+type WebView = "home" | "projects" | "work-setup" | "idea-prepare" | "generate" | "canvas" | "results" | "assets" | "edit" | "timeline";
 interface WorkCreateAttempt { id: string; title: string; episodeId: string; brief: CreationBrief }
 const workDraftKey = (accountId: string) => `avs-web-work-draft:${accountId}`;
 class StaleAccountResponse extends Error { constructor() { super("账号已切换"); } }
 const isStaleAccountResponse = (cause: unknown) => cause instanceof StaleAccountResponse;
+const isMissingMediaOperation = (cause: unknown) => cause instanceof ApiHttpError && [404, 410].includes(cause.status);
 
 function usePhoneViewport() {
   const [phone, setPhone] = useState(() => typeof window !== "undefined" &&
@@ -116,8 +117,8 @@ export default function App() {
   const [render, setRender] = useState<RenderView | null>(null);
   const renderRequestId = useRef<string | null>(null);
   const [episodeRender, setEpisodeRender] = useState<EpisodeRenderView | null>(null);
-  const [showEpisodeVoice, setShowEpisodeVoice] = useState(false);
-  const episodeRenderRequestId = useRef<string | null>(null);
+  const [episodePreview, setEpisodePreview] = useState<PreviewView | null>(null);
+  const timelineExpectedRevision = useRef<{ episodeId: string; revision: number } | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -162,6 +163,7 @@ export default function App() {
   const canvasDraft = useRef<CanvasEpisodeGraphV1 | null>(null);
   const [showAssets, setShowAssets] = useState(false);
   const activeEpisode = project?.document.episodes.find(item => item.id === episodeId);
+  const activeEpisodeRevision = project ? resourceRevision(project.resourceRevisions ?? [], "episode", episodeId) : 0;
   const canvasDocument = project?.document.extensions?.canvas as CanvasDocumentV1 | undefined;
   const canvasGraph: CanvasEpisodeGraphV1 = useMemo(() => canvasDocument?.version === 1 && canvasDocument.episodeGraphs[episodeId]
     ? canvasDocument.episodeGraphs[episodeId]
@@ -782,11 +784,11 @@ export default function App() {
     reportAsyncFailure(runCanvasNode(nodeId, photo, prompt));
   }
 
-  function addCanvasTimeline(assetId: string) {
+  async function addCanvasTimeline(assetId: string) {
     const episode = projectRef.current?.document.episodes.find(item => item.id === episodeId);
     if (!episode || (episode.timeline ?? []).includes(assetId)) return;
     const updated = timelineWithMetadata(episode, [...(episode.timeline ?? []), assetId], () => crypto.randomUUID());
-    reportAsyncFailure(saveCanvas(currentGraph(), undefined, updated.timelineClips));
+    await saveCanvas(currentGraph(), undefined, updated.timelineClips);
   }
 
   function connectCanvasNodes(from: string, to: string) {
@@ -918,23 +920,6 @@ export default function App() {
     setError("");
   }
 
-  async function uploadVoice(file: File): Promise<VoiceAssetView> {
-    const scope = scopeForAccount();
-    if (!scope || !projectRef.current) throw new StaleAccountResponse();
-    const object = await uploadVoiceObject(file);
-    requireCurrentScope(scope);
-    let durationMs = object.durationMs;
-    if (!durationMs) {
-      const localUrl = URL.createObjectURL(file);
-      try { durationMs = await readAudioDuration(localUrl); }
-      finally { URL.revokeObjectURL(localUrl); }
-    }
-    const asset = { id: object.id, kind: "voice" as const, name: file.name, mimeType: object.mime, durationMs };
-    await enqueue(current => sendCommand(current, "asset", asset.id, asset));
-    requireCurrentScope(scope);
-    return { id: asset.id, name: asset.name, durationMs, url: `/api/objects/${asset.id}` };
-  }
-
   async function ttsAssetReady(assetId: string): Promise<VoiceAssetView> {
     const scope = scopeForAccount();
     const current = projectRef.current;
@@ -949,14 +934,68 @@ export default function App() {
       url: `/api/objects/${assetId}` };
   }
 
-  async function saveEpisodeAudio(mix: { originalVolume: number; voiceClips: { assetId: string; startMs: number; inMs: number; outMs: number; volume: number }[];
-    musicClips: { assetId: string; startMs: number; inMs: number; outMs: number; volume: number }[] }) {
+  async function uploadTimelineAudio(file: File, kind: TimelineAudioKind): Promise<TimelineAsset> {
+    const scope = scopeForAccount();
+    if (!scope || !projectRef.current) throw new StaleAccountResponse();
+    const object = await uploadVoiceObject(file);
+    requireCurrentScope(scope);
+    let durationMs = object.durationMs;
+    if (!durationMs) {
+      const url = URL.createObjectURL(file);
+      try { durationMs = await readAudioDuration(url); }
+      finally { URL.revokeObjectURL(url); }
+    }
+    const asset = { id: object.id, kind, name: file.name, mimeType: object.mime, durationMs };
+    await enqueue(current => sendCommand(current, "asset", asset.id, asset));
+    return { id: asset.id, kind, name: asset.name, durationMs, url: `/api/objects/${asset.id}` };
+  }
+
+  async function saveEpisodeTimeline(snapshot: TimelineSnapshot) {
     const currentEpisodeId = episodeId;
     await enqueue(async current => {
       const currentEpisode = current.document.episodes.find(item => item.id === currentEpisodeId);
       if (!currentEpisode) throw new Error("分集不存在");
-      await sendCommand(current, "episode", currentEpisodeId, { ...currentEpisode, audio: mix });
+      const revision = resourceRevision(current.resourceRevisions ?? [], "episode", currentEpisodeId);
+      const expected = timelineExpectedRevision.current;
+      if (expected?.episodeId !== currentEpisodeId || expected.revision !== revision) throw new Error("409：分集已在另一端更新，请核对云端版本");
+      const orderedClips = orderSavedVisuals(cloudTimelineClips(currentEpisode), snapshot.visuals);
+      const updated = await sendCommand(current, "episode", currentEpisodeId, { ...currentEpisode,
+        timeline: orderedClips.map(clip => clip.assetId), timelineClips: orderedClips, audio: timelineToCloud(snapshot) });
+      timelineExpectedRevision.current = { episodeId: currentEpisodeId,
+        revision: resourceRevision(updated.resourceRevisions ?? [], "episode", currentEpisodeId) };
+      setEpisodePreview(null); setEpisodeRender(null);
     });
+  }
+
+  async function refreshEpisodeTimeline(): Promise<TimelineSnapshot> {
+    const scope = scopeForAccount(), current = projectRef.current;
+    if (!scope || !current) throw new StaleAccountResponse();
+    const fresh = (await api<{ project: CloudProject }>(`/projects/${current.id}`)).project;
+    requireCurrentScope(scope);
+    if (projectRef.current?.id !== current.id) throw new StaleAccountResponse();
+    projectRef.current = fresh; setProject(fresh);
+    const episode = fresh.document.episodes.find(item => item.id === episodeId);
+    if (!episode) throw new Error("云端分集不存在");
+    timelineExpectedRevision.current = { episodeId,
+      revision: resourceRevision(fresh.resourceRevisions ?? [], "episode", episodeId) };
+    const visuals = cloudTimelineClips(episode).map((clip, index) => ({ ...clip,
+      title: episode.shots.find(shot => shot.resultAssetId === clip.assetId)?.prompt || `镜头 ${index + 1}` }));
+    return timelineFromCloud(visuals, cloudEpisodeAudio(episode));
+  }
+
+  async function previewCloudEpisode() {
+    const scope = scopeForAccount(), current = projectRef.current;
+    if (!scope || !current || !episodeId) throw new Error("请先打开分集");
+    const revision = resourceRevision(current.resourceRevisions ?? [], "episode", episodeId);
+    const key = `avs-episode-preview:${scope.id}:${current.id}:${episodeId}:${revision}`;
+    const created = await resumeMediaOperation(window.localStorage, key,
+      async id => (await api<{ preview: PreviewView }>(`/previews/${id}`)).preview,
+      async previewOperationId => (await api<{ preview: PreviewView }>(`/projects/${current.id}/episodes/${episodeId}/previews`, "POST", {
+        previewOperationId, expectedEpisodeRevision: revision,
+      })).preview,
+      isMissingMediaOperation);
+    requireCurrentScope(scope);
+    setEpisodePreview(created);
   }
 
   async function refreshAgentApplied(editId?: string) {
@@ -970,6 +1009,8 @@ export default function App() {
     requireCurrentScope(scope);
     if (projectRef.current?.id !== current.id) throw new StaleAccountResponse();
     projectRef.current = freshProject.project; setProject(freshProject.project);
+    if (!editId && episodeId) timelineExpectedRevision.current = { episodeId,
+      revision: resourceRevision(freshProject.project.resourceRevisions ?? [], "episode", episodeId) };
     if (freshEdit) { setEdit(freshEdit.edit); setRender(null); renderRequestId.current = null; }
   }
 
@@ -979,45 +1020,39 @@ export default function App() {
     if (!scope || !current || !episodeId) throw new Error("请先打开分集");
     const episode = current.document.episodes.find(item => item.id === episodeId);
     if (!episode || !cloudTimelineClips(episode).length) throw new Error("请先把视频加入本集时间线");
-    const key = `avs-episode-render:${scope.id}:${current.id}:${episodeId}`;
-    const rememberedId = episodeRenderRequestId.current ?? window.localStorage.getItem(key);
-    let latestRender = episodeRender;
-    if (rememberedId && (!episodeRender || episodeRender.id !== rememberedId)) {
-      const previous = (await api<{ episodeRender: EpisodeRenderView }>(`/episode-renders/${rememberedId}`)).episodeRender;
-      requireCurrentScope(scope);
-      setEpisodeRender(previous);
-      latestRender = previous;
-      if (!["succeeded", "failed"].includes(previous.state)) throw new Error("整集导出仍在进行，请查看原任务状态");
-    }
-    if (latestRender && latestRender.episodeId === episodeId && ["succeeded", "failed"].includes(latestRender.state)) {
-      episodeRenderRequestId.current = null;
-    }
-    episodeRenderRequestId.current ??= crypto.randomUUID();
-    window.localStorage.setItem(key, episodeRenderRequestId.current);
-    const created = (await api<{ episodeRender: EpisodeRenderView }>(`/projects/${current.id}/episodes/${episodeId}/render`, "POST", {
-      renderOperationId: episodeRenderRequestId.current,
-      expectedEpisodeRevision: resourceRevision(current.resourceRevisions ?? [], "episode", episodeId),
-    })).episodeRender;
+    const revision = resourceRevision(current.resourceRevisions ?? [], "episode", episodeId);
+    const key = `avs-episode-render:${scope.id}:${current.id}:${episodeId}:${revision}`;
+    if (episodeRender?.episodeRevision === revision && episodeRender.state === "succeeded") return;
+    const created = await resumeMediaOperation(window.localStorage, key,
+      async id => (await api<{ episodeRender: EpisodeRenderView }>(`/episode-renders/${id}`)).episodeRender,
+      async renderOperationId => (await api<{ episodeRender: EpisodeRenderView }>(`/projects/${current.id}/episodes/${episodeId}/render`, "POST", {
+        renderOperationId, expectedEpisodeRevision: revision,
+      })).episodeRender,
+      isMissingMediaOperation);
     requireCurrentScope(scope);
     setEpisodeRender(created);
   }
 
   useEffect(() => {
     if (!account || !project || !episodeId) return;
-    const key = `avs-episode-render:${account.id}:${project.id}:${episodeId}`;
+    const revision = resourceRevision(project.resourceRevisions ?? [], "episode", episodeId);
+    const key = `avs-episode-render:${account.id}:${project.id}:${episodeId}:${revision}`;
     const id = window.localStorage.getItem(key);
     if (!id || !/^[a-zA-Z0-9-]{8,80}$/.test(id) || episodeRender?.id === id) return;
     let live = true;
     void api<{ episodeRender: EpisodeRenderView }>(`/episode-renders/${id}`).then(result => {
-      if (live) { episodeRenderRequestId.current = id; setEpisodeRender(result.episodeRender); }
-    }).catch(cause => { if (live && !isStaleAccountResponse(cause)) setError(`查询整集导出失败：${String(cause)}`); });
+      if (live) { window.localStorage.setItem(key, result.episodeRender.id); setEpisodeRender(result.episodeRender); }
+    }).catch(cause => {
+      if (!live || isStaleAccountResponse(cause)) return;
+      if (isMissingMediaOperation(cause)) window.localStorage.removeItem(key);
+      setError(isMissingMediaOperation(cause) ? "整集导出任务已失效，请重新导出" : `查询整集导出失败：${String(cause)}`);
+    });
     return () => { live = false; };
-  }, [account?.id, project?.id, episodeId]);
+  }, [account?.id, project?.id, episodeId, activeEpisodeRevision]);
 
   useEffect(() => {
-    episodeRenderRequestId.current = null;
     setEpisodeRender(null);
-  }, [account?.id, project?.id, episodeId]);
+  }, [account?.id, project?.id, episodeId, activeEpisodeRevision]);
 
   useEffect(() => {
     if (!episodeRender || ["succeeded", "failed"].includes(episodeRender.state)) return;
@@ -1032,6 +1067,37 @@ export default function App() {
     void poll();
     return () => { live = false; window.clearInterval(timer); };
   }, [episodeRender?.id, episodeRender?.state]);
+
+  useEffect(() => {
+    setEpisodePreview(null);
+    if (!account || !project || !episodeId) return;
+    const key = `avs-episode-preview:${account.id}:${project.id}:${episodeId}:${activeEpisodeRevision}`;
+    const id = window.localStorage.getItem(key);
+    if (!id || !/^[a-zA-Z0-9-]{8,80}$/.test(id)) return;
+    let live = true;
+    void api<{ preview: PreviewView }>(`/previews/${id}`).then(result => {
+      if (live) { window.localStorage.setItem(key, result.preview.id); setEpisodePreview(result.preview); }
+    }).catch(cause => {
+      if (!live || isStaleAccountResponse(cause)) return;
+      if (isMissingMediaOperation(cause)) window.localStorage.removeItem(key);
+      setError(isMissingMediaOperation(cause) ? "精准预览任务已失效，请重新预览" : `查询精准预览失败：${String(cause)}`);
+    });
+    return () => { live = false; };
+  }, [account?.id, project?.id, episodeId, activeEpisodeRevision]);
+
+  useEffect(() => {
+    if (!episodePreview || ["succeeded", "failed"].includes(episodePreview.state)) return;
+    let live = true;
+    const poll = async () => {
+      try {
+        const next = (await api<{ preview: PreviewView }>(`/previews/${episodePreview.id}`)).preview;
+        if (live) setEpisodePreview(next);
+      } catch (cause) { if (live && !isStaleAccountResponse(cause)) setError(`查询精准预览失败：${String(cause)}`); }
+    };
+    const timer = window.setInterval(() => { void poll(); }, 3000);
+    void poll();
+    return () => { live = false; window.clearInterval(timer); };
+  }, [episodePreview?.id, episodePreview?.state]);
 
   async function plan(photoId = sourceAssetId, prompt = input) {
     const length = 5;
@@ -1100,6 +1166,21 @@ export default function App() {
 
   const manifest = project ? webManifest(project, episodeId, run) : null;
   const previewUrls = Object.fromEntries(project?.document.assets.map(asset => [asset.id, `/api/objects/${asset.id}`]) ?? []);
+  const timelineVisuals = activeEpisode ? cloudTimelineClips(activeEpisode).map((clip, index) => ({ ...clip,
+    title: activeEpisode.shots.find(shot => shot.resultAssetId === clip.assetId)?.prompt || `镜头 ${index + 1}` })) : [];
+  const timelineSnapshot = timelineFromCloud(timelineVisuals, activeEpisode ? cloudEpisodeAudio(activeEpisode) : undefined);
+  const timelineAssets: TimelineAsset[] = project?.document.assets.filter(asset => ["video", "voice", "music"].includes(asset.kind))
+    .map(asset => ({ id: asset.id, kind: asset.kind as TimelineAsset["kind"], name: asset.name ?? asset.id,
+      durationMs: asset.durationMs ?? (activeEpisode?.shots.find(shot => shot.resultAssetId === asset.id)?.durationSec
+        ? activeEpisode.shots.find(shot => shot.resultAssetId === asset.id)!.durationSec * 1000
+        : timelineVisuals.find(clip => clip.assetId === asset.id)?.outMs ?? 0),
+      url: previewUrls[asset.id] })) ?? [];
+  const openTimeline = () => {
+    const current = projectRef.current;
+    timelineExpectedRevision.current = { episodeId,
+      revision: current ? resourceRevision(current.resourceRevisions ?? [], "episode", episodeId) : activeEpisodeRevision };
+    setView("timeline");
+  };
   const results: StudioResult[] = manifest ? [...manifest.jobs].filter(job => job.provider === "kling").reverse().map(job => {
     const shot = manifest.shots.find(item => item.id === job.shotId);
     return { id: job.id, title: shot?.prompt?.slice(0, 25) || "生成镜头", description: shot?.prompt,
@@ -1248,12 +1329,12 @@ export default function App() {
         </div></section>
       </main><footer className="web-auth-footer">© 2026 AI Video Studio</footer>
     </div> : <div className="film-app web-studio">
-      <StudioShell mobileNavigation={phoneViewport} active={view === "projects" || view === "work-setup" || view === "idea-prepare" ? null : view === "edit" ? "results" : view} onNavigate={navigate}
+      <StudioShell mobileNavigation={phoneViewport} active={view === "projects" || view === "work-setup" || view === "idea-prepare" ? null : view === "edit" ? "results" : view === "timeline" ? "canvas" : view} onNavigate={navigate}
         projectTitle={project ? `${activeEpisode?.title ?? "第 1 集"} · ${project.title}` : undefined}
         footer={<div className="web-account-controls"><span title={account.email}>{account.email}</span><div><ThemeToggle />
           <button type="button" aria-label="退出登录" onClick={() => void logout()}><StudioIcon name="arrowRight" size={16} /><span>退出登录</span></button></div></div>}>
       {view === "projects" ? projectLibrary : view === "work-setup" ? workSetupPage : view === "idea-prepare" ? ideaPreparePage
-        : view === "home" ? homePage : !project || !manifest ? projectRequiredPage(view === "edit" ? "results" : view)
+        : view === "home" ? homePage : !project || !manifest ? projectRequiredPage(view === "edit" ? "results" : view === "timeline" ? "canvas" : view)
         : view === "assets" ? assetsPage : view === "generate" ? <GeneratePage key={project.id} manifest={manifest} previewUrls={previewUrls}
         busy={busy} saveState={busy ? "saving" : "saved"} statusSlot={runPanel} showSidebar={false}
         initialSourceAssetId={sourceAssetId} initialPrompt={input}
@@ -1266,23 +1347,31 @@ export default function App() {
       : view === "results" ? <ResultsPage results={results} episodeTitle={activeEpisode?.title} storageLabel="已保存云端"
         onGenerate={() => setView("generate")}
         onEdit={hasVideoEdit ? result => void openEdit(manifest.jobs.find(job => job.id === result.id)?.shotId ?? result.id) : undefined}
-        onAddToTimeline={result => { const assetId = manifest.jobs.find(job => job.id === result.id)?.outputAssetId; if (assetId) { addCanvasTimeline(assetId); setView("canvas"); } }}
+        onAddToTimeline={result => { const assetId = manifest.jobs.find(job => job.id === result.id)?.outputAssetId;
+          if (assetId) void addCanvasTimeline(assetId).then(openTimeline).catch(cause => setError(String(cause))); }}
         onRefresh={result => { void refreshRun(result.id); }} />
+      : view === "timeline" && activeEpisode ? <div className="web-timeline-shell"><EpisodeTimelineEditor
+        key={`${project.id}:${activeEpisode.id}`} projectTitle={project.title} episodeTitle={activeEpisode.title}
+        revision={activeEpisodeRevision} snapshot={timelineSnapshot} assets={timelineAssets}
+        draftStorageKey={`avs-timeline-draft:${account.id}:${project.id}:${activeEpisode.id}`}
+        onSave={saveEpisodeTimeline} onRefresh={refreshEpisodeTimeline} onUploadAudio={uploadTimelineAudio}
+        onPreview={previewCloudEpisode} preview={episodePreview && episodePreview.scope === "episode" && episodePreview.targetId === activeEpisode.id
+          ? { state: episodePreview.state, revision: episodePreview.revision, error: episodePreview.error,
+            url: episodePreview.outputAssetId ? `/api/objects/${episodePreview.outputAssetId}` : undefined } : null}
+        onExport={exportCloudEpisode} export={episodeRender && episodeRender.episodeId === activeEpisode.id
+          ? { state: episodeRender.state, revision: episodeRender.episodeRevision, error: episodeRender.error,
+            url: episodeRender.outputAssetId ? `/api/objects/${episodeRender.outputAssetId}` : undefined } : null}
+        ttsSlot={<TtsLibraryPanel accountId={account.id} projectId={project.id} episodeId={activeEpisode.id}
+          request={api} onAssetReady={async id => { await ttsAssetReady(id); }} />}
+        agentSlot={<AgentEditWorkflow accountId={account.id} projectId={project.id} episodeId={activeEpisode.id}
+          targetRevision={activeEpisodeRevision} context={{ shotIds: activeEpisode.shots.map(item => item.id),
+            shotTitles: Object.fromEntries(activeEpisode.shots.map((item, index) => [item.id, `镜头 ${index + 1}`])) }}
+          request={api} onApplied={() => refreshAgentApplied()} />}
+        onBack={() => setView("canvas")} /></div>
       : view === "edit" && edit ? <div className="web-edit-shell"><VideoEditor edit={edit}
         sourceUrl={`/api/objects/${edit.sourceAssetId}`}
         currentUrl={edit.currentOutputId ? `/api/objects/${edit.currentOutputId}` : undefined}
         render={render} onCommand={editCommand} onRender={renderEdit} onUseInTimeline={useEditInTimeline}
-        voiceoverSlot={<VoiceoverWorkflow accountId={account.id} projectId={project.id} scope="shot" targetId={edit.id}
-          targetRevision={edit.recipe.revision}
-          durationMs={edit.recipe.trimEndMs - edit.recipe.trimStartMs}
-          audioMix={edit.recipe.version === 2 ? edit.recipe.audioMix : { originalVolume: 1, voiceClips: [], musicClips: [] }}
-          voiceAssets={project.document.assets.filter(item => item.kind === "voice" && item.durationMs).map(item => ({
-            id: item.id, name: item.name ?? "配音录音", durationMs: item.durationMs!, url: `/api/objects/${item.id}` }))}
-          request={api} onUpload={uploadVoice} onTtsAssetReady={ttsAssetReady}
-          onPreviewAssetReady={async id => `/api/objects/${id}`}
-          onSave={async mix => { await editCommand({ type: "set-audio-mix", ...mix }, edit.recipe.revision); }}
-          onExport={() => renderEdit(edit.recipe.revision)}
-          exportBusy={render?.state === "pending" || render?.state === "running"} />}
         agentSlot={<AgentEditWorkflow accountId={account.id} projectId={project.id} episodeId={edit.recipe.episodeId}
           targetRevision={edit.recipe.revision}
           context={{ trim: { startMs: edit.recipe.trimStartMs, endMs: edit.recipe.trimEndMs }, captions: edit.recipe.captions,
@@ -1321,31 +1410,10 @@ export default function App() {
         onDisconnect={id => changeCanvas(graph => ({ ...graph, edges: graph.edges.filter(edge => edge.id !== id) }))}
         onRunVideo={runCanvasNodeById}
         onRefreshJob={refreshRun}
-        onAddVideoToTimeline={(_nodeId, assetId) => addCanvasTimeline(assetId)}
-        onReorderClip={reorderCanvasClip} onOpenVoiceover={() => setShowEpisodeVoice(true)}
+        onAddVideoToTimeline={(_nodeId, assetId) => { reportAsyncFailure(addCanvasTimeline(assetId)); }}
+        onReorderClip={reorderCanvasClip} onOpenTimeline={openTimeline}
         onExport={() => { void exportCloudEpisode().catch(cause => setError(String(cause))); }} />}
       </StudioShell>
-      {showEpisodeVoice && project && activeEpisode && <div className="web-episode-voice-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setShowEpisodeVoice(false); }}>
-        <section className="web-episode-voice-dialog" role="dialog" aria-modal="true" aria-label="本集配音与导出">
-          <header><div><small>EPISODE AUDIO</small><h2>{activeEpisode.title} · 配音与导出</h2></div><button type="button" aria-label="关闭本集配音" onClick={() => setShowEpisodeVoice(false)}>×</button></header>
-          <VoiceoverWorkflow accountId={account.id} projectId={project.id} scope="episode" targetId={activeEpisode.id}
-            targetRevision={resourceRevision(project.resourceRevisions ?? [], "episode", activeEpisode.id)}
-            durationMs={cloudTimelineClips(activeEpisode).reduce((sum, clip) => sum + clip.outMs - clip.inMs, 0)}
-            audioMix={activeEpisode.audio ?? { originalVolume: 1, voiceClips: [], musicClips: [] }}
-            voiceAssets={project.document.assets.filter(item => item.kind === "voice" && item.durationMs).map(item => ({
-              id: item.id, name: item.name ?? "配音录音", durationMs: item.durationMs!, url: `/api/objects/${item.id}` }))}
-            request={api} onUpload={uploadVoice} onTtsAssetReady={ttsAssetReady}
-            onPreviewAssetReady={async id => `/api/objects/${id}`} onSave={saveEpisodeAudio}
-            onExport={exportCloudEpisode} exportBusy={episodeRender?.state === "pending" || episodeRender?.state === "running"} />
-          <AgentEditWorkflow accountId={account.id} projectId={project.id} episodeId={activeEpisode.id}
-            targetRevision={resourceRevision(project.resourceRevisions ?? [], "episode", activeEpisode.id)}
-            context={{ shotIds: activeEpisode.shots.map(item => item.id),
-              shotTitles: Object.fromEntries(activeEpisode.shots.map((item, index) => [item.id, `镜头 ${index + 1}`])) }}
-            request={api} onApplied={() => refreshAgentApplied()} />
-          {episodeRender && <div className="web-episode-render-status" role="status">整集导出：{episodeRender.state}{episodeRender.error ? ` · ${episodeRender.error}` : ""}
-            {episodeRender.state === "succeeded" && episodeRender.outputAssetId && <video controls preload="metadata" src={`/api/objects/${episodeRender.outputAssetId}`} aria-label="整集成片" />}</div>}
-        </section>
-      </div>}
       {showCreateProject && <div className="web-create-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setShowCreateProject(false); }}>
         <section className="web-create-dialog" role="dialog" aria-modal="true" aria-label="新建项目">
           <h2>新建项目</h2><p>给项目起个名字。创建后进入工作台，不会自动生成视频。</p>

@@ -10,12 +10,16 @@ export type CloudDocument = CloudProjectDocument;
 export type CloudProject = CloudProjectSnapshot;
 export interface AgentRunSnapshot extends CloudRunSnapshot { state: RunState; plan: AgentPlan }
 
+export class ApiHttpError extends Error {
+  constructor(message: string, readonly status: number) { super(message); this.name = "ApiHttpError"; }
+}
+
 export async function api<T>(path: string, method = "GET", data?: unknown): Promise<T> {
   const response = await fetch(`/api${path}`, { method, credentials: "include", headers: {
     ...(data === undefined ? {} : { "content-type": "application/json" }), ...requestSecurityHeaders(method),
   }, body: data === undefined ? undefined : JSON.stringify(data) });
   const payload = await response.json() as T & { error?: string };
-  if (!response.ok) throw new Error(parseApiError(payload, response.status).error);
+  if (!response.ok) throw new ApiHttpError(parseApiError(payload, response.status).error, response.status);
   const parsed = parseApiResponse<T>(payload);
   return path.endsWith("/dsl") ? parsed : parseCloudEnvelope(parsed);
 }

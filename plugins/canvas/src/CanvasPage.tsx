@@ -35,7 +35,7 @@ interface Props {
   onAddVideoToTimeline: (nodeId: string, assetId: string) => void;
   onReorderClip: (clipId: string, targetIndex: number) => void;
   onExport?: () => void;
-  onOpenVoiceover?: () => void;
+  onOpenTimeline?: () => void;
   creationBriefs?: CreationBrief[];
   onUpdateCreationBrief?: (id: string, finalText: string, expectedRemoteText?: string) => void | Promise<void>;
 }
@@ -93,7 +93,7 @@ export function CanvasPage({
   manifest, episode, projectRoot, shareMessage, previewUrls, busy, saveState, onOpenGenerate, onOpenEditor,
   onOpenProjects, onSelectEpisode, onCreateEpisode, onImportPhoto, onCreateCharacter, onAddCharacterNode,
   onAddNode, onAddDownstreamVideo, onUpdateNode, onMoveNode, onRemoveNode, onConnect, onDisconnect,
-  onRunVideo, onRefreshJob, onAddVideoToTimeline, onReorderClip, onExport, onOpenVoiceover, creationBriefs = [], onUpdateCreationBrief,
+  onRunVideo, onRefreshJob, onAddVideoToTimeline, onReorderClip, onExport, onOpenTimeline, creationBriefs = [], onUpdateCreationBrief,
 }: Props) {
   const [zoom, setZoom] = useState(50);
   const [handMode, setHandMode] = useState(false);
@@ -350,7 +350,7 @@ export function CanvasPage({
       {searchOpen && <input className="film-canvas-search" aria-label="搜索节点" autoFocus value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索节点" />}
       <button type="button" className="film-header-icon-button" title="搜索节点" aria-label="搜索节点" onClick={() => setSearchOpen(value => !value)}><StudioIcon name="search" size={18} /></button>
       <button type="button" className="film-header-share" onClick={() => setModal("share")}><StudioIcon name="share" size={17} />分享</button>
-      {onOpenVoiceover && <button type="button" className="film-header-share" onClick={onOpenVoiceover}>配音与混音</button>}
+      {onOpenTimeline && <button type="button" className="film-header-share" onClick={onOpenTimeline}>整集剪辑</button>}
       <button type="button" className="film-header-export" onClick={onExport} disabled={!onExport || busy || !manifest.clips.length} title={onExport ? "导出整集" : "当前平台暂不支持整集导出"}><StudioIcon name="film" size={17} />导出整集</button>
     </header>
     <div className="film-canvas-body">
@@ -447,7 +447,7 @@ export function CanvasPage({
           {selectedNode.type !== "timeline" && <label>节点名称<input value={nodeTitle} onChange={event => setNodeTitle(event.target.value)} onBlur={() => { if (nodeTitle.trim() && nodeTitle !== selectedNode.title) onUpdateNode(selectedNode.id, { title: nodeTitle.trim() }); }} /></label>}
           {(selectedNode.type === "text" || selectedNode.type === "video") && <label>镜头提示词<textarea value={nodePrompt} onChange={event => setNodePrompt(event.target.value)} onBlur={() => { if (nodePrompt !== selectedNode.prompt) onUpdateNode(selectedNode.id, { prompt: nodePrompt }); }} placeholder="描述动作、场景和镜头" /></label>}
           {selectedNode.type === "video" && <><p>新生成镜头固定 5 秒。{selectedNode.durationSec === 10 ? "此旧节点原有 10 秒素材仍可编辑；再次运行将生成 5 秒视频。" : "连接人物或图片、文本后，可逐节点运行。"}</p>{selectedNode.resultAssetId && <button type="button" onClick={() => onRunVideo(selectedNode.id)}>再次生成此节点</button>}</>}
-          {selectedNode.type === "timeline" && <><p>本集片段顺序</p><ol className="film-inspector-clips">{manifest.clips.map((clip, index) => <li key={clip.id}><span>{index + 1}. {shortName(manifest.assets.find(asset => asset.id === clip.assetId))}</span><button type="button" disabled={index === 0} onClick={() => onReorderClip(clip.id, index - 1)} aria-label={`将片段 ${index + 1} 前移`}>↑</button><button type="button" disabled={index === manifest.clips.length - 1} onClick={() => onReorderClip(clip.id, index + 1)} aria-label={`将片段 ${index + 1} 后移`}>↓</button></li>)}</ol>{onOpenVoiceover && <button type="button" onClick={onOpenVoiceover}>本集配音与混音 →</button>}<button type="button" onClick={onOpenEditor}>详细剪辑与字幕 →</button></>}
+          {selectedNode.type === "timeline" && <><p>本集片段顺序</p><ol className="film-inspector-clips">{manifest.clips.map((clip, index) => <li key={clip.id}><span>{index + 1}. {shortName(manifest.assets.find(asset => asset.id === clip.assetId))}</span><button type="button" disabled={index === 0} onClick={() => onReorderClip(clip.id, index - 1)} aria-label={`将片段 ${index + 1} 前移`}>↑</button><button type="button" disabled={index === manifest.clips.length - 1} onClick={() => onReorderClip(clip.id, index + 1)} aria-label={`将片段 ${index + 1} 后移`}>↓</button></li>)}</ol>{onOpenTimeline && <button type="button" onClick={onOpenTimeline}>打开整集剪辑 →</button>}<button type="button" onClick={onOpenEditor}>详细剪辑与字幕 →</button></>}
           {selectedNode.type !== "timeline" && <button type="button" className="film-inspector-delete" onClick={() => {
             void feedback.confirm(feedbackMessages.warning.deleteNode).then(confirmed => {
               if (confirmed) { onRemoveNode(selectedNode.id); setSelectedId(null); }
