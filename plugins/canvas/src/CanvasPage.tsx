@@ -342,14 +342,14 @@ export function CanvasPage({
       <span className="film-node-count">{episode.nodes.length} 个节点 / {episode.edges.length} 条连接</span>
       <span className="film-saved"><i className={saveState === "failed" ? "failed" : ""} />{saveState === "saving" ? "保存中" : saveState === "failed" ? "保存失败" : "已保存"}</span>
       <span className="film-canvas-header-spacer" />
-      <button type="button" className="film-header-share" onClick={() => {
+      <button type="button" className="film-header-share film-header-secondary" onClick={() => {
         const selected = activeBrief;
         setBriefId(selected?.id ?? null); setBriefDraft(selected ? briefDrafts[selected.id] ?? selected.finalText : ""); setBriefError(""); setBriefOpen(true);
       }}>创作原文{creationBriefs.length ? ` (${creationBriefs.length})` : ""}</button>
       <button type="button" className="film-header-share" onClick={onOpenGenerate}><StudioIcon name="sparkles" size={17} />生成</button>
       {searchOpen && <input className="film-canvas-search" aria-label="搜索节点" autoFocus value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索节点" />}
       <button type="button" className="film-header-icon-button" title="搜索节点" aria-label="搜索节点" onClick={() => setSearchOpen(value => !value)}><StudioIcon name="search" size={18} /></button>
-      <button type="button" className="film-header-share" onClick={() => setModal("share")}><StudioIcon name="share" size={17} />分享</button>
+      <button type="button" className="film-header-share film-header-secondary" onClick={() => setModal("share")}><StudioIcon name="share" size={17} />分享</button>
       {onOpenTimeline && <button type="button" className="film-header-share" onClick={onOpenTimeline}>整集剪辑</button>}
       <button type="button" className="film-header-export" onClick={onExport} disabled={!onExport || busy || !manifest.clips.length} title={onExport ? "导出整集" : "当前平台暂不支持整集导出"}><StudioIcon name="film" size={17} />导出整集</button>
     </header>
@@ -392,6 +392,7 @@ export function CanvasPage({
               const result = node.type === "video" ? videoResult(node) : null;
               const resultUrl = result?.resultAssetId ? previewUrls[result.resultAssetId] : null;
               const shot = node.shotId ? manifest.shots.find(item => item.id === node.shotId) : null;
+              const sourceUrl = shot?.sourceAssetId ? previewUrls[shot.sourceAssetId] : null;
               return <article key={node.id} data-canvas-node-id={node.id} className={`film-node film-node-${node.type}${selectedId === node.id ? " selected" : ""}${addFromId === node.id ? " menu-open" : ""}${highlight ? "" : " dimmed"}`}
                 style={{ left: pos.x, top: pos.y }} onClick={() => { if (connectingFrom) finishConnection(node.id); else { setSelectedId(node.id); setSelectedEdgeId(null); } }}>
                 <div className="film-node-heading" onPointerDown={event => startDrag(event, node)} onPointerMove={dragMove} onPointerUp={stopDrag}>
@@ -406,7 +407,7 @@ export function CanvasPage({
                 </div>}
                 {node.type === "text" && <div className="film-node-text-body"><small>SHOT 01</small><p>{node.prompt || "点击节点，写下镜头、动作和场景。"}</p><span>输出：提示词</span></div>}
                 {node.type === "video" && <div className="film-node-video-body">
-                  <div className="film-node-video-preview">{resultUrl ? <video src={resultUrl} muted preload="auto" /> : <StudioIcon name="video" size={32} />}
+                  <div className="film-node-video-preview">{sourceUrl ? <img src={sourceUrl} alt="" /> : <StudioIcon name="video" size={32} />}
                     {resultUrl && <button type="button" aria-label="播放视频" onClick={event => { event.stopPropagation(); setPlayingUrl(resultUrl); }}><StudioIcon name="play" size={20} /></button>}
                   </div>
                   <strong>{node.title}</strong>

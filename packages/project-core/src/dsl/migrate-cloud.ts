@@ -1,6 +1,7 @@
 import { parseProjectDsl } from "@ai-video/project-schema";
 import type { AssetV1, EpisodeV1, TimelineClipV1, VideoProjectV1 } from "@ai-video/project-schema";
 import { creationBriefs } from "../brief.ts";
+import { projectEpisodeAudio } from "@ai-video/project-schema";
 
 interface LegacyCloudAsset { id: string; kind: "image" | "video" | "voice" | "music"; name?: string; mimeType?: string; durationMs?: number }
 interface LegacyCloudShot {
@@ -107,10 +108,12 @@ export function migrateCloudV1ToDsl(document: LegacyCloudDocumentV1, context: Cl
       return next;
     });
     const tracks: EpisodeV1["tracks"] = [{ id: `track:visual:${episode.id}`, kind: "visual", clips }];
-    if (episode.audio) {
-      for (const [kind, placements] of [["voice", episode.audio.voiceClips], ["music", episode.audio.musicClips]] as const) {
+    const audio = projectEpisodeAudio(episode);
+    if (audio) {
+      for (const [kind, placements] of [["voice", audio.voiceClips], ["music", audio.musicClips]] as const) {
         tracks.push({ id: `track:${kind}:${episode.id}`, kind,
-          clips: placements.map((clip, index) => ({ ...clip, id: `cloud-${kind}-${episode.id}-${index}`, kind })) });
+          clips: placements.map(clip => ({ id: clip.id!, assetId: clip.assetId, startMs: clip.startMs,
+            inMs: clip.inMs, outMs: clip.outMs, volume: clip.volume, kind })) });
       }
     }
     return { id: episode.id, title: episode.title, scenes,

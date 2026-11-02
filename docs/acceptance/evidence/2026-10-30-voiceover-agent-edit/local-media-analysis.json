@@ -1,0 +1,51 @@
+{
+  "preview": {
+    "name": "local-shot-mixed-preview.mp4",
+    "sizeBytes": 76186,
+    "sha256": "4714d5ba9c3fb0cd7368f3171c1a652969d9c4e605c6e4ebffdfcafe0f2b207d",
+    "durationSec": 5,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ],
+    "beforeVoice": {
+      "source660Hz": 0.07592,
+      "voice440Hz": 0
+    },
+    "afterVoice": {
+      "source660Hz": 0.07591,
+      "voice440Hz": 0.25309
+    }
+  },
+  "exported": {
+    "name": "local-shot-mixed-export.mp4",
+    "sizeBytes": 76186,
+    "sha256": "4714d5ba9c3fb0cd7368f3171c1a652969d9c4e605c6e4ebffdfcafe0f2b207d",
+    "durationSec": 5,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ],
+    "beforeVoice": {
+      "source660Hz": 0.07592,
+      "voice440Hz": 0
+    },
+    "afterVoice": {
+      "source660Hz": 0.07591,
+      "voice440Hz": 0.25309
+    }
+  },
+  "identicalBytes": true
+}

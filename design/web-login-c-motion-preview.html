@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Video Studio · C 奶油胶片登录页动效预览</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; margin: 0; }
+    body { color: #352f2b; background: linear-gradient(115deg, #f8f3ec, #f0e3d5 64%, #f8f2ea); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #b96c4a; outline-offset: 2px; }
+    .page { min-height: 100vh; position: relative; isolation: isolate; overflow: hidden; }
+    .page::before, .page::after { position: absolute; z-index: -1; width: 56vw; aspect-ratio: 1; border-radius: 50%; filter: blur(95px); content: ""; pointer-events: none; }
+    .page::before { top: -14%; left: 21%; background: #e9b28c88; animation: leak 18s ease-in-out infinite alternate; }
+    .page::after { right: 19%; bottom: -43%; background: #8cbfc175; animation: leak 23s ease-in-out -7s infinite alternate-reverse; }
+    .grain { position: absolute; inset: 0; z-index: -1; background-image: radial-gradient(#9d82632b .7px, transparent 1px), radial-gradient(#fff8f05c 1px, transparent 1.7px); background-size: 17px 19px, 23px 21px; opacity: .31; animation: grain 2.8s steps(3) infinite; pointer-events: none; }
+    header { height: 76px; display: flex; align-items: center; gap: 26px; padding: 0 4%; border-bottom: 1px solid #e3d4c5; background: #fffcf8c8; backdrop-filter: blur(18px); }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 750; letter-spacing: .06em; white-space: nowrap; }
+    .mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: linear-gradient(125deg, #b96c4a, #e4a682); color: #fff; font-size: 18px; }
+    header .tagline { color: #8b7f72; font-size: 13px; }
+    header .signup { margin-left: auto; color: #86786b; font-size: 13px; }
+    header .signup a { margin-left: 12px; padding: 10px 16px; border-radius: 999px; background: #f0ded0; color: #a05f41; font-weight: 700; text-decoration: none; }
+    main { max-width: 1440px; min-height: calc(100vh - 76px); display: grid; grid-template-columns: minmax(0, 1fr) 485px; align-items: center; gap: 7%; margin: auto; padding: 40px 5% 70px; }
+    .story { min-width: 0; padding-top: 10px; }
+    .eyebrow { display: inline-block; padding: 10px 14px; border-radius: 999px; background: #f1decf; color: #ac6848; font-size: 11px; font-weight: 750; letter-spacing: .07em; }
+    h1 { margin: 35px 0 26px; font-size: clamp(42px, 4.4vw, 67px); line-height: 1.2; letter-spacing: -.055em; }
+    .story p { max-width: 675px; color: #786d64; font-size: 16px; line-height: 1.85; }
+    .status { width: fit-content; display: flex; align-items: center; gap: 10px; margin: 41px 0 48px; padding: 12px 17px; border: 1px solid #e3d0bf; border-radius: 12px; background: #fffbf4ad; color: #6b7669; font-size: 12px; font-weight: 650; }
+    .status i { width: 9px; height: 9px; border-radius: 50%; background: #6fb597; box-shadow: 0 0 0 4px #6fb59722; animation: pulse 4s ease-in-out infinite; }
+    .filmstrip { height: 190px; overflow: hidden; position: relative; border-radius: 18px; background: #292824; box-shadow: 0 22px 48px #6b4a3328; }
+    .filmstrip::before, .filmstrip::after { position: absolute; z-index: 2; right: 0; left: 0; height: 10px; background: repeating-linear-gradient(90deg, #dbcbb6 0 31px, transparent 31px 62px); content: ""; }
+    .filmstrip::before { top: 13px; }
+    .filmstrip::after { bottom: 13px; }
+    .frames { width: max-content; display: flex; gap: 10px; padding: 37px 14px; animation: reel 28s linear infinite; }
+    .frame { position: relative; width: 205px; height: 116px; flex: none; padding: 13px; border-radius: 8px; background: linear-gradient(125deg, #b89b82, #e2b991, #658580); color: #fff8ee; font-size: 10px; font-weight: 750; }
+    .frame:nth-child(2n) { background: linear-gradient(125deg, #537674, #a3c4b8, #e8c09e); }
+    .frame:nth-child(3n) { background: linear-gradient(125deg, #94725c, #d2a682, #35595c); }
+    .frame:first-child::after { position: absolute; top: 17px; right: 28px; width: 54px; height: 54px; border-radius: 50%; background: #fff1cabc; box-shadow: 0 0 22px #fff0c5; content: ""; }
+    .motion { margin-top: 17px; color: #a27d69; font-size: 11px; letter-spacing: .06em; }
+    .card { padding: 34px 28px 30px; border: 1px solid #dfcfc1; border-radius: 24px; background: #fffcf8ed; box-shadow: 0 22px 65px #76553920; backdrop-filter: blur(16px); }
+    .card::before { display: block; width: 70px; height: 5px; margin-bottom: 20px; border-radius: 3px; background: #b96c4a; content: ""; }
+    .card small { color: #af6f4e; font-size: 11px; font-weight: 750; letter-spacing: .08em; }
+    .card h2 { margin: 14px 0 10px; font-size: 33px; }
+    .card .sub { margin-bottom: 31px; color: #84796e; font-size: 14px; }
+    .tabs { display: flex; padding: 4px; border-radius: 11px; background: #f2e9df; }
+    .tabs button { flex: 1; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: #8b8074; }
+    .tabs button[aria-selected="true"] { background: #fffdfa; color: #9c5b3f; font-weight: 700; box-shadow: 0 2px 6px #98704e15; }
+    label { display: block; margin-top: 25px; color: #5d554e; font-size: 13px; font-weight: 650; }
+    input:not([type="checkbox"]) { width: 100%; height: 49px; display: block; margin-top: 9px; padding: 0 15px; border: 1px solid #d9c9b8; border-radius: 9px; background: #fffefa; color: #352f2b; }
+    input::placeholder { color: #aaa095; }
+    .remember { display: flex; align-items: center; gap: 9px; margin-top: 21px; color: #80766d; font-size: 12px; }
+    .remember input { accent-color: #b96c4a; }
+    .submit { width: 100%; height: 52px; margin-top: 25px; border: 0; border-radius: 10px; background: #b96c4a; color: #fff; font-weight: 750; }
+    .card-footer { margin-top: 25px; color: #918579; text-align: center; font-size: 12px; }
+    .card-footer a { margin-left: 5px; color: #a66243; font-weight: 700; text-decoration: none; }
+    @keyframes leak { to { transform: translate(20%, 13%) scale(1.14); opacity: .56; } }
+    @keyframes grain { 50% { background-position: 9px 3px, -7px 11px; opacity: .2; } }
+    @keyframes pulse { 50% { transform: scale(1.15); opacity: .65; } }
+    @keyframes reel { to { transform: translateX(-860px); } }
+    @media (max-width: 980px) { main { grid-template-columns: 1fr; gap: 42px; } .card { width: min(100%, 520px); } .story { padding-top: 40px; } }
+    @media (max-width: 600px) { header { padding: 0 18px; } header .tagline, header .signup { display: none; } main { padding: 26px 20px 55px; } .story { padding-top: 25px; } h1 { font-size: 40px; } .filmstrip { height: 155px; } .frames { padding: 31px 10px; } .frame { height: 94px; } .card { padding: 28px 22px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; } }
+  </style>
+</head>
+<body>
+  <div class="page"><div class="grain" aria-hidden="true"></div>
+    <header><div class="brand"><span class="mark">✦</span>AI VIDEO STUDIO</div><span class="tagline">从灵感到成片</span><span class="signup">还没有账号？<a href="#register">创建账号 →</a></span></header>
+    <main><div class="story"><span class="eyebrow">✦ YOUR STORY STARTS HERE</span><h1>把想象<br>变成正在发生的画面。</h1><p>从一张照片和一句描述开始。让 AI Agent 为你生成镜头，再把每个片段编排成一集属于你的故事。</p><div class="status"><i></i>云端任务可追踪 · 创作随时继续</div><div class="filmstrip" aria-hidden="true"><div class="frames"><div class="frame">SCENE 01</div><div class="frame">SCENE 02</div><div class="frame">SCENE 03</div><div class="frame">SCENE 04</div><div class="frame">SCENE 01</div><div class="frame">SCENE 02</div><div class="frame">SCENE 03</div><div class="frame">SCENE 04</div></div></div><div class="motion">MOTION / 胶片缓慢滑动 · 暖光扫过 · 细颗粒轻闪</div></div>
+      <div class="card"><small>WELCOME BACK</small><h2>欢迎回来</h2><p class="sub">登录后继续你的创作旅程。</p><div class="tabs" role="tablist" aria-label="账号操作"><button type="button" role="tab" aria-selected="true" data-mode="login">登录</button><button type="button" role="tab" aria-selected="false" data-mode="register">注册</button></div><label>邮箱<input type="email" placeholder="name@example.com" autocomplete="email" /></label><label>密码<input type="password" placeholder="输入密码" autocomplete="current-password" /></label><label class="remember"><input type="checkbox" />保持登录</label><button type="button" class="submit">登录并开始创作 →</button><div class="card-footer">第一次来到这里？<a href="#register">创建新账号</a></div></div>
+    </main>
+  </div>
+  <script>
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const button = document.querySelector('.submit');
+    for (const tab of tabs) tab.addEventListener('click', () => {
+      for (const item of tabs) item.setAttribute('aria-selected', String(item === tab));
+      button.textContent = tab.dataset.mode === 'register' ? '创建账号 →' : '登录并开始创作 →';
+    });
+    document.querySelectorAll('a[href="#register"]').forEach(link => link.addEventListener('click', event => {
+      event.preventDefault(); document.querySelector('[data-mode="register"]').click();
+    }));
+  </script>
+</body>
+</html>

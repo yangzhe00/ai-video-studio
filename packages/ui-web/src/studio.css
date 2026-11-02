@@ -211,7 +211,7 @@
   .film-canvas-header .film-node-count, .film-canvas-header .film-saved { display: none; }
 }
 @media (max-width: 960px) {
-  .film-canvas-header .film-canvas-logo, .film-canvas-header button.film-header-share:nth-last-child(2) { display: none; }
+  .film-canvas-header .film-canvas-logo, .film-canvas-header button.film-header-secondary { display: none; }
   .film-canvas-header button.film-header-export { min-width: 105px; padding: 0 8px; }
 }
 

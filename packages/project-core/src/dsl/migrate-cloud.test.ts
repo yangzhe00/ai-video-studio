@@ -71,13 +71,20 @@ describe("cloud V1 to project DSL", () => {
     input.assets.push({ id: "voice-001", kind: "voice", name: "录音", mimeType: "audio/mpeg", durationMs: 6000 });
     input.assets.push({ id: "music-001", kind: "music", name: "配乐", mimeType: "audio/mp4", durationMs: 6000 });
     input.episodes[0].audio = { originalVolume: 0.4,
-      voiceClips: [{ assetId: "voice-001", startMs: 500, inMs: 100, outMs: 5100, volume: 1.2 }],
-      musicClips: [{ assetId: "music-001", startMs: 0, inMs: 0, outMs: 6000, volume: 0.2 }] };
+      voiceClips: [{ assetId: "voice-001", startMs: 500, inMs: 100, outMs: 5100, volume: 1.2 },
+        { assetId: "voice-001", startMs: 2200, inMs: 0, outMs: 3000, volume: 0.8 }],
+      musicClips: [{ assetId: "music-001", startMs: 0, inMs: 0, outMs: 6000, volume: 0.2 },
+        { assetId: "music-001", startMs: 1200, inMs: 0, outMs: 4000, volume: 0.1 }] };
     const result = migrateCloudV1ToDsl(input, { projectId: "project-1", title: "云项目" });
     expect(result.episodes[0].tracks.find(track => track.kind === "voice")?.clips[0])
       .toMatchObject({ kind: "voice", startMs: 500, inMs: 100, outMs: 5100, volume: 1.2 });
     expect(result.episodes[0].tracks.find(track => track.kind === "music")?.clips[0])
       .toMatchObject({ kind: "music", assetId: "music-001" });
+    expect(result.episodes[0].tracks.find(track => track.kind === "voice")?.clips).toHaveLength(2);
+    expect(result.episodes[0].tracks.find(track => track.kind === "music")?.clips).toHaveLength(2);
+    expect(result.episodes[0].tracks.find(track => track.kind === "voice")?.clips.map(clip => clip.id))
+      .toEqual(migrateCloudV1ToDsl(input, { projectId: "project-1", title: "云项目" })
+        .episodes[0].tracks.find(track => track.kind === "voice")?.clips.map(clip => clip.id));
     expect(result.assets.items.find(asset => asset.id === "voice-001"))
       .toMatchObject({ kind: "voice", durationMs: 6000 });
   });

@@ -1,0 +1,21 @@
+{
+  "label": "before",
+  "environment": "isolated desktop API 8788; local mock Agent provider 8789",
+  "statuses": {
+    "login": 200,
+    "edit": 200,
+    "account": 200,
+    "runs": 200,
+    "versions": 200
+  },
+  "projectId": "2bd0a962-2c64-4d1f-9e6e-87d402555380",
+  "episodeId": "a84d0747-b100-49f3-926c-c2693abc8192",
+  "editId": "3d40dd93-382d-4b1e-8dca-dc055b7e83d9",
+  "revision": 3,
+  "trimStartMs": 0,
+  "trimEndMs": 4000,
+  "demoReserved": 0,
+  "demoUsed": 0,
+  "videoRunCount": 0,
+  "versionCount": 0
+}

@@ -1,0 +1,45 @@
+{
+  "source": "renderEpisodeMedia with QA 5-second mono first shot, silent second shot, 3-8-second voice and 0-10-second music",
+  "output": "local-episode-fixed-backend.mp4",
+  "sha256": "479363843531656696bafa31a1554a82c7d61b8a9e4b35eaa54832a08d69918f",
+  "sizeBytes": 160316,
+  "durationSec": 10,
+  "streams": [
+    {
+      "codec_name": "h264",
+      "codec_type": "video"
+    },
+    {
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "channels": 2
+    }
+  ],
+  "silenceEvents": [],
+  "windows": [
+    {
+      "second": 1,
+      "music220Hz": 0.07663,
+      "voice440Hz": 0.00001,
+      "source660Hz": 0.15323
+    },
+    {
+      "second": 4,
+      "music220Hz": 0.045,
+      "voice440Hz": 0.22496,
+      "source660Hz": 0.08999
+    },
+    {
+      "second": 6,
+      "music220Hz": 0.04023,
+      "voice440Hz": 0.20119,
+      "source660Hz": 0.00001
+    },
+    {
+      "second": 9,
+      "music220Hz": 0.03928,
+      "voice440Hz": 0,
+      "source660Hz": 0
+    }
+  ]
+}

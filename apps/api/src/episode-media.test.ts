@@ -22,6 +22,21 @@ function toneAt(path: string, second: number, frequency: number): number {
 }
 
 describe("episode media audio timeline", () => {
+  it("keeps a previously mixed shot as source audio without adding it a second time", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "avs-old-mixed-shot-"));
+    try {
+      const source = join(dir, "mixed.mp4"), output = join(dir, "episode.mp4");
+      execFileSync(ffmpeg.path, ["-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=64x64:r=12:d=1",
+        "-f", "lavfi", "-i", "sine=frequency=660:sample_rate=48000:duration=1",
+        "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", source]);
+      await renderEpisodeMedia([{ path: source, mime: "video/mp4", inMs: 0, outMs: 1000, volume: 1 }],
+        undefined, [], [], output, { width: 160, height: 284 });
+      const ratio = toneAt(output, 0.2, 660) / toneAt(source, 0.2, 660);
+      expect(ratio).toBeGreaterThan(0.6);
+      expect(ratio).toBeLessThan(1.25);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }, 30_000);
+
   it("keeps cross-shot voice through second 8 and music through second 10", async () => {
     const dir = mkdtempSync(join(tmpdir(), "avs-episode-audio-timeline-"));
     try {
@@ -40,8 +55,8 @@ describe("episode media audio timeline", () => {
         voiceClips: [{ assetId: "voice", startMs: 3000, inMs: 0, outMs: 5000, volume: 1 }],
         musicClips: [{ assetId: "music", startMs: 0, inMs: 0, outMs: 10000, volume: 0.2 }] };
       await renderEpisodeMedia([
-        { path: first, mime: "video/mp4", inMs: 0, outMs: 5000 },
-        { path: second, mime: "video/mp4", inMs: 0, outMs: 5000 },
+        { path: first, mime: "video/mp4", inMs: 0, outMs: 5000, volume: 0 },
+        { path: second, mime: "video/mp4", inMs: 0, outMs: 5000, volume: 1 },
       ], audio, [{ clip: audio.voiceClips[0], path: voice }], [{ clip: audio.musicClips[0], path: music }],
       output, { width: 160, height: 284 });
       const probe = JSON.parse(execFileSync(ffprobe.path, ["-v", "error", "-show_entries",
@@ -49,7 +64,8 @@ describe("episode media audio timeline", () => {
         format: { duration: string }; streams: { codec_type: string; codec_name: string }[] };
       expect(Number(probe.format.duration)).toBeCloseTo(10, 1);
       expect(probe.streams).toEqual(expect.arrayContaining([{ codec_type: "audio", codec_name: "aac" }]));
-      expect(toneAt(output, 1, 660)).toBeGreaterThan(0.03);
+      expect(toneAt(output, 1, 660)).toBeLessThan(0.005);
+      expect(toneAt(output, 1, 220)).toBeGreaterThan(0.01);
       expect(toneAt(output, 4, 440)).toBeGreaterThan(0.03);
       expect(toneAt(output, 6, 440)).toBeGreaterThan(0.03);
       expect(toneAt(output, 6, 220)).toBeGreaterThan(0.01);

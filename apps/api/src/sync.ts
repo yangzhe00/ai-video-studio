@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import type { PgDatabase } from "./db.ts";
 import { EpisodeAudioSchema } from "@ai-video/api-contracts";
+import { projectEpisodeAudio, type CloudAudioEpisode } from "@ai-video/api-contracts";
 import { inspectMediaFile } from "./media-inspect.ts";
 import { creationBriefs } from "../../../packages/project-core/src/brief.ts";
 import type { CreationBrief } from "../../../packages/project-core/src/brief.ts";
@@ -54,7 +56,7 @@ async function validateCommand(db: PgDatabase, ownerId: string, document: CloudP
     throw new SyncError(400, "同步命令格式无效");
   }
   if (!body.payload || typeof body.payload !== "object" || Array.isArray(body.payload)) throw new SyncError(400, "同步内容无效");
-  const payload = body.payload as Record<string, unknown>;
+  const payload = { ...(body.payload as Record<string, unknown>) };
   const ownedObject = async (id: unknown): Promise<{ mime: string; path: string } | undefined> =>
     typeof id === "string" ? (await db.prepare("SELECT mime,path FROM objects WHERE id=? AND owner_id=?").get(id, ownerId)) as { mime: string; path: string } | undefined : undefined;
   const projectAsset = (id: unknown): boolean => typeof id === "string" && document.assets.some(asset => asset.id === id);
@@ -87,6 +89,12 @@ async function validateCommand(db: PgDatabase, ownerId: string, document: CloudP
   } else if (payload.id !== body.resourceId) throw new SyncError(400, "资源 ID 不一致");
   if (type === "episode" && (typeof payload.title !== "string" || !Array.isArray(payload.shots) || !Array.isArray(payload.timeline))) throw new SyncError(400, "分集内容无效");
   if (type === "episode") {
+    const previous = document.episodes.find(item => item.id === body.resourceId);
+    const previousAudio = previous?.audio as { version?: number } | undefined;
+    const incomingAudio = payload.audio as { version?: number } | undefined;
+    if (previousAudio?.version === 2 && incomingAudio?.version !== 2) {
+      throw new SyncError(409, "分集使用新版音轨，请刷新并使用新版编辑器保存");
+    }
     const timeline = payload.timeline as unknown[];
     if (!timeline.every(id => typeof id === "string" && validId(id))) throw new SyncError(400, "时间线素材 ID 无效");
     for (const id of timeline) {
@@ -119,19 +127,35 @@ async function validateCommand(db: PgDatabase, ownerId: string, document: CloudP
     if (payload.audio !== undefined) {
       const parsed = EpisodeAudioSchema.safeParse(payload.audio);
       if (!parsed.success) throw new SyncError(400, "分集音轨无效");
+      let audio = parsed.data;
+      if ("version" in audio && audio.version === 2) {
+        try {
+          const projected = projectEpisodeAudio(payload as unknown as CloudAudioEpisode);
+          if (!projected) throw new Error("分集音轨不存在");
+          audio = projected as typeof audio;
+          payload.audio = projected;
+        } catch { throw new SyncError(400, "音频片段的镜头锚点已失效，请重新选择镜头"); }
+      }
       const episodeDuration = (payload.timelineClips as { inMs: number; outMs: number }[] | undefined)
         ?.reduce((total, clip) => total + clip.outMs - clip.inMs, 0)
         ?? (payload.timeline as string[]).reduce((total, assetId) => total +
           ((payload.shots as { resultAssetId: string; durationSec: number }[]).find(shot => shot.resultAssetId === assetId)?.durationSec ?? 5) * 1000, 0);
-      for (const [kind, clips] of [["voice", parsed.data.voiceClips], ["music", parsed.data.musicClips]] as const) {
+      if ("version" in audio && audio.version === 2 &&
+          (!Number.isSafeInteger(episodeDuration) || episodeDuration > 20 * 60_000 || timeline.length > 100)) {
+        throw new SyncError(400, "分集时长或镜头数量超出精准预览限制");
+      }
+      for (const [kind, clips] of [["voice", audio.voiceClips], ["music", audio.musicClips]] as const) {
         for (const clip of clips) {
           const asset = document.assets.find(item => item.id === clip.assetId && item.kind === kind);
           const object = await ownedObject(clip.assetId);
           const assetDuration = asset?.durationMs;
-          if (!asset || !object || !object.mime.startsWith("audio/") ||
-              !Number.isSafeInteger(assetDuration) || (assetDuration as number) <= 0 ||
-              clip.outMs > (assetDuration as number) || clip.startMs + clip.outMs - clip.inMs > episodeDuration) {
-            throw new SyncError(400, "分集音轨引用了不可用素材或超出时间线");
+          if (!asset || !object) throw new SyncError(404, "音频素材不存在或无权访问");
+          if (!existsSync(object.path)) throw new SyncError(410, "音频素材文件已失效，请重新上传");
+          if (!object.mime.startsWith("audio/") || !Number.isSafeInteger(assetDuration) ||
+              (assetDuration as number) <= 0 || clip.outMs > (assetDuration as number) ||
+              !Number.isSafeInteger(clip.startMs + clip.outMs - clip.inMs) ||
+              clip.startMs + clip.outMs - clip.inMs > episodeDuration) {
+            throw new SyncError(400, "音频裁剪超出素材或分集范围，请调整入点、出点和起点");
           }
         }
       }
@@ -166,14 +190,18 @@ export async function applyProjectCommand(db: PgDatabase, ownerId: string, proje
       .get(projectId, ownerId)) as { id: string; title: string; revision: number; document_json: string } | undefined;
     if (!row) throw new SyncError(404, "项目不存在");
     const document = JSON.parse(row.document_json) as CloudProjectDocument;
-    const command = (await validateCommand(db, ownerId, document, body));
-    const payloadHash = createHash("sha256").update(JSON.stringify(command)).digest("hex");
-    const existing = (await db.prepare("SELECT payload_hash,resulting_revision FROM project_commands WHERE project_id=? AND command_id=?")
-      .get(projectId, command.id)) as { payload_hash: string; resulting_revision: number } | undefined;
+    const payloadHash = createHash("sha256").update(JSON.stringify(body)).digest("hex");
+    const existing = validId(body.id) ? (await db.prepare("SELECT payload_hash,resulting_revision FROM project_commands WHERE project_id=? AND command_id=?")
+      .get(projectId, body.id)) as { payload_hash: string; resulting_revision: number } | undefined : undefined;
+    const replay = async () => ({ project: { id: row.id, title: row.title, revision: row.revision,
+      document, resourceRevisions: await listResourceRevisions(db, projectId) },
+      resourceRevision: existing!.resulting_revision, replayed: true });
+    if (existing?.payload_hash === payloadHash) return replay();
+    const command = await validateCommand(db, ownerId, document, body);
     if (existing) {
-      if (existing.payload_hash !== payloadHash) throw new SyncError(409, "同步命令 ID 已用于其他内容");
-
-      return { project: { id: row.id, title: row.title, revision: row.revision, document, resourceRevisions: (await listResourceRevisions(db, projectId)) }, resourceRevision: existing.resulting_revision, replayed: true };
+      const oldHash = createHash("sha256").update(JSON.stringify(command)).digest("hex");
+      if (existing.payload_hash === oldHash) return replay();
+      throw new SyncError(409, "同步命令 ID 已用于其他内容");
     }
     const revisionRow = (await db.prepare("SELECT revision FROM resource_revisions WHERE project_id=? AND resource_type=? AND resource_id=?")
       .get(projectId, command.resourceType, command.resourceId)) as { revision: number } | undefined;

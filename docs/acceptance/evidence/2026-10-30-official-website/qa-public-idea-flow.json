@@ -1,0 +1,13 @@
+{
+  "source": "2026-10-30 public API smoke tool output",
+  "origin": "https://39.108.55.176/api",
+  "request": "one POST /prompt-ideas with an isolated QA account, then GET /prompt-ideas/{id} until terminal state",
+  "ideaId": "377d59c8-23ab-4b2b-9bb5-c15947334a62",
+  "creationHttpStatus": 201,
+  "finalState": "failed",
+  "variantCount": 0,
+  "errorCode": "provider_error",
+  "videoQuotaBefore": [3, 0, 0],
+  "videoQuotaAfter": [3, 0, 0],
+  "paidVideoGenerationSubmitted": false
+}

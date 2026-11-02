@@ -1,6 +1,6 @@
 # AI Video Studio 后端开发规范
 
-> 适用范围：`apps/api` 的 Node.js 服务、共享业务规则，以及 `apps/desktop/src-tauri` 中的本地后端能力。依据 2026-10-30 的仓库代码编写；架构或接口变更时同步更新本文件。本文是开发约束，文末单列当前尚未完成的能力。线上 API 镜像 `20261030-official-04` 已使用 PostgreSQL schema 1；仓库候选 API 要求 schema 3，尚未发布。部署事实见 [正式发布记录](../../docs/acceptance/2026-10-30-official-release.md) 与 [升级手册](../../deploy/postgres/schema1-to3.md)。
+> 适用范围：`apps/api` 的 Node.js 服务、共享业务规则，以及 `apps/desktop/src-tauri` 中的本地后端能力。依据当前候选代码编写；架构或接口变更时同步更新本文件。本文是开发约束，文末单列当前尚未完成的能力。线上 API 镜像 `20261030-official-04` 已使用 PostgreSQL schema 1；仓库候选 API 要求 schema 4，尚未发布。部署事实见 [正式发布记录](../../docs/acceptance/2026-10-30-official-release.md) 与 [升级手册](../../deploy/postgres/schema1-to4.md)。
 
 ## 1. 技术栈与目录职责
 
@@ -11,7 +11,7 @@
 | `apps/api/src/db.ts`、`cloud-document.ts` | PostgreSQL 连接与只读版本校验、显式 schema 迁移、旧云文档升级。 |
 | `apps/api/src/request-security.ts`、`rate-limit.ts`、`upload.ts` | 有状态请求来源、单实例限流与流式暂存边界。 |
 | `apps/api/src/auth.ts`、`runs.ts`、`sync.ts` | 会话与账号、付费生成账本、项目资源命令与冲突控制。 |
-| `apps/api/src/prompt-ideas.ts`、`idea-*.ts` | 三版灵感的持久请求、模型适配、结果校验和后台查询。 |
+| `apps/api/src/prompt-ideas.ts`、`idea-*.ts` | Cursor 灵感的持久请求、首批三条与扩展三条关联、结果校验和后台查询。 |
 | `apps/api/src/generation-worker.ts`、`kling.ts` | 可灵任务提交、查询、下载、恢复和入库。 |
 | `apps/api/src/video-edits.ts`、`render-worker.ts`、`render-lease.ts` | 编辑配方、渲染版本、租约与恢复。 |
 | `apps/api/src/media-inspect.ts`、`object-capacity.ts` | 媒体内容探测、对象去重和存储额度。 |
@@ -42,19 +42,19 @@ API 使用 Node.js 24、TypeScript 严格模式、NodeNext ES module、PostgreSQ
 
 ## 3. 数据库与兼容迁移
 
-- 云端结构化数据位于 `DATABASE_URL` 指向的 PostgreSQL；`API_DATA_DIR` 存放媒体文件。`db.ts` 的 PostgreSQL schema 版本为 3。新增结构或数据格式升级应增加顺序版本，在事务内完成，并给旧数据库快照添加迁移测试；`CREATE TABLE IF NOT EXISTS` 不能替代文档数据迁移。
-- API 启动只读取 `api_schema_version` 并拒绝不匹配版本，不执行 DDL。`migrateSchema` 仅由迁移账号执行；线上 schema 1→3 升级须先核对实际 DDL、在隔离恢复库演练，再按 `deploy/postgres/schema1-to3.md` 执行。API 账号 `ai_video_runtime` 只获业务表 DML，`api_schema_version` 只读；新增表后须重新授权并验证 `CREATE/ALTER/DROP` 被拒绝。
+- 云端结构化数据位于 `DATABASE_URL` 指向的 PostgreSQL；`API_DATA_DIR` 存放媒体文件。`db.ts` 的 PostgreSQL schema 版本为 4。新增结构或数据格式升级应增加顺序版本，在事务内完成，并给旧数据库快照添加迁移测试；`CREATE TABLE IF NOT EXISTS` 不能替代文档数据迁移。
+- API 启动只读取 `api_schema_version` 并拒绝不匹配版本，不执行 DDL。`migrateSchema` 仅由迁移账号执行；线上 schema 1→4 升级须先核对实际 DDL、在隔离恢复库重新演练，再按 `deploy/postgres/schema1-to4.md` 执行。API 账号 `ai_video_runtime` 只获业务表 DML，`api_schema_version` 只读；新增结构后须重新授权并验证 `CREATE/ALTER/DROP` 被拒绝。
 - 涉及额度、对象登记、任务状态、项目文档和事件的联合修改，使用 `db.transaction(async () => ...)` 后一次提交或回滚，且所有数据库调用必须 `await`。跨行额度和事件序号先持有事务级锁；项目或编辑记录更新前使用行锁。不要在持有事务时等待网络、模型、FFmpeg 或大文件 I/O。
 - 云项目仍保存 `document_json` 和按资源划分的修订。旧文档读取与迁移必须保留分集、人物、画布、时间线片段 ID、裁剪范围、音量及已有媒体引用。新增字段须明确旧数据默认值和客户端回退行为。
 - 媒体对象按账号及 SHA-256 去重；对象文件不可原地修改。视频镜头分别保留 `originalAssetId` 与 `selectedAssetId`，渲染结果作为新版本保存，不自动改写已排入时间线的旧片段。
-- `migrate-sqlite-to-postgres.mjs` 和 `deploy/postgres/cutover.sh` 只处理历史 SQLite→PostgreSQL 切换，不能用于当前线上 PostgreSQL。schema 1→3 迁移在单个 PostgreSQL 事务中执行；正式升级前备份并验证可恢复性，核对 15 张原表的行数、关键记录和对象文件。迁移失败事务回滚；迁移成功后的代码回退必须考虑旧 API 对 schema 3 的兼容性与新增写入，不能直接覆盖现有数据库。
+- `migrate-sqlite-to-postgres.mjs` 和 `deploy/postgres/cutover.sh` 只处理历史 SQLite→PostgreSQL 切换，不能用于当前线上 PostgreSQL。schema 1→4 迁移在单个 PostgreSQL 事务中执行；正式升级前备份并验证可恢复性，核对原表行数、关键记录和对象文件。迁移失败事务回滚；迁移成功后的代码回退必须考虑旧 API 对 schema 4 的兼容性与新增写入，不能直接覆盖现有数据库。
 
 ## 4. Agent、外部调用与费用幂等
 
 - 视频生成区分三种持久身份：`agent_runs` 表示用户意图，`operations` 表示一次可能计费的外部操作，`run_events` 表示可重放进度。客户端用稳定 `clientRequestId` 创建运行，以稳定 `approvalId` 和 `planHash` 明确确认；同 ID 同输入返回原记录，同 ID 不同输入返回冲突。
 - 在调用可灵前，先持久保存提交意图并预留演示额度。`pending_submit → submitting` 的原子领取是供应商 POST 的唯一入口；响应丢失或进程重启时，用已保存的 `external_task_id`／`remote_task_id` 查询原任务，不自动发送第二次付费 POST。
 - 额度按账号与平台总量在事务中检查。供应商已完成但对象额度不足时，下载结果进入持久的 `storage_pending` 暂存状态；释放空间后继续入库。最终入库时再结算预留额度。超出生成视频大小限制的结果按既有计费规则明确失败并提示。
-- 灵感生成与视频生成是两条任务链。`prompt_idea_sets` 先保存输入和 `clientRequestId`，再调用按 `IDEA_PROVIDER` 选择的 `chat`、`agents` 或 `cursor` 适配器；持久保存三版结果、选择与最终编辑文本。未知响应保持可查询或明确的 `unknown` 状态，不把超时直接当成功，也不靠重用同一请求 ID 再发一次外部创建请求。
+- 灵感生成与视频生成是两条任务链。`prompt_idea_sets` 先保存输入和 `clientRequestId`，再调用 Cursor Cloud Agents；用户可对同一原始任务显式再生成三条，最多六条。扩展任务用 `parent_idea_set_id` 关联，`POST /prompt-ideas/:id/more` 自带稳定请求 ID；读取原任务返回聚合的三／六条和扩展状态。旧完成记录继续可读。未知响应只查询同一 Cursor Agent，不靠重用请求 ID 再发一次外部创建请求。
 - 模型输出和供应商 URL 均视为外部输入：限制响应大小、超时、格式和允许的地址。新供应商接入必须说明其幂等键、失联查询方式、计费点和无法确认时的处理，不得只实现“重试 POST”。
 
 ## 5. 媒体、渲染与资源上限
@@ -103,5 +103,5 @@ API 使用 Node.js 24、TypeScript 严格模式、NodeNext ES module、PostgreSQ
 
 - 现有视频 `agent_runs` 是一次运行对应一个付费 `operations` 的链路；通用逐节点 `agent_steps` 尚未落地。新增多节点自动执行前，先设计持久的步骤身份、依赖、重试和费用账本。
 - PostgreSQL 已支持多连接事务；媒体对象仍在本地目录，worker 与登录限流仍在进程内。若改为多 API 实例，应先引入共享对象存储、跨实例限流和任务调度，并验证租约与事件通知的一致性。
-- `scripts/check-api-runtime.mjs` 当前检查 PostgreSQL 连接、`IDEA_MODEL_*` 文字服务变量与 `ffprobe`；当部署选择 Cursor 或 Agents 提供商时，需要补齐对应预检，不能把该脚本单独通过当作所选提供商已经可用。
+- `scripts/check-api-runtime.mjs` 检查 PostgreSQL 连接、`CURSOR_API_KEY` 存在和 `ffprobe`；它不发起 Cursor 生成或验证账号额度，不能把该脚本单独通过当作供应商已经可用。
 - 自动测试和模拟供应商只能证明受测代码路径；真实可灵计费生成、桌面运行、移动真机和发布包需要分别记录实际验收结果。

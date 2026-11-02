@@ -18,6 +18,9 @@ export interface PromptIdeaSet {
   createdAt?: number | string;
   errorCode?: string | null;
   error?: string | null;
+  expansionState?: "pending" | "ready" | "failed" | "unknown" | null;
+  expansionError?: string | null;
+  expansionClientRequestId?: string | null;
 }
 
 interface Props {
@@ -29,6 +32,7 @@ interface Props {
   agentEnabled?: boolean;
   agentUnavailableReason?: string;
   onRequest: (input: string, clientRequestId: string) => Promise<void>;
+  onMore?: (id: string, clientRequestId: string) => Promise<void>;
   onReload: (id: string) => Promise<void>;
   onSelect: (id: string, variantId: string, editedPrompt: string) => Promise<PromptIdeaSet>;
   onContinue: (ideaSet: PromptIdeaSet) => void;
@@ -57,6 +61,11 @@ function saveDraft(scope: string, value: string) {
   try { window.sessionStorage.setItem(`avs-idea-draft:${scope}`, value); } catch { /* storage may be unavailable */ }
 }
 
+function moreRequestKey(scope: string, ideaId: string): string { return `avs-idea-more-request:${scope}:${ideaId}`; }
+function storedMoreRequest(scope: string, ideaId: string): string | null {
+  try { return window.sessionStorage.getItem(moreRequestKey(scope, ideaId)); } catch { return null; }
+}
+
 interface EditedIdeaDraft { variantId: string; prompt: string }
 function storedEditedDrafts(scope: string): Record<string, EditedIdeaDraft> {
   try { return JSON.parse(window.sessionStorage.getItem(`avs-idea-edits:${scope}`) ?? "{}") as Record<string, EditedIdeaDraft>; }
@@ -64,7 +73,7 @@ function storedEditedDrafts(scope: string): Record<string, EditedIdeaDraft> {
 }
 
 export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = false, error, agentEnabled = true,
-  agentUnavailableReason = "登录后可让 Agent 提供方向", onRequest, onReload, onSelect, onContinue, onManual }: Props) {
+  agentUnavailableReason = "登录后可让 Agent 提供方向", onRequest, onMore, onReload, onSelect, onContinue, onManual }: Props) {
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(() => storedRequest(requestScope));
   const [input, setInput] = useState(storedRequest(requestScope)?.input ?? storedDraft(requestScope) ?? ideaSet?.input ?? "");
   const [selectedId, setSelectedId] = useState(ideaSet?.selectedVariantId ?? "");
@@ -90,6 +99,12 @@ export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = fal
     setPendingRequest(null);
     try { window.sessionStorage.removeItem(`avs-idea-request:${requestScope}`); } catch { /* settled response is still shown */ }
   }, [ideaSet?.id, ideaSet?.input, pendingRequest?.id, requestScope]);
+
+  useEffect(() => {
+    if (!ideaSet?.expansionClientRequestId || !ideaSet.expansionState || ideaSet.expansionState === "pending") return;
+    if (storedMoreRequest(requestScope, ideaSet.id) !== ideaSet.expansionClientRequestId) return;
+    try { window.sessionStorage.removeItem(moreRequestKey(requestScope, ideaSet.id)); } catch { /* server snapshot is authoritative */ }
+  }, [requestScope, ideaSet?.id, ideaSet?.expansionState, ideaSet?.expansionClientRequestId]);
 
   useLayoutEffect(() => {
     if (!ideaSet) return;
@@ -120,6 +135,17 @@ export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = fal
     await onRequest(clean, request.id);
   }
 
+  async function requestMore() {
+    if (!ideaSet || !onMore || ideaSet.state !== "ready" || ideaSet.variants.length !== 3 ||
+        ideaSet.expansionState === "pending" || ideaSet.expansionState === "unknown") return;
+    const key = moreRequestKey(requestScope, ideaSet.id);
+    const requestId = storedMoreRequest(requestScope, ideaSet.id) ?? crypto.randomUUID();
+    try { window.sessionStorage.setItem(key, requestId); }
+    catch { setLocalError("浏览器无法保存请求编号，请启用会话存储后重试，避免重复调用模型"); return; }
+    setLocalError("");
+    await onMore(ideaSet.id, requestId);
+  }
+
   function choose(variant: PromptVariant) {
     setSelectedId(variant.id);
     setEditedPrompt(variant.prompt);
@@ -147,7 +173,8 @@ export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = fal
   }
 
   const querySnapshot = !stale && ideaSet && (ideaSet.state === "pending" || ideaSet.state === "unknown") && !pendingRequest;
-  const retryNewRound = !stale && ideaSet && (ideaSet.state === "ready" || ideaSet.state === "failed") && !pendingRequest;
+  const retryNewRound = !stale && ideaSet?.state === "failed" && !pendingRequest;
+  const readySameInput = !stale && ideaSet?.state === "ready" && !pendingRequest;
   return <section className="avs-prompt-ideas" aria-label="统一创作输入">
     <div className="avs-prompt-ideas-heading"><h1>你想拍什么？</h1>
       <p>找灵感可输入 1–200 字；已有内容可输入最多 10000 字。获取灵感不会消耗视频额度。</p></div>
@@ -160,9 +187,9 @@ export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = fal
     <div className="avs-prompt-ideas-actions"><button type="button" onClick={() => {
       if (querySnapshot) void onReload(ideaSet.id);
       else void request(Boolean(retryNewRound));
-    }} disabled={busy || !agentCanStart}>
+    }} disabled={busy || !agentCanStart || Boolean(readySameInput)}>
       {busy ? "正在准备灵感…" : pendingRequest?.input === input.trim() || querySnapshot ? "查询原请求"
-        : retryNewRound ? "再给我 3 个方向" : "让 Agent 给我 3 个方向"}</button>
+        : retryNewRound ? "重新生成 3 条" : readySameInput ? "本轮已生成灵感" : "让 Agent 给我 3 个方向"}</button>
       {onManual && <button type="button" className="secondary" onClick={() => onManual(input)} disabled={!manualCanStart}>用我的内容开始</button>}
       {!agentEnabled && <small>{agentUnavailableReason}</small>}
       {pendingRequest && <button type="button" className="secondary avs-prompt-ideas-new-round" onClick={() => {
@@ -175,7 +202,7 @@ export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = fal
     {pendingRequest && <small className="avs-prompt-ideas-pending">上次请求可能已送达。“查询原请求”会使用相同编号；只有明确另起一轮才使用新编号。</small>}
     {(localError || error) && <p role="alert" className="avs-prompt-ideas-error">{localError || error}</p>}
     {ideaSet && <div className="avs-prompt-ideas-result">
-      <div className="avs-prompt-ideas-result-heading"><h3>三种镜头方向</h3><span>你的想法：{ideaSet.input}</span></div>
+      <div className="avs-prompt-ideas-result-heading"><h3>镜头脚本（{ideaSet.variants.length}/6）</h3><span>你的想法：{ideaSet.input}</span></div>
       {awaitingOriginal ? <div className="avs-prompt-ideas-state" role="status"><p>新一轮结果尚未确认，旧的三版暂不可选。请点击“查询原请求”，系统会复用上次的请求编号。</p></div>
         : stale ? <div className="avs-prompt-ideas-state" role="status"><p>你修改了原始想法；旧的三版已过期。请获取新一轮，或恢复原想法。</p>
         <button type="button" onClick={() => changeInput(ideaSet.input)}>恢复原想法</button></div>
@@ -185,7 +212,15 @@ export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = fal
       </div> : ideaSet.state === "failed" ? <div className="avs-prompt-ideas-state avs-prompt-ideas-state--failed" role="alert">
         <p>灵感生成失败：{ideaSet.error ?? "模型未返回可用的三版提示词"}。你仍可用自己的内容开始。</p>
       </div>
-        : <><div className="avs-prompt-ideas-grid">{ideaSet.variants.map((variant, index) => <button key={variant.id}
+        : <>{onMore && <div className="avs-prompt-ideas-actions">
+          {ideaSet.variants.length === 3 && !ideaSet.expansionState && <button type="button" className="secondary" onClick={() => void requestMore()} disabled={busy}>再生成 3 条（本轮最多 6 条）</button>}
+          {ideaSet.variants.length === 3 && ideaSet.expansionState === "failed" && <button type="button" className="secondary" onClick={() => void requestMore()} disabled={busy}>重试生成另外 3 条</button>}
+          {ideaSet.expansionState === "pending" && <><span role="status">正在生成另外 3 条，原有脚本仍可选择。</span><button type="button" className="secondary" onClick={() => void onReload(ideaSet.id)} disabled={busy}>查询新增结果</button></>}
+          {ideaSet.expansionState === "unknown" && <><span role="status">新增任务结果待确认，系统不会自动再次提交。</span><button type="button" className="secondary" onClick={() => void onReload(ideaSet.id)} disabled={busy}>查询原任务</button></>}
+          {ideaSet.expansionState === "failed" && <span role="alert">新增灵感失败：{ideaSet.expansionError ?? "请稍后重试"}。原有三条仍可使用。</span>}
+          {ideaSet.variants.length === 6 && <span role="status">本轮已生成 6 条，达到上限。</span>}
+        </div>}
+        <div className="avs-prompt-ideas-grid">{ideaSet.variants.map((variant, index) => <button key={variant.id}
           type="button" className={selectedId === variant.id ? "avs-prompt-variant selected" : "avs-prompt-variant"}
           aria-pressed={selectedId === variant.id} onClick={() => choose(variant)}>
           <small>方向 {index + 1}</small><strong>{variant.title}</strong><span>{variant.description}</span><p>{variant.prompt}</p>
@@ -202,7 +237,7 @@ export function PromptIdeas({ requestScope, ideaSet, recentSets = [], busy = fal
     </div>}
     {recentSets.length > 0 && <div className="avs-prompt-ideas-recent"><strong>最近的灵感</strong>
       {recentSets.filter(item => item.id !== ideaSet?.id).slice(0, 3).map(item => <button type="button" key={item.id}
-        onClick={() => { changeInput(item.input); void onReload(item.id); }} disabled={busy}>{item.input}<small>{item.state === "ready" ? "查看三版" : "查看状态"}</small></button>)}
+        onClick={() => { changeInput(item.input); void onReload(item.id); }} disabled={busy}>{item.input}<small>{item.state === "ready" ? `查看 ${item.variants.length} 条` : "查看状态"}</small></button>)}
     </div>}
   </section>;
 }

@@ -1,0 +1,32 @@
+{
+  "environment": "isolated 127.0.0.1 API, fake provider key, workerEnabled=false, no provider call",
+  "checks": [
+    {
+      "label": "同请求 ID 运行重放",
+      "firstStatus": 201,
+      "replayStatus": 201,
+      "sameRun": true,
+      "state": "waiting_approval"
+    },
+    {
+      "label": "同确认 ID 额度与操作幂等",
+      "firstStatus": 200,
+      "replayStatus": 200,
+      "sameOperation": true,
+      "reserved": 1,
+      "used": 0,
+      "agentRuns": 1,
+      "operations": 1,
+      "eventSeq": [
+        1,
+        2
+      ]
+    },
+    {
+      "label": "SSE 序号补发",
+      "status": 200,
+      "hasSeq2": true,
+      "hasSeq1": false
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
@@ -58,6 +58,23 @@ describe("saved audio preview", () => {
     ] as const) {
       const id = randomUUID();
       expect((await create(id)).preview).toMatchObject({ id, scope, state: "pending", outputAssetId: null });
+      if (scope === "episode") {
+        const missingPath = `${videoPath}.moved`;
+        renameSync(videoPath, missingPath);
+        try {
+          await worker.run(id);
+          const failed = await getPreview(db, owner, id);
+          expect(failed.state).toBe("failed");
+          expect(failed.error).toMatch(/画面素材丢失或无法读取/);
+          expect(failed.error).not.toContain(videoPath);
+          expect(failed.error).not.toContain("ffprobe");
+          await db.prepare("UPDATE preview_operations SET error=? WHERE id=?")
+            .run(`Command failed: /Volumes/project/node_modules/ffprobe -i ${videoPath}`, id);
+          expect((await getPreview(db, owner, id)).error).not.toContain(videoPath);
+          expect(existsSync(previewPaths[0])).toBe(true);
+        } finally { renameSync(missingPath, videoPath); }
+        expect((await create(randomUUID())).preview).toMatchObject({ id, state: "pending" });
+      }
       await worker.run(id);
       const preview = await getPreview(db, owner, id);
       expect(preview).toMatchObject({ state: "succeeded", scope });
@@ -76,6 +93,11 @@ describe("saved audio preview", () => {
       .toMatchObject({ current_output_id: null });
     expect(JSON.parse((await db.prepare("SELECT document_json FROM projects WHERE id=?").get(project) as
       { document_json: string }).document_json)).toEqual(document);
+    await db.prepare("UPDATE resource_revisions SET revision=2 WHERE project_id=? AND resource_type='episode' AND resource_id=?")
+      .run(project, episode);
+    const oldEpisodePreview = await db.prepare("SELECT id FROM preview_operations WHERE scope='episode' AND target_id=?")
+      .get(episode) as { id: string };
+    await expect(getPreview(db, owner, oldEpisodePreview.id)).rejects.toMatchObject({ status: 409 });
     await worker.cleanup(Date.now() + 3_600_001);
     expect(await db.prepare("SELECT COUNT(*) AS count FROM preview_operations").get()).toMatchObject({ count: 0 });
     expect(previewPaths.every(path => !existsSync(path))).toBe(true);

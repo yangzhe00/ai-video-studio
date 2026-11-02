@@ -1,0 +1,95 @@
+{
+  "preview": {
+    "name": "local-episode-mixed-preview.mp4",
+    "sizeBytes": 98583,
+    "sha256": "f6d6d514d972e6d09094a7851c013e71a94e8613330f1bf8fa62232d5cea2e15",
+    "durationSec": 10,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ],
+    "windows": [
+      {
+        "second": 1,
+        "decodedSamples": 4800,
+        "music220Hz": 0.10837,
+        "voice440Hz": 0,
+        "source660Hz": 0.21668
+      },
+      {
+        "second": 4,
+        "decodedSamples": 4800,
+        "music220Hz": 0.05396,
+        "voice440Hz": 0.2701,
+        "source660Hz": 0.00007
+      },
+      {
+        "second": 6,
+        "decodedSamples": 4800,
+        "music220Hz": 0,
+        "voice440Hz": 0,
+        "source660Hz": 0
+      },
+      {
+        "second": 9,
+        "decodedSamples": 4800,
+        "music220Hz": 0,
+        "voice440Hz": 0,
+        "source660Hz": 0
+      }
+    ]
+  },
+  "exported": {
+    "name": "local-episode-mixed-export.mp4",
+    "sizeBytes": 98583,
+    "sha256": "f6d6d514d972e6d09094a7851c013e71a94e8613330f1bf8fa62232d5cea2e15",
+    "durationSec": 10,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ],
+    "windows": [
+      {
+        "second": 1,
+        "decodedSamples": 4800,
+        "music220Hz": 0.10837,
+        "voice440Hz": 0,
+        "source660Hz": 0.21668
+      },
+      {
+        "second": 4,
+        "decodedSamples": 4800,
+        "music220Hz": 0.05396,
+        "voice440Hz": 0.2701,
+        "source660Hz": 0.00007
+      },
+      {
+        "second": 6,
+        "decodedSamples": 4800,
+        "music220Hz": 0,
+        "voice440Hz": 0,
+        "source660Hz": 0
+      },
+      {
+        "second": 9,
+        "decodedSamples": 4800,
+        "music220Hz": 0,
+        "voice440Hz": 0,
+        "source660Hz": 0
+      }
+    ]
+  },
+  "identicalBytes": true
+}

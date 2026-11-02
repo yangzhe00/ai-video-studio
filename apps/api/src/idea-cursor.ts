@@ -1,6 +1,6 @@
 import type { ApiConfig } from "./config.ts";
-import { IdeaModelError, parseVariantContent } from "./idea-model.ts";
-import type { IdeaModelResult } from "./idea-model.ts";
+import { IdeaModelError, parseVariantContent } from "./idea-result.ts";
+import type { IdeaModelResult, PromptVariant } from "./idea-result.ts";
 
 export type CursorIdeaOutcome = { state: "pending"; runId: string | null } |
   { state: "ready"; runId: string; result: IdeaModelResult };
@@ -62,11 +62,12 @@ async function requestJson(config: ApiConfig, path: string, fetcher: typeof fetc
   catch { throw new IdeaModelError(502, "invalid_response", "灵感服务响应无效"); }
 }
 
-export async function createIdeaCursorRun(config: ApiConfig, input: string, ideaSetId: string,
+export async function createIdeaCursorRun(config: ApiConfig, input: string, ideaSetId: string, previousVariants: PromptVariant[] = [],
   fetcher: typeof fetch = fetch): Promise<{ agentId: string; runId: string }> {
   const agentId = `bc-${ideaSetId}`;
   if (!agentIdPattern.test(agentId)) throw new IdeaModelError(502, "invalid_response", "灵感 ID 无效");
-  const body: Record<string, unknown> = { agentId, name: "视频灵感", prompt: { text: `${instructions}\n\n用户输入：${input}` }, mode: "agent" };
+  const previous = previousVariants.length ? `\n\n已经生成的三条脚本，请创作不同的三条，不能重复这些画面或提示词：${JSON.stringify(previousVariants.map(({ title, prompt }) => ({ title, prompt })))}` : "";
+  const body: Record<string, unknown> = { agentId, name: "视频灵感", prompt: { text: `${instructions}\n\n用户输入：${input}${previous}` }, mode: "agent" };
   if (config.ideaCursorModel) body.model = { id: config.ideaCursorModel };
   const payload = await requestJson(config, "/agents", fetcher, { method: "POST", body: JSON.stringify(body) }) as {
     agent?: { id?: unknown }; run?: { id?: unknown; agentId?: unknown };

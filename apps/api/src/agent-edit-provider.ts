@@ -7,9 +7,9 @@ export class AgentEditProviderError extends Error {
 }
 
 function endpoint(config: ApiConfig): { url: string; key: string; model: string } {
-  const base = config.agentEditModelBaseUrl ?? config.ideaModelBaseUrl;
-  const key = config.agentEditModelApiKey ?? config.ideaModelApiKey;
-  const model = config.agentEditModelId ?? config.ideaModelId;
+  const base = config.agentEditModelBaseUrl;
+  const key = config.agentEditModelApiKey;
+  const model = config.agentEditModelId;
   if (!base || !key || !model) throw new AgentEditProviderError("not_configured", "Agent 剪辑模型尚未配置");
   let url: URL;
   try { url = new URL(base); } catch { throw new AgentEditProviderError("not_configured", "Agent 剪辑模型地址无效"); }

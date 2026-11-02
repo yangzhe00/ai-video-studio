@@ -1,0 +1,70 @@
+{
+  "environment": "isolated local PostgreSQL API",
+  "results": [
+    {
+      "name": "voice-5s.wav",
+      "mime": "audio/wav",
+      "inputBytes": 480078,
+      "expectedStatus": [
+        200,
+        201
+      ],
+      "actualStatus": 200,
+      "acceptedMime": "audio/wav",
+      "durationMs": 5000,
+      "errorCode": null,
+      "error": null
+    },
+    {
+      "name": "voice-5s.mp3",
+      "mime": "audio/mpeg",
+      "inputBytes": 20973,
+      "expectedStatus": [
+        200,
+        201
+      ],
+      "actualStatus": 200,
+      "acceptedMime": "audio/mpeg",
+      "durationMs": 5040,
+      "errorCode": null,
+      "error": null
+    },
+    {
+      "name": "voice-5s.m4a",
+      "mime": "audio/mp4",
+      "inputBytes": 48148,
+      "expectedStatus": [
+        200,
+        201
+      ],
+      "actualStatus": 200,
+      "acceptedMime": "audio/mp4",
+      "durationMs": 5000,
+      "errorCode": null,
+      "error": null
+    },
+    {
+      "name": "broken.mp3",
+      "mime": "audio/mpeg",
+      "inputBytes": 27,
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "acceptedMime": null,
+      "durationMs": null,
+      "errorCode": "invalid_request",
+      "error": "无法识别媒体内容，请选择有效的照片、视频或录音"
+    },
+    {
+      "name": "empty.wav",
+      "mime": "audio/wav",
+      "inputBytes": 0,
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "acceptedMime": null,
+      "durationMs": null,
+      "errorCode": "invalid_request",
+      "error": "素材为空"
+    }
+  ],
+  "pass": true
+}

@@ -4,7 +4,7 @@
 
 ## 最新数据库状态与后续升级
 
-正式发布记录：[2026-10-30 官网与 PostgreSQL 正式发布](../../docs/acceptance/2026-10-30-official-release.md)。线上 API 镜像为 `ai-video-studio-api:20261030-official-04`，数据库为 PostgreSQL `ai_video_studio`，已观察到 `api_schema_version=1` 和 15 张表。仓库候选 API 要求 schema 3，不能直接用当前线上库启动。先按 [schema 1→3 升级手册](../../deploy/postgres/schema1-to3.md) 核对结构、完成隔离恢复演练，再安排正式发布。媒体对象仍应单独备份和核对。
+正式发布记录：[2026-10-30 官网与 PostgreSQL 正式发布](../../docs/acceptance/2026-10-30-official-release.md)。线上 API 镜像为 `ai-video-studio-api:20261030-official-04`，数据库为 PostgreSQL `ai_video_studio`，已观察到 `api_schema_version=1` 和 15 张表。仓库候选 API 要求 schema 4，不能直接用当前线上库启动。先按 [schema 1→4 升级手册](../../deploy/postgres/schema1-to4.md) 核对结构、用当前候选重新完成隔离恢复演练，再安排正式发布。媒体对象仍应单独备份和核对。
 
 ### 配音服务配置
 

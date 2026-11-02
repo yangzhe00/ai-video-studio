@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Video Studio · 产品交互走查</title>
+  <style>
+    :root{font-family:Inter,"Noto Sans SC",system-ui,sans-serif;color:#2b2a26;background:#eee9e2}
+    *{box-sizing:border-box}
+    body{margin:0}
+    button{font:inherit;cursor:pointer}
+    .top{height:58px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 22px;background:#fffcf8;border-bottom:1px solid #d5c5b5}
+    .brand{font-size:15px;font-weight:750;letter-spacing:.02em}
+    .brand span{color:#b96c4a}
+    .hint{font-size:12px;color:#696b64}
+    .layout{display:grid;grid-template-columns:245px minmax(0,1fr) 245px;min-height:calc(100vh - 58px)}
+    aside{background:#f7f2eb;padding:22px 14px;border-right:1px solid #d5c5b5;overflow:auto}
+    aside.right{border-right:0;border-left:1px solid #d5c5b5;background:#fffcf8}
+    h2{font-size:13px;margin:0 8px 14px;color:#9f593d;text-transform:uppercase;letter-spacing:.08em}
+    .group{margin:0 0 20px}
+    .group strong{display:block;font-size:12px;color:#84776c;margin:0 8px 7px}
+    .link{width:100%;text-align:left;background:transparent;color:#3d3834;border:0;border-radius:8px;padding:8px 10px;font-size:12px}
+    .link:hover,.link.active{background:#ead8c7;color:#8f4b30}
+    main{padding:22px;min-width:0}
+    .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1440px;margin:0 auto 12px}
+    .bar h1{font-size:18px;margin:0}
+    .bar small{color:#7f7268}
+    .toggle{border:1px solid #d5c5b5;background:#fffcf8;border-radius:8px;padding:7px 10px;color:#4b4540;font-size:12px}
+    .stage{position:relative;max-width:1440px;margin:auto;background:#fff;border:1px solid #d5c5b5;box-shadow:0 15px 50px #5c463019;overflow:hidden}
+    .stage.mobile{max-width:390px}
+    .stage img{display:block;width:100%;height:auto}
+    .hotspot{position:absolute;background:#b96c4a16;border:1px dashed #b96c4a8a;border-radius:5px;color:#7c422d;display:flex;align-items:flex-start;justify-content:flex-start;padding:2px;font-size:10px;line-height:1.1;transition:background .15s}
+    .hotspot:hover,.hotspot:focus-visible{background:#b96c4a55;outline:2px solid #b96c4a}
+    .hotspot span{background:#fffcf8e8;padding:2px 4px;border-radius:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .stage.hide-hits .hotspot{background:transparent;border:0}
+    .stage.hide-hits .hotspot span{display:none}
+    .stage.hide-hits .hotspot:hover,.stage.hide-hits .hotspot:focus-visible{outline:2px solid #b96c4a;background:#b96c4a22}
+    .note{font-size:12px;line-height:1.65;color:#665c54;margin:0 8px 16px}
+    .actions{display:flex;flex-direction:column;gap:8px}
+    .action{border:1px solid #d5c5b5;background:#f7f2eb;border-radius:8px;padding:9px 10px;text-align:left;color:#4b4039;font-size:12px}
+    .action:hover{border-color:#b96c4a;background:#f1e4d8}
+    .foot{max-width:1440px;margin:12px auto 0;color:#74695f;font-size:12px;line-height:1.5}
+    @media(max-width:1050px){.layout{grid-template-columns:180px minmax(0,1fr)}.right{display:none}}
+    @media(max-width:700px){.layout{display:block}aside{max-height:160px;border-right:0;border-bottom:1px solid #d5c5b5}main{padding:12px}.top .hint{display:none}}
+  </style>
+</head>
+<body>
+  <div class="top"><div class="brand"><span>✦</span> AI Video Studio · 产品交互走查</div><div class="hint">点击画板热区或右侧动作 · 演示数据，不调用付费服务</div></div>
+  <div class="layout">
+    <aside><h2>画板目录</h2><div id="nav"></div></aside>
+    <main>
+      <div class="bar"><div><h1 id="title"></h1><small id="caption"></small></div><button class="toggle" id="toggle">隐藏点击区域</button></div>
+      <div class="stage" id="stage"><img id="screen" alt="设计画板"><div id="hits"></div></div>
+      <div class="foot">此文件是基于 Pen 画板的浏览器走查件，供产品经理复刻 Axure 动态面板与页面跳转；它不是 Axure .rp 源文件。</div>
+    </main>
+    <aside class="right"><h2>交互与恢复</h2><p class="note" id="note"></p><div class="actions" id="actions"></div></aside>
+  </div>
+  <script>
+    const S = {
+      login:{g:"账号",title:"登录 · C4 动态背景",img:"ZH2AT.png",note:"输入邮箱和密码后进入项目首页；字段错误应就地提示并保留邮箱。",next:[["登录并开始创作","home",[910,623,427,51]],["创建账号","register",[1290,20,105,36]]]},
+      register:{g:"账号",title:"注册 · C4 动态背景",img:"AXDoj.png",note:"演示注册成功进入同一项目首页。",next:[["创建账号","home",[910,623,427,51]],["已有账号，返回登录","login",[1290,20,105,36]]]},
+      home:{g:"首页",title:"项目首页 · C4",img:"qqwZg.png",note:"同一云账号下继续最近项目，或创建项目并进入生成。",next:[["开始新项目","generateEmpty",[290,452,188,53]],["继续创作","generateReady",[491,452,158,53]],["进入画布","canvasReady",[1235,440,100,35]]]},
+      generateEmpty:{g:"生成",title:"生成 · 空白",img:"w0Xad.png",note:"没有参考照片和提示词时，生成按钮不可用；上传后进入可提交状态。",next:[["上传参考照片并填写描述","generateReady",[369,381,169,171]],["查看空结果","resultEmpty",[30,300,170,45]]]},
+      generateReady:{g:"生成",title:"生成 · 输入就绪",img:"UeaSP.png",note:"参考照片与提示词就绪后，先创建计划，不能直接发起付费任务。",next:[["生成镜头计划","plan",[1190,560,140,55]],["切换到画布","canvasEmpty",[850,252,210,53]]]},
+      plan:{g:"生成",title:"确认 Agent 计划",img:"Rsgbk.png",note:"用户检查唯一主参考图、5 秒规格和演示额度；只有明确确认才创建任务。",next:[["确认并开始生成","running",[834,657,508,48]],["返回修改输入","generateReady",[300,700,220,45]]]},
+      running:{g:"任务",title:"生成中 · 任务可恢复",img:"l0KVV.png",note:"任务 ID 保留。断线后只能按同一 ID 查询，不能新建请求重试。",next:[["模拟生成成功","result",[665,718,340,120]],["模拟失败","generateFailed",[1040,718,240,120]],["模拟状态未知","unknown",[286,151,300,40]]]},
+      unknown:{g:"任务",title:"提交状态待确认",img:"m1x60.png",note:"不确定云端是否接收时，界面只提供“查询原任务状态”。",next:[["查询同一任务","running",[627,684,390,45]],["返回首页","home",[580,760,190,35]]]},
+      generateFailed:{g:"任务",title:"生成失败 · 输入保留",img:"VPx2R.png",note:"失败任务已经结束。调整输入后创建新计划，不能把未知状态当失败自动重试。",next:[["重新创建计划","plan",[1180,582,132,39]],["查看失败原因","unknown",[1101,761,205,43]]]},
+      resultEmpty:{g:"结果",title:"结果 · 空白",img:"PPybo.png",note:"没有结果时说明下一步，不出现可播放的假视频。",next:[["去生成第一个镜头","generateEmpty",[703,635,239,49]]]},
+      resultLoading:{g:"结果",title:"结果 · 加载中",img:"zqsgJ.png",note:"按已保存的任务 ID 查询原结果；刷新不重新发布。",next:[["模拟查到结果","result",[703,635,239,49]],["模拟播放失败","resultFailed",[703,697,239,42]]]},
+      result:{g:"结果",title:"结果 · 成功与版本选择",img:"qKb7s.png",note:"原始视频与编辑版本同时可见。选择加入时间线是显式操作。",next:[["打开视频微调","edit",[1025,642,345,43]],["加入时间线并打开画布","canvasReady",[1025,579,345,50]],["模拟播放失败","resultFailed",[286,273,680,370]],["切换青蓝夜幕","resultDark",[1304,9,118,30]]]},
+      resultDark:{g:"结果",title:"结果 · 青蓝夜幕",img:"W3voQa.png",note:"与 C4 相同的组件和操作；换肤不改变媒体版本和任务。",next:[["切回 C4","result",[1304,9,118,30]],["模拟播放失败","resultDarkFailed",[286,273,680,370]]]},
+      resultFailed:{g:"结果",title:"结果 · 播放失败",img:"m0akP.png",note:"媒体已保存，只是播放失败；重试播放不会重新生成视频。",next:[["重新加载视频","result",[703,635,239,49]],["回到结果列表","resultEmpty",[286,151,300,70]],["切换青蓝夜幕","resultDarkFailed",[1304,9,118,30]]]},
+      resultDarkFailed:{g:"结果",title:"播放失败 · 青蓝夜幕",img:"n8TgL.png",note:"失败状态在深色主题中仍保留文字、图标与明确的恢复入口。",next:[["重新加载视频","resultDark",[703,635,239,49]],["切回 C4","resultFailed",[1304,9,118,30]]]},
+      edit:{g:"结果",title:"微调 · 原版保留",img:"NDzKy.png",note:"首尾裁剪、字幕和封面形成新版本；渲染完成后仍需明确选择时间线版本。",next:[["生成编辑版本","result",[1201,704,168,47]],["返回原始结果","result",[286,151,200,60]]]},
+      canvasEmpty:{g:"画布",title:"画布 · 空白",img:"T0LD8d.png",note:"无限画布视口；创建人物或节点后搭建工作流，一张画布对应一集。",next:[["创建人物和节点","canvasRunning",[617,598,205,46]],["添加视频节点","canvasRunning",[836,598,205,46]]]},
+      canvasRunning:{g:"画布",title:"画布 · 节点运行中",img:"P6y6LS.png",note:"逐节点运行，连线本身不扣费；当前视频节点按任务 ID 恢复。",next:[["模拟节点完成","canvasReady",[951,282,335,288]],["模拟节点失败","canvasFailed",[1160,535,122,30]]]},
+      canvasFailed:{g:"画布",title:"画布 · 节点失败",img:"kNI5J.png",note:"保留人物、文本与节点连接；查看原因后明确创建新任务。",next:[["查看原因并重新计划","plan",[1150,535,130,30]],["回到画布空白","canvasEmpty",[280,840,200,40]]]},
+      canvasReady:{g:"画布",title:"画布 · 工作流与时间线",img:"lxBAB.png",note:"画布空间不限定边界；节点连线与播放顺序不同，时间线手动编排和导出。",next:[["查看镜头结果","result",[770,245,425,340]],["创建新集画布","canvasEmpty",[20,770,200,65]]]},
+      mobileGenerate:{g:"移动端",title:"移动 · 生成输入",img:"JyPmS.png",mobile:true,note:"移动端沿用语义色和同一任务，不放节点画布。",next:[["生成镜头计划","mobileRunning",[20,684,350,49]]]},
+      mobileRunning:{g:"移动端",title:"移动 · 生成中",img:"bj5pL.png",mobile:true,note:"离开手机页面后，仍按任务 ID 恢复原任务。",next:[["模拟完成","mobileResult",[20,713,350,45]],["模拟失败","mobileFailed",[38,356,314,255]]]},
+      mobileFailed:{g:"移动端",title:"移动 · 任务失败",img:"tgTS4.png",mobile:true,note:"照片与描述仍在，回去调整后再明确创建新计划。",next:[["修改输入","mobileGenerate",[20,713,350,45]]]},
+      mobileResult:{g:"移动端",title:"移动 · 结果与版本",img:"O849Y.png",mobile:true,note:"手机可查看原版、编辑版并明确加入分集；没有画布入口。",next:[["回到生成","mobileGenerate",[20,784,100,60]],["查看桌面画布示意","canvasReady",[20,694,350,47]]]},
+      kit:{g:"设计系统",title:"全局控件 · C4",img:"gRUHM.png",note:"按钮、输入、任务状态与冲突弹层使用同一组主题变量。",next:[["切换青蓝夜幕","kitDark",[1300,0,140,48]]]},
+      kitDark:{g:"设计系统",title:"全局控件 · 青蓝夜幕",img:"m7Ac1a.png",note:"切换只改变视觉，不改变任务 ID、输入、节点和时间线。",next:[["切回 C4","kit",[1300,0,140,48]]]},
+      map:{g:"设计系统",title:"页面与状态总览",img:"PGUiI.png",note:"本画板是产品经理的 Axure 页树与 Pen 画板索引。",next:[["从登录开始","login",[72,269,192,115]]]}
+    };
+    const groups=["设计系统","账号","首页","生成","任务","结果","画布","移动端"];
+    const nav=document.getElementById("nav"),stage=document.getElementById("stage"),hits=document.getElementById("hits");
+    let showHits=true;
+    const key=()=>S[location.hash.slice(1)]?location.hash.slice(1):"map";
+    function go(id){location.hash=id}
+    function render(){
+      const id=key(),s=S[id],w=s.mobile?390:1440,h=s.mobile?844:900;
+      document.getElementById("title").textContent=s.title;
+      document.getElementById("caption").textContent=s.mobile?"390 × 844 · 移动端":"1440 × 900 · 网页／桌面";
+      document.getElementById("screen").src="previews/"+s.img;
+      document.getElementById("screen").alt=s.title+"设计画板";
+      document.getElementById("note").textContent=s.note;
+      stage.classList.toggle("mobile",!!s.mobile);
+      stage.classList.toggle("hide-hits",!showHits);
+      nav.innerHTML="";
+      for(const group of groups){
+        const wrap=document.createElement("div");wrap.className="group";
+        const label=document.createElement("strong");label.textContent=group;wrap.append(label);
+        Object.entries(S).filter(([,v])=>v.g===group).forEach(([name,v])=>{
+          const b=document.createElement("button");b.className="link"+(name===id?" active":"");b.textContent=v.title;b.onclick=()=>go(name);wrap.append(b);
+        });nav.append(wrap);
+      }
+      hits.innerHTML="";const actions=document.getElementById("actions");actions.innerHTML="";
+      for(const [label,to,box] of s.next){
+        const [x,y,bw,bh]=box,b=document.createElement("button");b.className="hotspot";
+        b.style.left=x/w*100+"%";b.style.top=y/h*100+"%";b.style.width=bw/w*100+"%";b.style.height=bh/h*100+"%";
+        b.setAttribute("aria-label",label);const tip=document.createElement("span");tip.textContent=label;b.append(tip);b.onclick=()=>go(to);hits.append(b);
+        const a=document.createElement("button");a.className="action";a.textContent=label+" → "+S[to].title;a.onclick=()=>go(to);actions.append(a);
+      }
+    }
+    document.getElementById("toggle").onclick=()=>{showHits=!showHits;document.getElementById("toggle").textContent=showHits?"隐藏点击区域":"显示点击区域";render()};
+    window.addEventListener("hashchange",render);render();
+  </script>
+</body>
+</html>

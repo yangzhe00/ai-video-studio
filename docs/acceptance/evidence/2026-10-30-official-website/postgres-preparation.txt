@@ -1,0 +1,15 @@
+PostgreSQL release preparation, 2026-10-30 (Asia/Shanghai)
+
+Current local evidence
+- Provisional source archive and hashes: source-manifest-repo-pg.txt. It is a dirty-worktree snapshot and must be rebuilt after frontend/QA code changes.
+- Linux/amd64 API image built from that provisional archive: local image ID sha256:6662a5d2928b38f458b22d0690546b513e2adb570a468a7866bfc1358b84a209.
+- Isolated Docker check: FFmpeg/ffprobe executable, no .env.local or .codex in image. Disposable PostgreSQL 17 schema migration completed; candidate API /health returned {"ok":true}. Test containers and network removed.
+- SQLite 9 to 10 copy and PostgreSQL import focused tests: 8/8 passed. Deployment shell scripts pass bash -n; Compose configuration passes docker compose config -q. This is local test evidence, not an active-data rehearsal.
+- Local PostgreSQL integration API: http://127.0.0.1:8787; test account details are in /private/tmp/avs-integration-credentials.json (mode 0600). Health, login and GET /tts/voices returned 200. No real paid TTS was submitted.
+- Public https://39.108.55.176/api/health returned HTTP 200 with {"ok":true} during this check.
+
+Server evidence still required before a production switch
+- SSH public-key authentication for root@39.108.55.176 currently returns "Permission denied (publickey,password)". No current Docker, active SQLite schema, server credential-key presence, or Kling outbound access has been verified in this preparation run.
+- Once access is available, inspect current container/image/Compose, SQLite schema/integrity/WAL, file permissions and key-name presence without printing values. Take an online SQLite backup and rehearse schema 9 to 10 to PostgreSQL against a separate database and media mount; compare all table counts and require missingObjectFiles=0.
+- Rebuild from the final shared frontend/backend source snapshot. Record its archive SHA-256 and built image ID/digest. Do not treat the provisional image above as proof that later code is deployed.
+- A PostgreSQL production cutover is pending explicit final authorization after reviewing backup and rehearsal results; no online database or API has been switched here.

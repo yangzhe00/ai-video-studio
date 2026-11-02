@@ -1,0 +1,7 @@
+{
+  "phase": "seed",
+  "providerCallsAdded": 1,
+  "clientResponseLost": true,
+  "clientRequestId": "crash-acceptance-request-01",
+  "next": "Terminate API while mock response hangs; restart same DB after timeout+5s."
+}

@@ -3,7 +3,7 @@ export {
 } from "./errors.ts";
 export type { ApiErrorCode, ApiErrorEnvelope } from "./errors.ts";
 export {
-  AuthRequestSchema, CreatePromptIdeaRequestSchema, SelectPromptIdeaRequestSchema,
+  AuthRequestSchema, CreatePromptIdeaRequestSchema, MorePromptIdeasRequestSchema, SelectPromptIdeaRequestSchema,
   CreateProjectRequestSchema, ProjectCommandRequestSchema, CreateRunRequestSchema,
   ApproveRunRequestSchema, CreateEditRequestSchema, EditCommandRequestSchema,
   CreateRenderRequestSchema, AudioPlacementSchema, EpisodeAudioSchema,
@@ -30,6 +30,8 @@ export type {
   TtsEstimate, TtsVoice, TtsTask, EpisodeRenderView, PreviewView, AgentEditAction, AgentEditContext, AgentEditSet,
 } from "./responses.ts";
 export type { VideoProjectV1 } from "@ai-video/project-schema";
+export { projectEpisodeAudio, EpisodeAudioV2Schema } from "@ai-video/project-schema";
+export type { CloudAudioEpisode, EpisodeAudioV2 } from "@ai-video/project-schema";
 
 /** Required on every state-changing API request, including native clients. */
 export const AVS_REQUEST_HEADER_NAME = "X-AVS-Request";

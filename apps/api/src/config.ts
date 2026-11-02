@@ -26,13 +26,6 @@ export interface ApiConfig {
   agentEditModelBaseUrl?: string;
   agentEditModelApiKey?: string;
   agentEditModelId?: string;
-  ideaModelBaseUrl?: string;
-  ideaModelApiKey?: string;
-  ideaModelId?: string;
-  ideaProvider?: "chat" | "agents" | "cursor";
-  ideaAgentApiKey?: string;
-  ideaAgentModel?: string;
-  ideaAgentBaseUrl?: string;
   ideaCursorApiKey?: string;
   ideaCursorModel?: string;
   ideaCursorBaseUrl?: string;
@@ -48,10 +41,6 @@ export function configFromEnv(): ApiConfig {
   const databaseUrl = process.env.DATABASE_URL;
   if (!dataDir || !databaseUrl || !sessionSecret || sessionSecret.length < 32) {
     throw new Error("API_DATA_DIR, DATABASE_URL and API_SESSION_SECRET (at least 32 characters) are required");
-  }
-  const ideaProvider = process.env.IDEA_PROVIDER ?? "chat";
-  if (ideaProvider !== "chat" && ideaProvider !== "agents" && ideaProvider !== "cursor") {
-    throw new Error("IDEA_PROVIDER must be chat, agents, or cursor");
   }
   const positiveInt = (key: string, fallback: number): number => {
     const raw = process.env[key];
@@ -81,12 +70,6 @@ export function configFromEnv(): ApiConfig {
     agentEditModelBaseUrl: process.env.AGENT_EDIT_MODEL_BASE_URL,
     agentEditModelApiKey: process.env.AGENT_EDIT_MODEL_API_KEY,
     agentEditModelId: process.env.AGENT_EDIT_MODEL_ID,
-    ideaModelBaseUrl: process.env.IDEA_MODEL_BASE_URL,
-    ideaModelApiKey: process.env.IDEA_MODEL_API_KEY,
-    ideaModelId: process.env.IDEA_MODEL_ID,
-    ideaProvider,
-    ideaAgentApiKey: process.env.OPENAI_API_KEY,
-    ideaAgentModel: process.env.IDEA_AGENT_MODEL,
     ideaCursorApiKey: process.env.CURSOR_API_KEY,
     ideaCursorModel: process.env.IDEA_CURSOR_MODEL,
     ideaModelTimeoutMs: positiveInt("IDEA_MODEL_TIMEOUT_MS", 30_000),

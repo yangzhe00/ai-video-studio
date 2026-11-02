@@ -1,0 +1,33 @@
+{
+  "uploaded": [
+    {
+      "filename": "voice-b-3s-550hz.mp3",
+      "assetId": "8026defb-0621-494a-b2ec-7d75fb2df555",
+      "kind": "voice",
+      "durationMs": 3000,
+      "uploadStatus": 201,
+      "commandStatus": 200
+    },
+    {
+      "filename": "music-15s-220hz.m4a",
+      "assetId": "c0a417eb-663e-4298-9076-879d98af08a0",
+      "kind": "music",
+      "durationMs": 15000,
+      "uploadStatus": 201,
+      "commandStatus": 200
+    }
+  ],
+  "invalid": [
+    {
+      "filename": "fake-voice.mp3",
+      "status": 400,
+      "error": "无法识别媒体内容，请选择有效的照片、视频或录音"
+    },
+    {
+      "filename": "empty-voice.wav",
+      "status": 400,
+      "error": "素材为空"
+    }
+  ],
+  "paidProviderCall": false
+}

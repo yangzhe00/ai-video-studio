@@ -1,0 +1,8 @@
+{
+  "result": "PASS",
+  "projectId": "9ce2e568-dc84-46e1-b608-99f0170bfb17",
+  "objectId": "d153fc41-cec7-456a-a3e6-b477ba4f2487",
+  "fixture": "synthetic test-reference.png",
+  "source": "isolated API seed, not browser upload",
+  "mock": true
+}

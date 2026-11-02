@@ -184,7 +184,7 @@ describe("authenticated demo API", () => {
   });
 
   it("isolates projects and objects between registered accounts", async () => {
-    const { request } = await start();
+    const { request, base } = await start();
     const a = await register(request, "a@example.com");
     const b = await register(request, "b@example.com");
     const project = await request("/projects", "POST", { title: "小狗做饭" }, a.cookie);
@@ -196,6 +196,16 @@ describe("authenticated demo API", () => {
     expect(photo.status).toBe(201);
     expect((await request(`/objects/${photo.payload.object.id}`, "GET", undefined, b.cookie)).status).toBe(404);
     expect((await request(`/objects/${photo.payload.object.id}`, "GET", undefined, a.cookie)).status).toBe(200);
+    const ranged = await fetch(`${base}/objects/${photo.payload.object.id}`, { headers: { cookie: a.cookie, range: "bytes=0-9" } });
+    expect(ranged.status).toBe(206);
+    expect(ranged.headers.get("accept-ranges")).toBe("bytes");
+    expect(ranged.headers.get("content-range")).toBe(`bytes 0-9/${photo.payload.object.size}`);
+    expect(ranged.headers.get("content-length")).toBe("10");
+    expect(Buffer.from(await ranged.arrayBuffer())).toEqual(jpegFixture("red").subarray(0, 10));
+    const invalidRange = await fetch(`${base}/objects/${photo.payload.object.id}`, { headers: { cookie: a.cookie, range: "bytes=99999-" } });
+    expect(invalidRange.status).toBe(416);
+    expect(invalidRange.headers.get("content-range")).toBe(`bytes */${photo.payload.object.size}`);
+    expect((await fetch(`${base}/objects/${photo.payload.object.id}`, { headers: { cookie: b.cookie, range: "bytes=0-9" } })).status).toBe(404);
     expect((await request("/objects", "POST", jpegFixture("red"), a.cookie, "image/jpeg")).payload.object.id).toBe(photo.payload.object.id);
     expect((await request(`/projects/${id}`, "PUT", { baseRevision: 0, document: {} }, a.cookie)).status).toBe(405);
   });

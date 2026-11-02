@@ -12,6 +12,8 @@ export const PromptIdeaSetSchema = z.object({
   state: z.enum(["pending", "ready", "failed", "unknown"]),
   variants: z.array(PromptVariantSchema), selectedVariantId: text.nullable(), editedPrompt: z.string().nullable(),
   createdAt: int, updatedAt: int, error: z.string().nullable(), errorCode: z.string().nullable(),
+  expansionState: z.enum(["pending", "ready", "failed", "unknown"]).nullable().optional(),
+  expansionError: z.string().nullable().optional(), expansionClientRequestId: text.nullable().optional(),
 }).passthrough();
 export const ProjectSummarySchema = z.object({ id: text, title: text, revision: int,
   updatedAt: int.optional(), recentEpisode: z.object({ id: text, title: z.string(), shotCount: int }).nullable().optional() }).passthrough();

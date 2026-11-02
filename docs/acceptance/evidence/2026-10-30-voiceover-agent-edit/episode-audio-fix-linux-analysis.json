@@ -1,0 +1,45 @@
+{
+  "source": "Linux/amd64 candidate image ai-video-studio-api:audiofix-648bff4b, QA mono+silent two-shot fixture, 3-8-second voice, 0-10-second music; 160x284 test encode",
+  "output": "local-episode-fixed-linux.mp4",
+  "sha256": "94dc3857efaa9fd9a00a76934a98ebe417e690897e112cf5e3dfb44b9389023a",
+  "sizeBytes": 150815,
+  "durationSec": 10.022,
+  "streams": [
+    {
+      "codec_name": "h264",
+      "codec_type": "video"
+    },
+    {
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "channels": 2
+    }
+  ],
+  "silenceEvents": [],
+  "windows": [
+    {
+      "second": 1,
+      "music220Hz": 0.07654,
+      "voice440Hz": 0,
+      "source660Hz": 0.15305
+    },
+    {
+      "second": 4,
+      "music220Hz": 0.045,
+      "voice440Hz": 0.22495,
+      "source660Hz": 0.08998
+    },
+    {
+      "second": 6,
+      "music220Hz": 0.04023,
+      "voice440Hz": 0.20119,
+      "source660Hz": 0.00001
+    },
+    {
+      "second": 9,
+      "music220Hz": 0.03928,
+      "voice440Hz": 0,
+      "source660Hz": 0
+    }
+  ]
+}

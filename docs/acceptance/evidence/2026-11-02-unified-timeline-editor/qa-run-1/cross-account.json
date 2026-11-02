@@ -1,0 +1,6 @@
+{
+  "secondProjectId": "ae86a4fa-83dd-4c2a-a4f7-bfdeff57e39e",
+  "foreignObjectGet": 404,
+  "foreignAssetCommand": 400,
+  "foreignAssetError": "素材未上传到当前账户或类型不匹配"
+}

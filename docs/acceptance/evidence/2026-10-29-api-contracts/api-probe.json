@@ -1,0 +1,210 @@
+{
+  "environment": "local isolated API + mock Chat Completions on 127.0.0.1",
+  "paidGeneration": false,
+  "results": [
+    {
+      "id": "A1",
+      "label": "未登录项目",
+      "status": 401,
+      "code": "unauthorized",
+      "error": "请先登录"
+    },
+    {
+      "id": "A1",
+      "label": "未登录灵感",
+      "status": 401,
+      "code": "unauthorized",
+      "error": "请先登录"
+    },
+    {
+      "id": "A1",
+      "label": "注册",
+      "status": 201,
+      "code": null,
+      "accountIdPresent": true
+    },
+    {
+      "id": "A1",
+      "label": "登录",
+      "status": 200,
+      "code": null
+    },
+    {
+      "id": "A1",
+      "label": "账号信息",
+      "status": 200,
+      "code": null,
+      "accountIdMatches": true
+    },
+    {
+      "id": "A2",
+      "label": "空白灵感",
+      "status": 400,
+      "code": "invalid_request",
+      "error": "请求内容不符合接口协议"
+    },
+    {
+      "id": "A2",
+      "label": "超长灵感",
+      "status": 400,
+      "code": "invalid_request",
+      "error": "请求内容不符合接口协议"
+    },
+    {
+      "id": "A2",
+      "label": "无效输入无记录",
+      "status": 200,
+      "code": null,
+      "countUnchanged": true
+    },
+    {
+      "id": "A2",
+      "label": "三版灵感",
+      "status": 201,
+      "code": null,
+      "state": "ready",
+      "variantCount": 3,
+      "titles": [
+        "晨光",
+        "街头",
+        "晚霞"
+      ]
+    },
+    {
+      "id": "A2",
+      "label": "选择编辑",
+      "status": 200,
+      "code": null,
+      "selectedPersisted": true
+    },
+    {
+      "id": "A2",
+      "label": "刷新后读取",
+      "status": 200,
+      "code": null,
+      "editedPromptPersisted": true
+    },
+    {
+      "id": "A3",
+      "label": "创建项目",
+      "status": 201,
+      "code": null,
+      "projectIdPresent": true
+    },
+    {
+      "id": "A3",
+      "label": "列表",
+      "status": 200,
+      "code": null,
+      "containsProject": true
+    },
+    {
+      "id": "A3",
+      "label": "详情",
+      "status": 200,
+      "code": null,
+      "sameId": true
+    },
+    {
+      "id": "A3",
+      "label": "只读 DSL",
+      "status": 200,
+      "code": null,
+      "readOnly": true,
+      "dslVersion": 1
+    },
+    {
+      "id": "A3",
+      "label": "跨账号项目",
+      "status": 404,
+      "code": "not_found",
+      "error": "项目不存在"
+    },
+    {
+      "id": "A3",
+      "label": "首次命令",
+      "status": 200,
+      "code": null,
+      "revision": 2
+    },
+    {
+      "id": "A3",
+      "label": "同 ID 重放",
+      "status": 200,
+      "code": null,
+      "replayed": true,
+      "sameRevision": true
+    },
+    {
+      "id": "A3",
+      "label": "旧修订冲突",
+      "status": 409,
+      "code": "conflict",
+      "error": "资源版本冲突",
+      "hasSnapshot": true,
+      "snapshotTitle": "回归第一集"
+    },
+    {
+      "id": "A5",
+      "label": "有效 JPEG",
+      "status": 201,
+      "code": null,
+      "objectIdPresent": true,
+      "mime": "image/jpeg"
+    },
+    {
+      "id": "A5",
+      "label": "错误 MIME",
+      "status": 415,
+      "code": "unsupported_media",
+      "error": "不支持的素材格式"
+    },
+    {
+      "id": "A5",
+      "label": "空文件",
+      "status": 400,
+      "code": "invalid_request",
+      "error": "素材为空"
+    },
+    {
+      "id": "A5",
+      "label": "容量超限",
+      "status": 413,
+      "code": "invalid_request",
+      "error": "上传内容超过大小限制"
+    },
+    {
+      "id": "A5",
+      "label": "跨账号素材",
+      "status": 404,
+      "code": "not_found",
+      "error": "素材不存在"
+    },
+    {
+      "id": "A4",
+      "label": "创建与重放",
+      "status": 201,
+      "code": null,
+      "runIdPresent": true,
+      "sameRun": true,
+      "state": "waiting_approval"
+    },
+    {
+      "id": "A4",
+      "label": "确认与重放",
+      "status": 503,
+      "code": "service_unavailable",
+      "error": "后台生成服务尚未配置",
+      "repeatedStatus": 503,
+      "repeatedCode": "service_unavailable"
+    },
+    {
+      "id": "A4",
+      "label": "额度账本",
+      "status": 200,
+      "code": null,
+      "reserved": 0,
+      "used": 0
+    }
+  ]
+}

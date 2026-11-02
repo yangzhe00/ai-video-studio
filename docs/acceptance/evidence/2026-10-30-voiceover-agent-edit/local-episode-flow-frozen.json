@@ -1,0 +1,129 @@
+{
+  "environment": "local PostgreSQL API, synthetic two-shot episode, no paid provider call",
+  "steps": [
+    {
+      "label": "login",
+      "status": 200,
+      "code": null,
+      "error": null
+    },
+    {
+      "label": "project before",
+      "status": 200,
+      "code": null,
+      "error": null
+    },
+    {
+      "label": "upload silent second shot",
+      "status": 200,
+      "code": null,
+      "error": null
+    },
+    {
+      "label": "register second shot asset",
+      "status": 200,
+      "code": null,
+      "error": null
+    },
+    {
+      "label": "upload music",
+      "status": 200,
+      "code": null,
+      "error": null
+    },
+    {
+      "label": "register music asset",
+      "status": 200,
+      "code": null,
+      "error": null
+    },
+    {
+      "label": "save two-shot episode and cross-boundary audio",
+      "status": 200,
+      "code": null,
+      "error": null,
+      "episodeRevision": 4
+    },
+    {
+      "label": "create episode preview",
+      "status": 201,
+      "code": null,
+      "error": null,
+      "previewId": "6618569b-9104-4d96-b8e7-0953d6ad9fe4"
+    },
+    {
+      "label": "episode preview terminal",
+      "status": 200,
+      "code": null,
+      "error": null,
+      "state": "succeeded",
+      "outputAssetId": "ce779b8c-a89b-4fb0-844a-87554c288fb3",
+      "pollAttempts": 1
+    },
+    {
+      "label": "create episode export",
+      "status": 201,
+      "code": null,
+      "error": null,
+      "renderId": "b606e98e-a558-49d9-b871-665b1b982892"
+    },
+    {
+      "label": "episode export terminal",
+      "status": 200,
+      "code": null,
+      "error": null,
+      "state": "succeeded",
+      "outputAssetId": "ce779b8c-a89b-4fb0-844a-87554c288fb3",
+      "pollAttempts": 1
+    }
+  ],
+  "previewMedia": {
+    "path": "/Users/yangzhe/Documents/ChatGPT/剪辑/docs/acceptance/evidence/2026-10-30-voiceover-agent-edit/local-episode-mixed-preview-frozen.mp4",
+    "durationSec": 10,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ]
+  },
+  "exportMedia": {
+    "path": "/Users/yangzhe/Documents/ChatGPT/剪辑/docs/acceptance/evidence/2026-10-30-voiceover-agent-edit/local-episode-mixed-export-frozen.mp4",
+    "durationSec": 10,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ]
+  },
+  "audio": {
+    "originalVolume": 0.4,
+    "voiceClips": [
+      {
+        "assetId": "5639a14a-0f13-4e03-8720-dab4e77d23bc",
+        "startMs": 3000,
+        "inMs": 0,
+        "outMs": 5000,
+        "volume": 1
+      }
+    ],
+    "musicClips": [
+      {
+        "assetId": "f31f3db6-d9b3-4c56-9e35-f2574ef72a89",
+        "startMs": 0,
+        "inMs": 0,
+        "outMs": 10000,
+        "volume": 0.2
+      }
+    ]
+  }
+}

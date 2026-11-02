@@ -1,0 +1,25 @@
+Audio-fix QA candidate, 2026-10-30 (Asia/Shanghai)
+
+Source archive: /private/tmp/avs-release-audiofix-final-20261030-G56xQm.tar.gz
+Archive SHA-256: 648bff4b2475260b0a10b1d81198a542aac2dacdb97d5bba3902e8206d711b2d
+File manifest: /private/tmp/avs-release-audiofix-final-20261030-G56xQm.manifest.sha256
+File manifest SHA-256: 22525a5e08519f9d1b5d4941e66d539f5250d9b35296ffcdc3f6c8f388605446
+Snapshot contains 345 source files; checksum-based comparison with the shared working tree was clean immediately after copying.
+Source branch: codex/monorepo-plugin-foundation; dirty working tree, so the current HEAD commit is not this candidate.
+Linux/amd64 image tag: ai-video-studio-api:audiofix-648bff4b
+Local image ID: sha256:f9b3810dcb4cb6c9098adb42dff2053c3281a4381a5af569357766fe3e690a0c
+This image ID is local; no registry push or production deployment has occurred.
+
+Fix: apps/api/src/episode-media.ts normalizes every temporary segment's AAC audio to 48 kHz stereo before concat -c copy. The first QA shot had mono audio; the silent second shot had stereo audio, so direct stream copy produced an invalid mixed-layout stream. apps/api/src/audio-render.ts and apps/desktop/src-tauri/src/export.rs use filter syntax supported by the bundled older Linux FFmpeg; original audio is padded to the full timeline before mixing.
+
+Evidence retained separately from the original QA failure files:
+- Original failure: local-episode-mixed-preview.mp4, local-episode-mixed-export.mp4, local-episode-analysis.json, episode-silence.log. These were not overwritten.
+- Repaired backend media: local-episode-fixed-backend.mp4 and episode-audio-fix-analysis.json.
+- Repaired exact candidate Linux image media: local-episode-fixed-linux.mp4 and episode-audio-fix-linux-analysis.json. At second 6, 440 Hz voice and 220 Hz music are present; at second 9, 220 Hz music is present. Silence detection reported no >=0.2-second period below -35 dB.
+- apps/api/src/episode-media.test.ts creates real mixed mono/silent shots and verifies the decoded 6-second voice and 9-second music, not just MP4 duration or AAC presence.
+
+Gates after the compatibility fix: pnpm test passed (API 96/96, workspace boundaries OK); pnpm build passed; cargo test --lib 22/22 passed; git diff --check passed. The exact Linux/amd64 candidate image rendered the QA audio timeline successfully.
+
+QA handoff: local PostgreSQL API http://127.0.0.1:8787 is running with the revised code. Test credentials are in /private/tmp/avs-integration-credentials.json (0600). Re-run preview and formal export through the API with a fresh episode/project, save new artifacts under distinct after-fix names, and compare decoded 6-second and 9-second tone energy against the retained failure. No paid provider request is needed.
+
+The frontend/QA shared worktree may still change. Rebuild the archive and image if any release source file changes before publication. Online PostgreSQL/API cutover has not occurred.

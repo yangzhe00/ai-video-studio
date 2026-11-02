@@ -246,11 +246,11 @@ export default function App() {
 
   useEffect(() => { if (account && view === "projects") void loadProjects(); }, [account?.id, view === "projects"]);
   useEffect(() => {
-    if (ideaSet?.state !== "pending") return;
+    if (ideaSet?.state !== "pending" && ideaSet?.expansionState !== "pending") return;
     const id = ideaSet.id;
-    const timer = window.setInterval(() => { void reloadIdea(id); }, 3000);
+    const timer = window.setInterval(() => { void reloadIdea(id, true); }, 3000);
     return () => window.clearInterval(timer);
-  }, [ideaSet?.id, ideaSet?.state]);
+  }, [ideaSet?.id, ideaSet?.state, ideaSet?.expansionState]);
 
   async function loadProjects() {
     const scope = scopeForAccount();
@@ -289,15 +289,29 @@ export default function App() {
     finally { if (scopeIsCurrent(scope)) setIdeaBusy(false); }
   }
 
-  async function reloadIdea(id: string) {
+  async function requestMoreIdeas(id: string, clientRequestId: string) {
     const scope = scopeForAccount();
     if (!scope) return;
     setIdeaBusy(true); setIdeaError("");
     try {
+      const next = (await api<{ ideaSet: PromptIdeaSet }>(`/prompt-ideas/${id}/more`, "POST", { clientRequestId })).ideaSet;
+      if (scopeIsCurrent(scope)) {
+        setIdeaSet(next);
+        setRecentIdeas(current => [next, ...current.filter(item => item.id !== next.id)]);
+      }
+    } catch (cause) { if (scopeIsCurrent(scope)) setIdeaError(String(cause)); }
+    finally { if (scopeIsCurrent(scope)) setIdeaBusy(false); }
+  }
+
+  async function reloadIdea(id: string, silent = false) {
+    const scope = scopeForAccount();
+    if (!scope) return;
+    if (!silent) { setIdeaBusy(true); setIdeaError(""); }
+    try {
       const next = (await api<{ ideaSet: PromptIdeaSet }>(`/prompt-ideas/${id}`)).ideaSet;
       if (scopeIsCurrent(scope)) setIdeaSet(next);
     } catch (cause) { if (scopeIsCurrent(scope)) setIdeaError(String(cause)); }
-    finally { if (scopeIsCurrent(scope)) setIdeaBusy(false); }
+    finally { if (!silent && scopeIsCurrent(scope)) setIdeaBusy(false); }
   }
 
   async function selectIdea(id: string, variantId: string, editedPrompt: string) {
@@ -1207,7 +1221,7 @@ export default function App() {
   };
   const filteredProjects = projects.filter(item => item.title.toLocaleLowerCase().includes(projectSearch.trim().toLocaleLowerCase()));
   const ideaWidget = <PromptIdeas requestScope={`web:${account?.id ?? "anonymous"}`} ideaSet={ideaSet} recentSets={recentIdeas} busy={ideaBusy} error={ideaError}
-    onRequest={requestIdeas} onReload={reloadIdea} onSelect={selectIdea}
+    onRequest={requestIdeas} onMore={requestMoreIdeas} onReload={reloadIdea} onSelect={selectIdea}
     onContinue={saved => {
       if (!saved.selectedVariantId || !saved.editedPrompt) return;
       const now = Date.now();
@@ -1295,7 +1309,7 @@ export default function App() {
     {project?.document.assets.length ? <div className="web-assets-page-grid">{project.document.assets.map(asset => <article key={asset.id}>
       {asset.kind === "image" ? <img src={`/api/objects/${asset.id}`} alt={asset.name ?? "参考图片"} />
         : asset.kind === "voice" || asset.kind === "music" ? <audio src={`/api/objects/${asset.id}`} controls />
-          : <video src={`/api/objects/${asset.id}`} controls />}
+          : <video src={`/api/objects/${asset.id}`} controls preload="none" />}
       <strong>{asset.name ?? asset.id}</strong><small>{asset.kind === "image" ? "参考照片"
         : asset.kind === "voice" ? "配音录音" : asset.kind === "music" ? "背景音乐" : "视频素材"}</small>
     </article>)}</div> : <div className="web-section-empty inline"><h2>这里还没有素材</h2><p>上传参考照片后，就能在创作页使用。</p></div>}
@@ -1346,7 +1360,6 @@ export default function App() {
         onOpenProjects={() => setView("projects")} />
       : view === "results" ? <ResultsPage results={results} episodeTitle={activeEpisode?.title} storageLabel="已保存云端"
         onGenerate={() => setView("generate")}
-        onEdit={hasVideoEdit ? result => void openEdit(manifest.jobs.find(job => job.id === result.id)?.shotId ?? result.id) : undefined}
         onAddToTimeline={result => { const assetId = manifest.jobs.find(job => job.id === result.id)?.outputAssetId;
           if (assetId) void addCanvasTimeline(assetId).then(openTimeline).catch(cause => setError(String(cause))); }}
         onRefresh={result => { void refreshRun(result.id); }} />
@@ -1443,7 +1456,7 @@ export default function App() {
         <header><h2>项目素材</h2><button type="button" onClick={() => setShowAssets(false)}>关闭</button></header>
         <div>{project.document.assets.map(asset => <article key={asset.id}>
           {asset.kind === "image" ? <img src={`/api/objects/${asset.id}`} alt={asset.name ?? "参考图片"} />
-            : <video src={`/api/objects/${asset.id}`} controls />}
+            : <video src={`/api/objects/${asset.id}`} controls preload="none" />}
           <small>{asset.name ?? asset.id}</small>
         </article>)}</div>
       </section></div>}

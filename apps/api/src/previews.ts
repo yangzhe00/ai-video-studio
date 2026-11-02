@@ -9,6 +9,7 @@ import type { PgDatabase } from "./db.ts";
 import { renderEpisodeSnapshot } from "./episode-renders.ts";
 import { storeObject } from "./object-capacity.ts";
 import { renderShotMedia } from "./render-worker.ts";
+import { logMediaTaskFailure, publicMediaTaskError, publicStoredMediaTaskError } from "./media-task-error.ts";
 
 export class PreviewError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 interface Row {
@@ -18,13 +19,19 @@ interface Row {
   expires_at: number | null;
 }
 const snapshot = (row: Row) => ({ id: row.id, scope: row.scope, targetId: row.target_id,
-  revision: row.revision, state: row.state, outputAssetId: row.output_object_id, error: row.error });
+  revision: row.revision, state: row.state, outputAssetId: row.output_object_id,
+  error: publicStoredMediaTaskError(row.error, "preview") });
 
 export async function getPreview(db: PgDatabase, ownerId: string, id: string) {
   const row = await db.prepare("SELECT * FROM preview_operations WHERE id=? AND owner_id=?")
     .get(id, ownerId) as Row | undefined;
   if (!row) throw new PreviewError(404, "混音预览不存在");
   if (row.expires_at !== null && row.expires_at <= Date.now()) throw new PreviewError(410, "混音预览已过期，请重新生成");
+  if (row.scope === "episode") {
+    const current = await db.prepare("SELECT revision FROM resource_revisions WHERE project_id=? AND resource_type='episode' AND resource_id=?")
+      .get(row.project_id, row.target_id) as { revision: number } | undefined;
+    if ((current?.revision ?? 1) !== row.revision) throw new PreviewError(409, "分集已更新，请重新生成精准预览");
+  }
   return snapshot(row);
 }
 
@@ -170,9 +177,10 @@ export class PreviewWorker {
         });
       } catch (error) { if (createdFilePath) rmSync(createdFilePath, { force: true }); throw error; }
     } catch (error) {
+      logMediaTaskFailure("preview", id, error);
       await this.db.prepare(`UPDATE preview_operations SET state='failed',error=?,lease_token=NULL,
         lease_expires_at=NULL,updated_at=? WHERE id=? AND state='running' AND lease_token=?`)
-        .run(error instanceof Error ? error.message.slice(0, 500) : "混音预览失败", Date.now(), id, token);
+        .run(publicMediaTaskError(error, "preview"), Date.now(), id, token);
     } finally {
       if (heartbeat) clearInterval(heartbeat);
       if (folder) rmSync(folder, { recursive: true, force: true });

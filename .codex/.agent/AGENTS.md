@@ -4,7 +4,7 @@
 
 ## 1. 以仓库实际技术栈为准
 
-- 使用 `pnpm@10.30.1` workspace；Node.js 开发环境为 24。网页和桌面前端使用 React 19、TypeScript 严格模式、Vite；桌面原生层是 Tauri 2/Rust；移动端是 Expo/React Native。API 是 Node.js/TypeScript。线上 `20261030-official-04` 已使用 PostgreSQL schema 1；当前候选代码要求 schema 3，上线前须按 [升级手册](../../deploy/postgres/schema1-to3.md) 完成迁移和验收。
+- 使用 `pnpm@10.30.1` workspace；Node.js 开发环境为 24。网页和桌面前端使用 React 19、TypeScript 严格模式、Vite；桌面原生层是 Tauri 2/Rust；移动端是 Expo/React Native。API 是 Node.js/TypeScript。线上 `20261030-official-04` 已使用 PostgreSQL schema 1；当前候选代码要求 schema 4，上线前须按 [升级手册](../../deploy/postgres/schema1-to4.md) 完成重新演练和验收。
 - 本仓库没有统一采用 React 18、Tailwind CSS、Zustand、Ant Design、React Router、React Query、Axios 或 Storybook。不得因通用模板而强制引入这些技术，也不得编造对应的 lint、type-check、覆盖率或 Storybook 门禁。
 - 新依赖需说明现有能力为何不够、会进入哪些客户端包、体积和平台影响；经项目评审后再添加。更新依赖时同步维护 lockfile。
 

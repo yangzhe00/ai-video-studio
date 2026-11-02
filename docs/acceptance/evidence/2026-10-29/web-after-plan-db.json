@@ -1,0 +1,9 @@
+{
+  "projects": 1,
+  "agentRuns": 1,
+  "operations": 0,
+  "webQuota": {
+    "demo_used": 0,
+    "demo_reserved": 0
+  }
+}

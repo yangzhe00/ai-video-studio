@@ -50,7 +50,9 @@ export class KlingGateway {
     let current = videoUrl;
     for (let redirect = 0; redirect <= 4; redirect++) {
       const url = new URL(current);
-      if (url.protocol !== "https:" || !["klingai.com", "inkwai.com"].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`))) {
+      const trustedHost = url.hostname === "v2-fdl.kechuangai.com" ||
+        ["klingai.com", "inkwai.com"].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
+      if (url.protocol !== "https:" || !trustedHost) {
         throw new Error("视频结果地址不可信");
       }
       const response = await this.fetchImpl(url, { redirect: "manual", signal: AbortSignal.timeout(180_000) });

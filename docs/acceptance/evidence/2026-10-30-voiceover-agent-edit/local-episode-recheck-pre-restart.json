@@ -1,0 +1,70 @@
+{
+  "sourceSnapshot": "source-snapshot-final.json",
+  "environment": "isolated local PostgreSQL API",
+  "steps": [
+    {
+      "step": "login",
+      "status": 200
+    },
+    {
+      "step": "create preview",
+      "status": 201,
+      "code": null,
+      "error": null
+    },
+    {
+      "step": "preview terminal",
+      "state": "succeeded",
+      "error": null,
+      "outputAssetId": "cda76dfd-6743-44c4-b0e6-dd7d902e17a0"
+    },
+    {
+      "step": "create export",
+      "status": 201,
+      "code": null,
+      "error": null
+    },
+    {
+      "step": "export terminal",
+      "state": "succeeded",
+      "error": null,
+      "outputAssetId": "cda76dfd-6743-44c4-b0e6-dd7d902e17a0"
+    }
+  ],
+  "episode": {
+    "revision": 6,
+    "shots": 2,
+    "timeline": 2,
+    "audio": {
+      "originalVolume": 0.4,
+      "voiceClips": [
+        {
+          "assetId": "5639a14a-0f13-4e03-8720-dab4e77d23bc",
+          "startMs": 3000,
+          "inMs": 0,
+          "outMs": 5000,
+          "volume": 1
+        }
+      ],
+      "musicClips": [
+        {
+          "assetId": "f31f3db6-d9b3-4c56-9e35-f2574ef72a89",
+          "startMs": 0,
+          "inMs": 0,
+          "outMs": 10000,
+          "volume": 0.2
+        }
+      ]
+    }
+  },
+  "preview": {
+    "filename": "local-episode-preview-after-fix.mp4",
+    "bytes": 160343,
+    "sha256": "6381417b0d46c5318e94f9e123f2921c2224e38f2dcda02d4b6a76189273b9d6"
+  },
+  "export": {
+    "filename": "local-episode-export-after-fix.mp4",
+    "bytes": 160343,
+    "sha256": "6381417b0d46c5318e94f9e123f2921c2224e38f2dcda02d4b6a76189273b9d6"
+  }
+}

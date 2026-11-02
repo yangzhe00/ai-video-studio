@@ -1,0 +1,212 @@
+{
+  "source": "synthetic FFmpeg test media",
+  "files": [
+    {
+      "name": "reference.jpg",
+      "sizeBytes": 8053,
+      "sha256": "3abcdaa4dbc60b2094a693237c830da24e0e0be3b14c5e7a91b12b4951879ea6",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "mjpeg",
+            "codec_type": "video"
+          }
+        ],
+        "format": {
+          "duration": "0.040000"
+        }
+      }
+    },
+    {
+      "name": "shot-silent-5s.mp4",
+      "sizeBytes": 3508,
+      "sha256": "75c10e328765b456f56242c1b057a8c2410a6e75496c9123e0489fe9614e3820",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video"
+          }
+        ],
+        "format": {
+          "duration": "5.000000"
+        }
+      }
+    },
+    {
+      "name": "shot-audio-5s.mp4",
+      "sizeBytes": 53336,
+      "sha256": "70eb83faa5a408a00351c147a752f9896f8ee7b6a67e1d6f50589b1147ac801b",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video"
+          },
+          {
+            "codec_name": "aac",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "5.000000"
+        }
+      }
+    },
+    {
+      "name": "shot-silent-10s.mp4",
+      "sizeBytes": 5383,
+      "sha256": "4fef75d3f8cf14bbfe0dd92f6dd3eaffeb07a01accca615800c754d65c00d689",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video"
+          }
+        ],
+        "format": {
+          "duration": "10.000000"
+        }
+      }
+    },
+    {
+      "name": "shot-audio-10s.mp4",
+      "sizeBytes": 107576,
+      "sha256": "5046731b58eb9e009bad6541bb0f0b679fc95330fc4b92d1214beeb370523dc9",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video"
+          },
+          {
+            "codec_name": "aac",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "10.000000"
+        }
+      }
+    },
+    {
+      "name": "voice-short-2s.wav",
+      "sizeBytes": 192078,
+      "sha256": "4e1d1a982ba442d5fa8606eaa837648be1b4ab02af8d618879de4dcb0c9df4fb",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "pcm_s16le",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "2.000000"
+        }
+      }
+    },
+    {
+      "name": "voice-5s.wav",
+      "sizeBytes": 480078,
+      "sha256": "530e06d0ca24b0b03e4e648b2d085f76441444361a9c23c6c4b4cf9333b91ea1",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "pcm_s16le",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "5.000000"
+        }
+      }
+    },
+    {
+      "name": "voice-5s.mp3",
+      "sizeBytes": 20973,
+      "sha256": "83d18d57242739e3805eff7b977961980a6fec492477ce0b6ebff96093d8f182",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "mp3",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "5.040000"
+        }
+      }
+    },
+    {
+      "name": "voice-5s.m4a",
+      "sizeBytes": 48148,
+      "sha256": "22ef5119024e104ca09da1b07647e427b31bf50c21b926ef89aad3c55958568d",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "aac",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "5.000000"
+        }
+      }
+    },
+    {
+      "name": "voice-long-12s.wav",
+      "sizeBytes": 1152078,
+      "sha256": "13bf48f9b025278d133bb5004a9c54f431f5d64917b58266bc0c311cc3bb9de3",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "pcm_s16le",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "12.000000"
+        }
+      }
+    },
+    {
+      "name": "music-12s.wav",
+      "sizeBytes": 1152078,
+      "sha256": "f6a6890817d83dc328c1208c7eb4f111220c2580ef0ff8196a72c0371c74382e",
+      "media": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "pcm_s16le",
+            "codec_type": "audio"
+          }
+        ],
+        "format": {
+          "duration": "12.000000"
+        }
+      }
+    },
+    {
+      "name": "broken.mp3",
+      "sizeBytes": 27,
+      "sha256": "88f2a916f75d8cc035e8ce006c6868cdc49f28e45bf97b44a361e9d018346f23",
+      "media": null
+    },
+    {
+      "name": "empty.wav",
+      "sizeBytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "media": null
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "environment": "local PostgreSQL API, no configured Agent edit model, no video/TTS provider call",
+  "steps": [
+    {
+      "label": "login",
+      "status": 200,
+      "code": null,
+      "error": null
+    },
+    {
+      "label": "before suggestion",
+      "status": 200,
+      "code": null,
+      "error": null,
+      "revision": 2,
+      "trimStartMs": 0,
+      "trimEndMs": 5000,
+      "demoReserved": 0,
+      "demoUsed": 0,
+      "videoRunCount": 0,
+      "versionCount": 1
+    },
+    {
+      "label": "create suggestion",
+      "status": 503,
+      "code": "service_unavailable",
+      "error": "Agent 剪辑模型尚未配置",
+      "suggestionSetId": null
+    },
+    {
+      "label": "after failed suggestion",
+      "status": 200,
+      "code": null,
+      "error": null,
+      "revision": 2,
+      "trimStartMs": 0,
+      "trimEndMs": 5000,
+      "demoReserved": 0,
+      "demoUsed": 0,
+      "videoRunCount": 0,
+      "versionCount": 1
+    }
+  ],
+  "scriptError": "Error: Suggestion request failed"
+}

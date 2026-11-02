@@ -42,6 +42,13 @@ async function setup() {
 }
 
 describe("Agent edit suggestion lifecycle", () => {
+  it("requires its own model settings after removing inspiration model fallback", async () => {
+    const config = { dataDir: "", databaseUrl: "", sessionSecret: "test-secret" } as ApiConfig;
+    await expect(createAgentEdit({} as PgDatabase, "owner", "project", config, {
+      clientRequestId: "edit-request-001", episodeId: "episode", instruction: "调整节奏",
+    })).rejects.toMatchObject({ status: 503, message: "Agent 剪辑模型尚未配置" });
+  });
+
   it("previews a suggestion without side effects, then applies a selected action exactly once", async () => {
     const { db, owner, project, edit, config, body } = await setup();
     const created = await createAgentEdit(db, owner, project, config, body);

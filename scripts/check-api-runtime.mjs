@@ -25,22 +25,7 @@ if (!process.env.DATABASE_URL?.trim()) {
   }
 }
 
-for (const key of ["IDEA_MODEL_BASE_URL", "IDEA_MODEL_API_KEY", "IDEA_MODEL_ID"]) {
-  if (!process.env[key]?.trim()) issues.push(`${key} is missing`);
-}
-
-if (process.env.IDEA_MODEL_BASE_URL) {
-  try {
-    const url = new URL(process.env.IDEA_MODEL_BASE_URL);
-    const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
-    if ((url.protocol !== "https:" && !(loopback && url.protocol === "http:")) ||
-        url.username || url.password || url.search || url.hash || !url.hostname) {
-      issues.push("IDEA_MODEL_BASE_URL must be HTTPS (or loopback HTTP for local testing) without credentials, query or fragment");
-    }
-  } catch {
-    issues.push("IDEA_MODEL_BASE_URL is invalid");
-  }
-}
+if (!process.env.CURSOR_API_KEY?.trim()) issues.push("CURSOR_API_KEY is missing");
 
 try {
   const ffprobe = requireApi("@ffprobe-installer/ffprobe");
@@ -57,5 +42,5 @@ if (issues.length) {
   for (const issue of issues) process.stderr.write(`deployment preflight: ${issue}\n`);
   process.exitCode = 1;
 } else {
-  process.stdout.write("API model and media runtime preflight: OK\n");
+  process.stdout.write("API Cursor configuration and media runtime preflight: OK\n");
 }

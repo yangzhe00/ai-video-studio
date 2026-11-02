@@ -1,0 +1,10 @@
+Candidate: avs-candidate-20261030-04
+Source branch: codex/monorepo-plugin-foundation
+Source type: snapshot of the dirty working tree; no commit was created.
+Archive: /private/tmp/avs-candidate-20261030-04.tar.gz
+Archive SHA-256: a7eccad117d4be4891a578fab286479a935cde6605c1a4f65b1d3cc810188343
+Archive size: approximately 24 MiB
+Excluded: .git, .codex, .agents, .aws, .env*, node_modules, Rust target, dist, build, coverage, docs, design, SQLite files.
+Local gates: pnpm build passed before WAL fix; pnpm --filter @ai-video/api build passed after WAL fix; pnpm test passed after WAL fix with disposable local PostgreSQL and Workspace boundaries: OK; git diff --check passed before release.
+Rehearsal 01 found the upgraded copy used WAL and could not open from a read-only container mount. Candidate 04 switches only the upgraded copy to DELETE journaling, includes a read-only-directory regression test, and connects the migration container to the read-only media mount with a separate database owner role. Rehearsal 05 passed all 14 table counts and 5 materialized object files.
+Note: This archive is a candidate for isolated server build, not proof of publication or production business acceptance.

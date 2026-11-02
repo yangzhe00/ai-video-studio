@@ -13,7 +13,7 @@ const ffmpegPath = process.env.API_FFMPEG_PATH || ffmpeg.path;
 const ffprobePath = process.env.API_FFPROBE_PATH || ffprobe.path;
 const seconds = (ms: number) => (ms / 1000).toFixed(3);
 
-export interface EpisodeVisualInput { path: string; mime: "video/mp4" | "image/jpeg" | "image/png" | "image/webp"; inMs: number; outMs: number }
+export interface EpisodeVisualInput { path: string; mime: "video/mp4" | "image/jpeg" | "image/png" | "image/webp"; inMs: number; outMs: number; volume: number }
 
 async function hasAudio(path: string): Promise<boolean> {
   const { stdout } = await exec(ffprobePath, ["-v", "error", "-show_entries", "stream=codec_type", "-of", "json", path],
@@ -47,7 +47,7 @@ export async function renderEpisodeMedia(visuals: EpisodeVisualInput[],
         `pad=${size.width}:${size.height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p`;
       await exec(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", ...videoInput, ...silentInput,
         "-t", seconds(length), "-map", "0:v:0", "-map", audioMap,
-        "-vf", filter, "-af", "aresample=48000,apad", "-c:v", "libx264", "-preset", "veryfast",
+        "-vf", filter, "-af", `aresample=48000,volume=${visual.volume},apad`, "-c:v", "libx264", "-preset", "veryfast",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2", segment],
       { timeout: 120_000, maxBuffer: 1_000_000 });
       segments.push(segment);

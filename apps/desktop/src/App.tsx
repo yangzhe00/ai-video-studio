@@ -83,11 +83,11 @@ function AppContent() {
   }, [account?.id]);
 
   useEffect(() => {
-    if (ideaSet?.state !== "pending") return;
+    if (ideaSet?.state !== "pending" && ideaSet?.expansionState !== "pending") return;
     const id = ideaSet.id;
-    const timer = window.setInterval(() => { void reloadIdea(id); }, 3000);
+    const timer = window.setInterval(() => { void reloadIdea(id, true); }, 3000);
     return () => window.clearInterval(timer);
-  }, [ideaSet?.id, ideaSet?.state]);
+  }, [ideaSet?.id, ideaSet?.state, ideaSet?.expansionState]);
 
   async function requestIdeas(input: string, clientRequestId: string) {
     setIdeaBusy(true); setIdeaError("");
@@ -98,11 +98,20 @@ function AppContent() {
     finally { setIdeaBusy(false); }
   }
 
-  async function reloadIdea(id: string) {
+  async function requestMoreIdeas(id: string, clientRequestId: string) {
     setIdeaBusy(true); setIdeaError("");
+    try {
+      const next = (await cloudRequest<{ ideaSet: PromptIdeaSet }>(`/prompt-ideas/${id}/more`, "POST", { clientRequestId })).ideaSet;
+      setIdeaSet(next); setRecentIdeas(current => [next, ...current.filter(item => item.id !== next.id)]);
+    } catch (error) { setIdeaError(String(error)); }
+    finally { setIdeaBusy(false); }
+  }
+
+  async function reloadIdea(id: string, silent = false) {
+    if (!silent) { setIdeaBusy(true); setIdeaError(""); }
     try { setIdeaSet((await cloudRequest<{ ideaSet: PromptIdeaSet }>(`/prompt-ideas/${id}`)).ideaSet); }
     catch (error) { setIdeaError(String(error)); }
-    finally { setIdeaBusy(false); }
+    finally { if (!silent) setIdeaBusy(false); }
   }
 
   async function selectIdea(id: string, variantId: string, editedPrompt: string) {
@@ -126,7 +135,7 @@ function AppContent() {
 
   const ideaSlot = <PromptIdeas requestScope={`desktop:${account?.id ?? "anonymous"}`} ideaSet={ideaSet} recentSets={recentIdeas} busy={ideaBusy} error={ideaError}
     agentEnabled={Boolean(account)} agentUnavailableReason="登录后可让 Agent 提供方向；自己的内容可离线开始。"
-    onRequest={requestIdeas} onReload={reloadIdea} onSelect={selectIdea}
+    onRequest={requestIdeas} onMore={requestMoreIdeas} onReload={reloadIdea} onSelect={selectIdea}
     onContinue={saved => {
       const prompt = saved.editedPrompt ?? saved.variants.find(item => item.id === saved.selectedVariantId)?.prompt;
       if (!prompt || !saved.selectedVariantId) return;

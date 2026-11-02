@@ -440,6 +440,34 @@ describe("web entry", () => {
     expect(lookups).toBeGreaterThanOrEqual(2);
   });
 
+  it("keeps the idea button stable while a background poll waits for the model", async () => {
+    const pending = { ...testIdea("idea-pending", "小狗做饭"), state: "pending", variants: [] };
+    const detail = deferredResponse();
+    const pollCallbacks: (() => void)[] = [];
+    vi.spyOn(window, "setInterval").mockImplementation(((handler: TimerHandler, delay?: number) => {
+      if (delay === 3000 && typeof handler === "function") pollCallbacks.push(handler as () => void);
+      return 1;
+    }) as typeof window.setInterval);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/auth/me")) return Response.json({ account: testAccount("idea-user") });
+      if (url.endsWith("/prompt-ideas")) return Response.json({ ideaSets: [pending] });
+      if (url.endsWith("/prompt-ideas/idea-pending")) return detail.promise;
+      if (url.endsWith("/projects")) return Response.json({ projects: [] });
+      return Response.json({ error: "unexpected" }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ThemeProvider><App /></ThemeProvider>);
+    expect(await screen.findByText("正在准备三种灵感，可以稍后回来查看。")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "查询原请求" })).toBeTruthy();
+    expect(pollCallbacks).toHaveLength(1);
+    act(() => { pollCallbacks[0](); });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/prompt-ideas/idea-pending", expect.anything()));
+    expect(screen.getByRole("button", { name: "查询原请求" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "正在准备灵感…" })).toBeNull();
+    await act(async () => { detail.resolve(Response.json({ ideaSet: pending })); await detail.promise; });
+    expect(screen.getByRole("button", { name: "查询原请求" })).toBeTruthy();
+  });
+
   it("keeps idea selection free of video runs until the user checks the shot plan", async () => {
     let project: CloudProject = { id: "project-1", title: "晚餐故事", revision: 1, resourceRevisions: [],
       document: { version: 1, episodes: [{ id: "episode-1", title: "第 1 集", shots: [], timeline: [] }],

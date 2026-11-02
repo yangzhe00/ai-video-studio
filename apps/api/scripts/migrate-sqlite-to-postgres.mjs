@@ -29,7 +29,7 @@ try {
   begun = true;
   await client.query(await readFile(new URL("../src/schema.sql", import.meta.url), "utf8"));
   const currentVersion = await client.query("SELECT version FROM api_schema_version LIMIT 1");
-  if (currentVersion.rows.length && ![1, 2, 3].includes(Number(currentVersion.rows[0].version))) {
+  if (currentVersion.rows.length && ![1, 2, 3, 4].includes(Number(currentVersion.rows[0].version))) {
     throw new Error("Target PostgreSQL schema version is unsupported");
   }
   for (const table of tables) {
@@ -53,12 +53,13 @@ try {
   if (missingObjectFiles !== 0) throw new Error(`Missing ${missingObjectFiles} object files; target import rolled back`);
   await client.query(await readFile(new URL("../src/schema-v2.sql", import.meta.url), "utf8"));
   await client.query(await readFile(new URL("../src/schema-v3.sql", import.meta.url), "utf8"));
+  await client.query(await readFile(new URL("../src/schema-v4.sql", import.meta.url), "utf8"));
   for (const table of ["tts_tasks", "episode_render_operations", "agent_edit_sets", "preview_operations", "preview_owned_objects"]) {
     const count = await client.query(`SELECT COUNT(*) AS count FROM ${table}`);
     if (Number(count.rows[0].count) !== 0) throw new Error(`Target is not empty: ${table}`);
   }
-  if (!currentVersion.rows.length) await client.query("INSERT INTO api_schema_version (version) VALUES (3)");
-  else await client.query("UPDATE api_schema_version SET version=3");
+  if (!currentVersion.rows.length) await client.query("INSERT INTO api_schema_version (version) VALUES (4)");
+  else await client.query("UPDATE api_schema_version SET version=4");
   await client.query("COMMIT");
   begun = false;
   process.stdout.write(JSON.stringify({ status: "imported", sqliteVersion: version, counts, missingObjectFiles }) + "\n");

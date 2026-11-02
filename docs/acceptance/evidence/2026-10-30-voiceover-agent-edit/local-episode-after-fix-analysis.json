@@ -1,0 +1,95 @@
+{
+  "preview": {
+    "name": "local-episode-preview-after-fix.mp4",
+    "sizeBytes": 160316,
+    "sha256": "479363843531656696bafa31a1554a82c7d61b8a9e4b35eaa54832a08d69918f",
+    "durationSec": 10,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ],
+    "windows": [
+      {
+        "second": 1,
+        "decodedSamples": 4800,
+        "music220Hz": 0.10836,
+        "voice440Hz": 0,
+        "source660Hz": 0.21671
+      },
+      {
+        "second": 4,
+        "decodedSamples": 4800,
+        "music220Hz": 0.06331,
+        "voice440Hz": 0.31653,
+        "source660Hz": 0.12661
+      },
+      {
+        "second": 6,
+        "decodedSamples": 4800,
+        "music220Hz": 0.05681,
+        "voice440Hz": 0.28409,
+        "source660Hz": 0.00001
+      },
+      {
+        "second": 9,
+        "decodedSamples": 4800,
+        "music220Hz": 0.05555,
+        "voice440Hz": 0,
+        "source660Hz": 0
+      }
+    ]
+  },
+  "exported": {
+    "name": "local-episode-export-after-fix.mp4",
+    "sizeBytes": 160316,
+    "sha256": "479363843531656696bafa31a1554a82c7d61b8a9e4b35eaa54832a08d69918f",
+    "durationSec": 10,
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio"
+      }
+    ],
+    "windows": [
+      {
+        "second": 1,
+        "decodedSamples": 4800,
+        "music220Hz": 0.10836,
+        "voice440Hz": 0,
+        "source660Hz": 0.21671
+      },
+      {
+        "second": 4,
+        "decodedSamples": 4800,
+        "music220Hz": 0.06331,
+        "voice440Hz": 0.31653,
+        "source660Hz": 0.12661
+      },
+      {
+        "second": 6,
+        "decodedSamples": 4800,
+        "music220Hz": 0.05681,
+        "voice440Hz": 0.28409,
+        "source660Hz": 0.00001
+      },
+      {
+        "second": 9,
+        "decodedSamples": 4800,
+        "music220Hz": 0.05555,
+        "voice440Hz": 0,
+        "source660Hz": 0
+      }
+    ]
+  },
+  "identicalBytes": true
+}

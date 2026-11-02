@@ -11,7 +11,7 @@
        → 检查计划并显式确认 → 后台图生视频 → 结果资产 → 分集画布/时间线 → 微调与输出
 ```
 
-- 三条脚本是**文字灵感**，归属于账号；选择脚本不会创建视频任务或消耗视频生成额度。线上灵感服务使用 Cursor Cloud Agent，代码还保留其他文字模型适配器。
+- 首批三条、可追加至六条的脚本是**文字灵感**，归属于账号；选择脚本不会创建视频任务或消耗视频生成额度。当前仓库候选的灵感服务只使用 Cursor Cloud Agent，线上仍运行旧镜像。
 - 画布与视频生成不是同一个自动执行器。一张画布对应一个分集，视频节点表达镜头意图，用户逐节点启动；生成结果由用户加入整集时间线。
 - 可灵无声图生视频需要用户确认和服务端凭据。密钥鉴权及任务查询通过不等于完成真实视频生成；没有端到端证据时不得标记为已验收。
 - 网页和桌面是当前主要交互端；移动端有 Expo 代码，真机交互仍需验收。画布只接入网页和桌面，移动端复用领域规则与任务协议。
@@ -25,7 +25,7 @@
 | 应用入口 | `apps/web` | React 19、TypeScript、Vite；网页路由、会话、同源 `/api` 适配与页面组合。 |
 | 应用入口 | `apps/desktop` | React、Tauri/Rust；本地项目、媒体文件、桌面能力、云端适配和导出。 |
 | 应用入口 | `apps/mobile` | Expo/React Native；原生界面、移动会话和轻量任务操作。 |
-| 云端服务 | `apps/api` | Node.js HTTP API、账号与项目授权、对象存储、Agent/生成/渲染 worker；线上 `20261030-official-04` 使用 PostgreSQL schema 1，当前候选要求 schema 3。 |
+| 云端服务 | `apps/api` | Node.js HTTP API、账号与项目授权、对象存储、Agent/生成/渲染 worker；线上 `20261030-official-04` 使用 PostgreSQL schema 1，当前候选要求 schema 4。 |
 | HTTP 协议 | `packages/api-contracts` | 服务端与 Web、桌面、移动共用的请求、响应和错误码 Schema。 |
 | 领域契约 | `packages/project-schema` | Zod 三层项目 DSL、跨层校验、版本声明。 |
 | 领域规则 | `packages/project-core`、`packages/agent-core` | 本地/云端旧格式、迁移、同步命令、时间线规则、Agent 计划与状态类型。 |
@@ -67,15 +67,15 @@
 - 桌面离线项目原文件不因关联云端被替换。迁移与首次上云先备份，再保留素材映射、片段 ID、排序、裁剪、音量和未知扩展；失败时保留原项目并给出可修复的错误。
 - 一次视频生成的用户意图、外部付费操作和进度事件分别由 `agent_runs`、`operations`、`run_events` 持久化。客户端请求 ID、确认 ID、外部任务 ID 各有用途，不能互换。先落库并原子预留额度，再由 worker 发起一次供应商提交；响应不明进入 `unknown` 并查询原任务，不能盲目再次 POST。
 - 运行进度用持久事件序号支持 SSE 重放；客户端刷新或重连时先取任务快照，再从已见序号继续。断线不能创建第二次视频任务。视频微调使用独立的编辑配方、命令和渲染操作账本，保留原片与历史版本。
-- 三条文字脚本由 `prompt_idea_sets` 管理，与付费视频操作分离。选择/编辑后的文本须保留来源；重新获取灵感是新请求，恢复旧请求应查询原记录。
+- 首批三条文字脚本和一次追加的三条由 `prompt_idea_sets` 管理，与付费视频操作分离。第二批关联原任务，同轮最多六条；选择/编辑后的文本须保留来源，恢复旧请求应查询原记录。
 
-线上 API 已使用 PostgreSQL schema 1，当前候选的配音、混音预览和 Agent 剪辑新增表要求 schema 3；生产升级见 `deploy/postgres/schema1-to3.md`。现网仍是单 API 实例，worker 与部分限流仍在进程内。多实例、复杂逐节点 Agent 或更高吞吐需要另行验证共享存储、跨实例限流和任务调度；不要把设计稿里的 `agent_steps` 或多操作运行当作已上线能力。
+线上 API 已使用 PostgreSQL schema 1，当前候选的配音、混音预览和 Agent 剪辑新增表及灵感扩展字段要求 schema 4；生产升级见 `deploy/postgres/schema1-to4.md`。现网仍是单 API 实例，worker 与部分限流仍在进程内。多实例、复杂逐节点 Agent 或更高吞吐需要另行验证共享存储、跨实例限流和任务调度；不要把设计稿里的 `agent_steps` 或多操作运行当作已上线能力。
 
 ## 5. 模型、可灵与安全配置
 
-- 文字灵感的服务端适配器由 `IDEA_PROVIDER=chat|agents|cursor` 选择；线上当前选择 Cursor。选择不同提供方须验证接口协议、模型 ID、返回结构、超时恢复和账号配额，不能仅替换 model 名与 API Key。
+- 文字灵感的服务端适配器只使用 Cursor Cloud Agents，配置 `CURSOR_API_KEY` 和可选的 `IDEA_CURSOR_MODEL`。Agent 剪辑是独立功能，使用专用的 `AGENT_EDIT_MODEL_*` 配置。
 - 可灵图生视频通过 `GenerationWorker` 和 `KlingGateway` 调用；只有 API 进程配置 `KLING_API_KEY` 时才创建视频 worker。任何供应商提交都必须经过项目授权、输入校验、用户确认和持久操作账本。
-- `CURSOR_API_KEY`、`OPENAI_API_KEY`、`KLING_API_KEY`、`API_SESSION_SECRET` 等只进入 API 进程秘密配置。不得写入项目 DSL、客户端构建、日志、错误响应、测试快照或 Git；`.env.example` 只放占位值。
+- `CURSOR_API_KEY`、`KLING_API_KEY`、`API_SESSION_SECRET` 等只进入 API 进程秘密配置。不得写入项目 DSL、客户端构建、日志、错误响应、测试快照或 Git；`.env.example` 只放占位值。
 - Cookie、CORS、请求体和上传限额以 `apps/api/src/config.ts` 和 `server.ts` 为准。新增接口必须定义输入校验、错误码、所有权检查、幂等语义及恢复路径。
 - 模型结果只作为待校验数据；不能让模型直接写数据库、执行任意文件操作、自动批准付费请求或绕过项目命令。
 

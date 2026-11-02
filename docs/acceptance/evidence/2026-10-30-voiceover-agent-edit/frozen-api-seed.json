@@ -1,0 +1,24 @@
+{
+  "environment": "fresh project on isolated PostgreSQL API after candidate restart",
+  "archiveSha256": "648bff4b2475260b0a10b1d81198a542aac2dacdb97d5bba3902e8206d711b2d",
+  "projectTitle": "QA Frozen Audio c113f748",
+  "projectId": "3f38ed4c-0feb-4e82-9767-482bbae652cd",
+  "episodeId": "34a164e2-f12f-4c6b-90a5-fcd156103fe7",
+  "videoObjectId": "122b94ac-5e06-4093-bfc6-adf86771a866",
+  "voiceObjectId": "5639a14a-0f13-4e03-8720-dab4e77d23bc",
+  "edit": {
+    "editId": "1a3e0769-0074-4a8d-a063-791492af517f",
+    "status": 201
+  },
+  "statuses": {
+    "project": 201,
+    "photo": 200,
+    "video": 200,
+    "voice": 200,
+    "episode": 200,
+    "invalidNewTen": 400,
+    "runsBefore": 0,
+    "runsAfter": 0
+  },
+  "paidProviderCall": false
+}

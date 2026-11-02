@@ -8,7 +8,7 @@ AI Video Studio 是一个正在开发的跨端视频创作项目。网页端用�
 
 ## 核心流程
 
-1. **提出想法**：输入一句话或关键词，获取三条不同的 5–10 秒单镜头脚本，选中后仍可编辑。此步骤不会消耗视频生成额度。
+1. **提出想法**：输入一句话或关键词，先获取三条不同的 5–10 秒单镜头脚本；候选版本支持再生成三条，同轮最多六条，选中后仍可编辑。此步骤不会消耗视频生成额度。
 2. **准备镜头**：选择或创建项目与分集，上传参考照片，确认提示词和生成计划。
 3. **生成与编排**：确认后提交视频生成任务，查看进度和结果；在分集画布中按节点组织镜头，并将生成结果加入时间线。
 4. **微调与输出**：裁剪视频首尾、添加手工字幕、选择封面；桌面端可在本地开发环境中导出 MP4 和 PNG 封面。
@@ -20,7 +20,7 @@ AI Video Studio 是一个正在开发的跨端视频创作项目。网页端用�
 | 能力 | 状态 |
 | --- | --- |
 | 网页端与 macOS 桌面端 | 网页端已有 HTTPS 体验地址；桌面端可从源码启动，官网提供未公证的 Apple Silicon 测试版 DMG |
-| 三条镜头脚本 | 已接入 Cursor Cloud Agent；模型与密钥由服务端配置，不向客户端下发 |
+| 镜头脚本 | 线上已接入 Cursor Cloud Agent 生成首批三条；候选代码支持再生成三条，尚未发布。模型与密钥仅在服务端配置 |
 | 云端视频生成 | 已接入可灵任务流程，生成前由用户确认；可灵密钥和任务查询接口已验证，完整视频生成仍待实测 |
 | 分集画布、时间线与视频微调 | 已有实现，仍在持续验收和完善 |
 | 移动端 | 有 Expo 客户端代码，真机交互尚待验收 |
@@ -46,7 +46,7 @@ AI Video Studio 是一个正在开发的跨端视频创作项目。网页端用�
 pnpm install
 ```
 
-先启动本地 PostgreSQL 并创建空数据库 `ai_video_studio`。用迁移账号创建 schema 3，再启动 API；运行账号只需业务表读写权限。旧 SQLite 数据的导入方式见下文。
+先启动本地 PostgreSQL 并创建空数据库 `ai_video_studio`。用迁移账号创建 schema 4，再启动 API；运行账号只需业务表读写权限。旧 SQLite 数据的导入方式见下文。
 
 先运行一次数据库结构迁移：
 
@@ -74,11 +74,11 @@ pnpm --filter @ai-video/web dev
 pnpm tauri dev
 ```
 
-默认配置只用于本地功能体验。线上三条脚本由 Cursor Cloud Agent 生成；本地可在 **API 进程**设置 `IDEA_PROVIDER=cursor`、`CURSOR_API_KEY`，并可选填 `IDEA_CURSOR_MODEL`。代码也支持 OpenAI 兼容文字接口和 Codex Agents API 适配器。真实视频生成需要 `KLING_API_KEY`；文字配音另外需要 `KLING_TTS_API_KEY`，以免更换 TTS 凭据影响视频生成。配置项见 [`.env.example`](.env.example)。API 不会自动读取 `.env.local`；模型和视频服务密钥只能配置在服务端。
+默认配置只用于本地功能体验。灵感脚本由 Cursor Cloud Agent 生成；在 **API 进程**设置 `CURSOR_API_KEY`，可选填 `IDEA_CURSOR_MODEL`。Agent 剪辑另用 `AGENT_EDIT_MODEL_*` 配置。真实视频生成需要 `KLING_API_KEY`；文字配音另外需要 `KLING_TTS_API_KEY`，以免更换 TTS 凭据影响视频生成。配置项见 [`.env.example`](.env.example)。API 不会自动读取 `.env.local`；模型和视频服务密钥只能配置在服务端。
 
 ## 部署状态
 
-网页端构建命令是 `pnpm --filter @ai-video/web build`，产物位于 `apps/web/dist`。`20261030-official-04` 已将线上 API 切换到 PostgreSQL；截至本次只读核对，线上数据库为 schema 1，仓库候选代码要求 schema 3。媒体文件仍在 `API_DATA_DIR`。发布新 API 前须按 [schema 1→3 升级手册](deploy/postgres/schema1-to3.md) 在 PostgreSQL 备份副本上演练。文字灵感、视频生成和文字配音分别需要服务端供应商凭据。
+网页端构建命令是 `pnpm --filter @ai-video/web build`，产物位于 `apps/web/dist`。`20261030-official-04` 已将线上 API 切换到 PostgreSQL；截至本次只读核对，线上数据库为 schema 1，仓库候选代码要求 schema 4。媒体文件仍在 `API_DATA_DIR`。发布新 API 前须按 [schema 1→4 升级手册](deploy/postgres/schema1-to4.md) 在 PostgreSQL 备份副本上重新演练。文字灵感、视频生成和文字配音分别需要服务端供应商凭据。
 
 ### 历史数据导入：SQLite → PostgreSQL
 

@@ -6,24 +6,29 @@ import type { ProjectManifestV2, StudioNode } from "@ai-video/project-core";
 
 afterEach(() => { cleanup(); Reflect.deleteProperty(document, "elementFromPoint"); });
 
-function setup() {
+function setup(completed = false) {
   const initial: ProjectManifestV2 = {
     version: 2, id: "project-1", title: "连线测试", assets: [{ id: "photo", kind: "image", relativePath: "photo.jpg",
-      durationMs: null, width: 100, height: 100, missing: false }], clips: [], captions: [],
-    publishingCopy: "", coverTimeMs: null, shots: [], jobs: [], budgetUsd: null,
+      durationMs: null, width: 100, height: 100, missing: false }, ...(completed ? [{ id: "output", kind: "video" as const,
+      relativePath: "output.mp4", durationMs: 5000, width: 100, height: 100, missing: false }] : [])], clips: [], captions: [],
+    publishingCopy: "", coverTimeMs: null, shots: completed ? [{ id: "shot", sourceAssetId: "photo", prompt: "做饭",
+      durationSec: 5, speaking: false, script: null, acceptedAudioAssetId: null, modelId: "test" }] : [],
+    jobs: completed ? [{ id: "job", shotId: "shot", provider: "kling", modelId: "test", state: "succeeded",
+      remoteId: null, estimatedUsd: 0, actualUsd: 0, outputAssetId: "output" }] : [], budgetUsd: null,
   };
   const manifest = ensureStudio(initial);
   const episode = manifest.studio!.episodes[0];
   const nodes: StudioNode[] = [
     { id: "image", type: "image", title: "参考照片", x: 20, y: 80, assetId: "photo" },
     { id: "text", type: "text", title: "镜头描述", x: 310, y: 60, prompt: "做饭" },
-    { id: "video", type: "video", title: "视频镜头", x: 650, y: 80, durationSec: 5 },
+    { id: "video", type: "video", title: "视频镜头", x: 650, y: 80, durationSec: 5,
+      ...(completed ? { shotId: "shot", resultAssetId: "output" } : {}) },
     { id: "timeline", type: "timeline", title: "整集时间线", x: 780, y: 500 },
   ];
   episode.nodes = nodes;
   const onConnect = vi.fn();
   const onRemoveNode = vi.fn();
-  render(<CanvasPage manifest={manifest} episode={episode} previewUrls={{}} busy={false} saveState="saved"
+  render(<CanvasPage manifest={manifest} episode={episode} previewUrls={completed ? { photo: "/api/objects/photo", output: "/api/objects/output" } : {}} busy={false} saveState="saved"
     onOpenGenerate={() => {}} onOpenEditor={() => {}} onOpenProjects={() => {}}
     onSelectEpisode={() => {}} onCreateEpisode={() => {}} onImportPhoto={async () => null}
     onCreateCharacter={() => {}} onAddCharacterNode={() => {}} onAddNode={() => {}}
@@ -35,6 +40,14 @@ function setup() {
 }
 
 describe("canvas connection and editing", () => {
+  it("does not download a completed video until the user opens its player", () => {
+    setup(true);
+    expect(document.querySelector("video")).toBeNull();
+    expect(document.querySelector('.film-node-video-preview img')?.getAttribute("src")).toBe("/api/objects/photo");
+    fireEvent.click(screen.getByRole("button", { name: "播放视频" }));
+    expect(document.querySelector('video[src="/api/objects/output"]')).not.toBeNull();
+  });
+
   it("connects image and text to video, then video to timeline by clicking ports", () => {
     const { onConnect } = setup();
     fireEvent.click(screen.getByRole("button", { name: "从参考照片开始连线" }));

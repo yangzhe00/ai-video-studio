@@ -1,0 +1,19 @@
+{
+  "result": "PASS",
+  "run": "426a86ea",
+  "modelCallsAdded": 1,
+  "ideaId": "5229c75d-c08e-4080-b45b-fdab4089df6a",
+  "variantCount": 3,
+  "selectionRestored": true,
+  "bAccessStatus": 404,
+  "counts": {
+    "projects": 0,
+    "agentRuns": 0,
+    "operations": 0,
+    "aQuota": {
+      "demo_used": 0,
+      "demo_reserved": 0
+    }
+  },
+  "mock": true
+}

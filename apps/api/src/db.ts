@@ -108,11 +108,12 @@ export async function migrateSchema(databaseUrl: string): Promise<void> {
       await db.lock("ai-video-schema-v1");
       await db.exec(await readFile(new URL("./schema.sql", import.meta.url), "utf8"));
       const row = await db.prepare("SELECT version FROM api_schema_version LIMIT 1").get() as { version: number } | undefined;
-      if (row && ![1, 2, 3].includes(row.version)) throw new Error(`Unsupported PostgreSQL schema version ${row.version}`);
+      if (row && ![1, 2, 3, 4].includes(row.version)) throw new Error(`Unsupported PostgreSQL schema version ${row.version}`);
       if (!row) await db.prepare("INSERT INTO api_schema_version (version) VALUES (1)").run();
       await db.exec(await readFile(new URL("./schema-v2.sql", import.meta.url), "utf8"));
       await db.exec(await readFile(new URL("./schema-v3.sql", import.meta.url), "utf8"));
-      await db.prepare("UPDATE api_schema_version SET version=3").run();
+      await db.exec(await readFile(new URL("./schema-v4.sql", import.meta.url), "utf8"));
+      await db.prepare("UPDATE api_schema_version SET version=4").run();
     });
   } finally { await db.close(); }
 }
@@ -121,7 +122,7 @@ export async function createDb(databaseUrl: string): Promise<PgDatabase> {
   const db = new PgDatabase(pool(databaseUrl));
   try {
     const row = await db.prepare("SELECT version FROM api_schema_version LIMIT 1").get() as { version: number } | undefined;
-    if (!row || row.version !== 3) throw new Error("Unsupported or missing PostgreSQL schema version");
+    if (!row || row.version !== 4) throw new Error("Unsupported or missing PostgreSQL schema version");
     return db;
   } catch (error) { await db.close(); throw error; }
 }

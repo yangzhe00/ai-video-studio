@@ -1,0 +1,36 @@
+{
+  "environment": "isolated local PostgreSQL API",
+  "apiBase": "http://127.0.0.1:8787",
+  "paidProviderCall": false,
+  "loginStatus": 200,
+  "projectListStatus": 200,
+  "projectDetailStatus": 200,
+  "projectId": "92702996-4eca-4516-9290-c7a904c4493d",
+  "episodeId": "46eba0ac-4b86-4969-a209-c255d709b229",
+  "photoUploadStatus": 201,
+  "invalidNewTenSeconds": {
+    "status": 400,
+    "code": "invalid_request",
+    "error": "请求内容不符合接口协议",
+    "runsBefore": 0,
+    "runsAfter": 0
+  },
+  "videoUploadStatus": 201,
+  "videoObjectId": "122b94ac-5e06-4093-bfc6-adf86771a866",
+  "assetCommand": {
+    "status": 200,
+    "code": null,
+    "error": null
+  },
+  "episodeCommand": {
+    "status": 200,
+    "code": null,
+    "error": null
+  },
+  "edit": {
+    "status": 201,
+    "code": null,
+    "error": null,
+    "editId": "ae6bc4ca-f573-4029-be21-ecd89f29f932"
+  }
+}

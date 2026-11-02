@@ -23,4 +23,14 @@ describe("real audio waveform", () => {
     expect(document.querySelectorAll(".episode-editor-waveform line")).toHaveLength(96);
     expect(decodeAudioData).toHaveBeenCalledOnce();
   });
+
+  it("reads a local Blob URL without sending account credentials", async () => {
+    const fetchAudio = vi.fn(async () => new Response(new Uint8Array([1, 2, 3])));
+    vi.stubGlobal("fetch", fetchAudio);
+    vi.stubGlobal("AudioContext", class { decodeAudioData = async () => ({ numberOfChannels: 1, length: 1,
+      getChannelData: () => Float32Array.from([0.5]) } as unknown as AudioBuffer); close = async () => {}; });
+    render(<AudioWaveform url="blob:tauri://localhost/unique-audio" inMs={0} outMs={1000} durationMs={1000} />);
+    expect(await screen.findByRole("img", { name: "真实音频波形" })).toBeTruthy();
+    expect(fetchAudio).toHaveBeenCalledWith("blob:tauri://localhost/unique-audio", undefined);
+  });
 });

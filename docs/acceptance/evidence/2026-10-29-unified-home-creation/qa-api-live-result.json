@@ -1,0 +1,19 @@
+{
+  "result": "PASS",
+  "createReplay": "d3f539c8-6780-47c5-b96d-8cb33ef89af7",
+  "oneBriefAfterReplay": true,
+  "appendReplay": true,
+  "staleConflict": {
+    "resourceRevision": 2,
+    "resource": {
+      "id": "b9d272c6-1e36-42e3-8355-e96f9e17f37f",
+      "source": "manual",
+      "originalText": "新增补充镜头",
+      "finalText": "第二稿",
+      "createdAt": 100,
+      "updatedAt": 101
+    }
+  },
+  "accountIsolation": true,
+  "mockCallsAdded": 1
+}

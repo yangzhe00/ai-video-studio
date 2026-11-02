@@ -1,0 +1,29 @@
+{
+  "projectId": "ea597506-6db8-4a54-a098-b70de7f6cae8",
+  "episodeId": "303a910c-447c-4f32-9909-2cfd275347d2",
+  "assets": [
+    {
+      "id": "f755f7ff-b751-4292-83dd-2a01409bda81",
+      "filename": "shot-1-red-5s-660hz.mp4",
+      "clipId": "qa-clip-1-ec91c404-5211-4a89-846c-09085da9afc1"
+    },
+    {
+      "id": "85d08468-422d-4f6a-bdba-be066b403ff6",
+      "filename": "shot-2-green-5s-770hz.mp4",
+      "clipId": "qa-clip-2-bbf0fb6e-eec1-4678-96a2-c771f513e4ab"
+    },
+    {
+      "id": "3485c53e-b1c3-4789-b8ed-1857173db85d",
+      "filename": "shot-3-blue-5s-880hz.mp4",
+      "clipId": "qa-clip-3-d8819930-772d-4724-aeaf-1a62c0a06e94"
+    }
+  ],
+  "beforeRevision": 1,
+  "afterRevision": 2,
+  "timeline": [
+    "f755f7ff-b751-4292-83dd-2a01409bda81",
+    "85d08468-422d-4f6a-bdba-be066b403ff6",
+    "3485c53e-b1c3-4789-b8ed-1857173db85d"
+  ],
+  "paidProviderCall": false
+}

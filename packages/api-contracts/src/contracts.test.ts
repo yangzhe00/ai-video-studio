@@ -17,6 +17,19 @@ describe("shared API contracts", () => {
     expect(requestSchema("GET", "/runs/run-0001/events")).toBeUndefined();
   });
 
+  it("validates the second inspiration batch and its persistent state", () => {
+    const route = "/prompt-ideas/idea-001/more";
+    expect(parseApiRequest("POST", route, { clientRequestId: "more-request-001" }))
+      .toMatchObject({ clientRequestId: "more-request-001" });
+    expect(() => parseApiRequest("POST", route, { clientRequestId: "short" })).toThrow();
+    const ideaSet = { id: "idea-001", clientRequestId: "idea-request-001", input: "小狗做饭",
+      state: "ready", variants: [], selectedVariantId: null, editedPrompt: null,
+      createdAt: 1, updatedAt: 2, error: null, errorCode: null,
+      expansionState: "pending", expansionError: null, expansionClientRequestId: "more-request-001" };
+    expect(parseApiResponse<{ ideaSet: typeof ideaSet }>({ ideaSet }).ideaSet.expansionState).toBe("pending");
+    expect(() => parseApiResponse({ ideaSet: { ...ideaSet, expansionState: "invalid" } })).toThrow();
+  });
+
   it("parses project and run envelopes without losing stable IDs", () => {
     const project = { id: "project-001", title: "项目", revision: 1, document: {
       version: 1, assets: [], characters: [], episodes: [{ id: "episode-001", title: "第一集", shots: [], timeline: [] }],

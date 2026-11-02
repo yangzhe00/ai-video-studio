@@ -37,6 +37,17 @@ describe("backend Kling gateway", () => {
   it("rejects unsafe download URLs", async () => {
     const gateway = new KlingGateway("server-secret", "https://api-beijing.klingai.com", async () => { throw new Error("unexpected request"); });
     await expect(gateway.download("http://127.0.0.1/private")).rejects.toThrow(/不可信/);
+    await expect(gateway.download("https://another.kechuangai.com/private")).rejects.toThrow(/不可信/);
+  });
+
+  it("accepts the exact CDN hostname returned by a completed Kling task", async () => {
+    const requests: string[] = [];
+    const gateway = new KlingGateway("server-secret", "https://api-beijing.klingai.com", async url => {
+      requests.push(String(url));
+      return new Response(Buffer.from("video-data"), { headers: { "content-type": "video/mp4" } });
+    });
+    expect(await gateway.download("https://v2-fdl.kechuangai.com/result.mp4")).toEqual(Buffer.from("video-data"));
+    expect(requests).toEqual(["https://v2-fdl.kechuangai.com/result.mp4"]);
   });
 
   it("streams a bounded result to disk and removes an oversized partial file", async () => {

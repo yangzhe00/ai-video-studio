@@ -17,7 +17,7 @@ import { RenderWorker } from "./render-worker.ts";
 import { inspectMediaFile, MediaInspectError } from "./media-inspect.ts";
 import { storeObject, ObjectCapacityError } from "./object-capacity.ts";
 import { readProjectDsl } from "./project-dsl.ts";
-import { createPromptIdea, getPromptIdea, listPromptIdeas, PromptIdeasError, selectPromptIdea } from "./prompt-ideas.ts";
+import { createMorePromptIdeas, createPromptIdea, getPromptIdea, listPromptIdeas, PromptIdeasError, selectPromptIdea } from "./prompt-ideas.ts";
 import { assertInitialAgentBrief, BriefError, parseCreationBrief } from "./briefs.ts";
 import { IdeaAgentWorker } from "./idea-agent-worker.ts";
 import { checkRequestSecurity, RequestSecurityError, validateSecurityConfig } from "./request-security.ts";
@@ -29,6 +29,7 @@ import { ttsVoices } from "./tts-voices.ts";
 import { createEpisodeRender, EpisodeRenderError, EpisodeRenderWorker, getEpisodeRender } from "./episode-renders.ts";
 import { AgentEditError, AgentEditWorker, confirmAgentEdit, createAgentEdit, getAgentEdit, getAgentEditByRequest } from "./agent-edit.ts";
 import { createEpisodePreview, createShotPreview, getPreview, PreviewError, PreviewWorker } from "./previews.ts";
+import { MediaRangeError, parseMediaRange } from "./media-range.ts";
 
 class ApiError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const allowedMime = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4"]);
@@ -100,7 +101,7 @@ export async function createApi(config: ApiConfig): Promise<Server> {
   }); };
   const workerTimer = worker && config.workerEnabled !== false ? setInterval(() => { tick("generation", worker.tick()); }, 5_000) : null;
   const renderTimer = config.workerEnabled !== false ? setInterval(() => { tick("render", renderWorker.tick()); }, 5_000) : null;
-  const ideaTimer = config.workerEnabled !== false && (config.ideaAgentApiKey && config.ideaAgentModel || config.ideaCursorApiKey)
+  const ideaTimer = config.workerEnabled !== false && config.ideaCursorApiKey
     ? setInterval(() => { tick("ideas", ideaWorker.tick()); }, 3_000) : null;
   const ttsTimer = ttsWorker && config.workerEnabled !== false ? setInterval(() => { tick("tts", ttsWorker!.tick()); }, 5_000) : null;
   const episodeTimer = config.workerEnabled !== false ? setInterval(() => { tick("episode-render", episodeWorker.tick()); }, 5_000) : null;
@@ -242,6 +243,12 @@ export async function createApi(config: ApiConfig): Promise<Server> {
       if (pathname === "/prompt-ideas" && method === "POST") {
         checkCostRate(req, accountId, "idea");
         const result = await createPromptIdea(db, accountId, config, await readJson(req));
+        reply(res, result.replayed ? 200 : 201, { ideaSet: result.ideaSet }); return;
+      }
+      const moreIdeas = /^\/prompt-ideas\/([a-zA-Z0-9-]+)\/more$/.exec(pathname);
+      if (moreIdeas && method === "POST") {
+        checkCostRate(req, accountId, "idea");
+        const result = await createMorePromptIdeas(db, accountId, config, moreIdeas[1], await readJson(req));
         reply(res, result.replayed ? 200 : 201, { ideaSet: result.ideaSet }); return;
       }
       const ideaSelection = /^\/prompt-ideas\/([a-zA-Z0-9-]+)\/selection$/.exec(pathname);
@@ -432,11 +439,21 @@ export async function createApi(config: ApiConfig): Promise<Server> {
       if (objectMatch && method === "GET") {
         const row = (await db.prepare("SELECT mime,size,path FROM objects WHERE id=? AND owner_id=?").get(objectMatch[1], accountId)) as { mime: string; size: number; path: string } | undefined;
         if (!row) throw new ApiError(404, "素材不存在");
+        let range: ReturnType<typeof parseMediaRange>;
+        try { range = parseMediaRange(req.headers.range, row.size); }
+        catch (error) {
+          if (!(error instanceof MediaRangeError)) throw error;
+          res.setHeader("content-range", `bytes */${row.size}`);
+          throw new ApiError(416, error.message);
+        }
         const suffix = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "video/mp4": "mp4",
           "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a" }[row.mime] ?? "bin";
-        res.writeHead(200, { "content-type": row.mime, "content-length": row.size, "cache-control": "private, max-age=60",
+        res.writeHead(range ? 206 : 200, { "content-type": row.mime,
+          "content-length": range ? range.end - range.start + 1 : row.size,
+          "accept-ranges": "bytes", ...(range ? { "content-range": `bytes ${range.start}-${range.end}/${row.size}` } : {}),
+          "cache-control": "private, max-age=60",
           "content-disposition": `inline; filename="asset-${objectMatch[1]}.${suffix}"`, "x-content-type-options": "nosniff" });
-        createReadStream(row.path).pipe(res); return;
+        createReadStream(row.path, range ?? undefined).pipe(res); return;
       }
       throw new ApiError(404, "接口不存在");
     })().catch(error => {

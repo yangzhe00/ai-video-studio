@@ -1,0 +1,164 @@
+{
+  "file": "/private/tmp/avs-timeline-qa-20261102/old-mixed-rerender-15s.mp4",
+  "sizeBytes": 269140,
+  "sha256": "7b237e4c451de87d6aaba0730f82fcb20cff48420ece9c67eeb5d439ca8f8fe3",
+  "probe": {
+    "format": {
+      "filename": "/private/tmp/avs-timeline-qa-20261102/old-mixed-rerender-15s.mp4",
+      "nb_streams": 2,
+      "nb_programs": 0,
+      "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+      "format_long_name": "QuickTime / MOV",
+      "start_time": "0.000000",
+      "duration": "15.022000",
+      "size": "269140",
+      "bit_rate": "143331",
+      "probe_score": 100,
+      "tags": {
+        "major_brand": "isom",
+        "minor_version": "512",
+        "compatible_brands": "isomiso2avc1mp41",
+        "encoder": "Lavf58.76.100"
+      }
+    },
+    "streams": [
+      {
+        "index": 0,
+        "codec_type": "video",
+        "codec_name": "h264",
+        "duration": "15.000000",
+        "width": 720,
+        "height": 1280
+      },
+      {
+        "index": 1,
+        "codec_type": "audio",
+        "codec_name": "aac",
+        "duration": "15.021333",
+        "sample_rate": "48000",
+        "channels": 2
+      }
+    ]
+  },
+  "analysis": {
+    "method": "mono 8 kHz PCM, 100 ms Goertzel windows; dBFS are measurement aids, not automatic acceptance",
+    "checkpoints": [
+      {
+        "second": 0.1,
+        "tonesDbfs": {
+          "220": -25,
+          "440": -102.9,
+          "550": -102.3,
+          "660": -15.9,
+          "770": -104.6,
+          "880": -110.8
+        }
+      },
+      {
+        "second": 4.5,
+        "tonesDbfs": {
+          "220": -25.4,
+          "440": -100.1,
+          "550": -95.6,
+          "660": -16.2,
+          "770": -98.7,
+          "880": -127.7
+        }
+      },
+      {
+        "second": 4.8,
+        "tonesDbfs": {
+          "220": -25.5,
+          "440": -16.4,
+          "550": -97.1,
+          "660": -16.4,
+          "770": -95.4,
+          "880": -103.8
+        }
+      },
+      {
+        "second": 5.1,
+        "tonesDbfs": {
+          "220": -25.7,
+          "440": -16.6,
+          "550": -96,
+          "660": -91,
+          "770": -16.6,
+          "880": -91.5
+        }
+      },
+      {
+        "second": 7.8,
+        "tonesDbfs": {
+          "220": -26.3,
+          "440": -17.1,
+          "550": -109,
+          "660": -110.5,
+          "770": -17.1,
+          "880": -104.3
+        }
+      },
+      {
+        "second": 9.8,
+        "tonesDbfs": {
+          "220": -26.1,
+          "440": -117.3,
+          "550": -118.5,
+          "660": -99.5,
+          "770": -17,
+          "880": -108.9
+        }
+      },
+      {
+        "second": 10.1,
+        "tonesDbfs": {
+          "220": -26.3,
+          "440": -64.5,
+          "550": -63.6,
+          "660": -61.8,
+          "770": -58.9,
+          "880": -19.9
+        }
+      },
+      {
+        "second": 10.4,
+        "tonesDbfs": {
+          "220": -26.3,
+          "440": -81.5,
+          "550": -17.1,
+          "660": -75.7,
+          "770": -88.3,
+          "880": -17.1
+        }
+      },
+      {
+        "second": 13.2,
+        "tonesDbfs": {
+          "220": -26.5,
+          "440": -86.7,
+          "550": -17.4,
+          "660": -90.5,
+          "770": -91.5,
+          "880": -17.4
+        }
+      },
+      {
+        "second": 14.5,
+        "tonesDbfs": {
+          "220": -26.5,
+          "440": -128.3,
+          "550": -131.9,
+          "660": -108.1,
+          "770": -102.7,
+          "880": -17.4
+        }
+      }
+    ],
+    "firstDetectedInWindow": {
+      "voiceA440": 4.64,
+      "voiceB550": 10.24,
+      "shot2_770": 5.02,
+      "shot3_880": 10.04
+    }
+  }
+}

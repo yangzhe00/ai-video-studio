@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Video Studio · 网页首页动效方案</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; margin: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button { font: inherit; cursor: pointer; }
+    .switcher { position: fixed; z-index: 100; left: 50%; bottom: 20px; display: flex; gap: 7px; padding: 6px; transform: translateX(-50%); border: 1px solid #ffffff80; border-radius: 999px; background: #25282cdb; box-shadow: 0 14px 42px #10141d44; backdrop-filter: blur(16px); }
+    .switcher button { min-width: 126px; padding: 10px 15px; border: 0; border-radius: 999px; background: transparent; color: #dce3e5; font-size: 12px; white-space: nowrap; }
+    .switcher button[aria-selected="true"] { background: #fff8ed; color: #41372e; font-weight: 700; }
+    .scene { position: relative; display: none; min-height: 100vh; overflow: hidden; isolation: isolate; }
+    .scene.active { display: block; }
+    .scene button { border: 0; }
+    .scene button:focus-visible, .switcher button:focus-visible { outline: 3px solid #47c8cd; outline-offset: 3px; }
+    .scene .content { position: relative; z-index: 3; }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 750; letter-spacing: .06em; }
+    .brand-mark { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; background: linear-gradient(130deg, #77d8d8, #dc9576); color: #172529; font-size: 18px; }
+    .site-nav { height: 76px; display: flex; align-items: center; gap: 45px; padding: 0 5%; }
+    .site-nav .brand { margin-right: auto; }
+    .site-nav a { color: inherit; font-size: 13px; text-decoration: none; opacity: .72; }
+    .site-nav a.current { opacity: 1; font-weight: 700; }
+    .account { padding: 10px 17px; border-radius: 999px; background: #ffffff20; color: inherit; font-size: 12px; }
+    .eyebrow { display: inline-block; padding: 9px 14px; border-radius: 999px; font-size: 11px; font-weight: 750; letter-spacing: .07em; }
+    h1, h2, p { margin-top: 0; }
+    h1 { font-size: clamp(39px, 4.2vw, 64px); line-height: 1.17; letter-spacing: -.055em; }
+    .lede { max-width: 540px; font-size: 17px; line-height: 1.85; }
+    .actions { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 32px; }
+    .actions button { padding: 16px 24px; border-radius: 12px; font-weight: 700; }
+    .recent { display: flex; align-items: center; gap: 18px; max-width: 540px; padding: 15px; border-radius: 18px; }
+    .recent .thumb { flex: none; width: 106px; height: 77px; display: grid; place-items: center; border-radius: 11px; font-weight: 750; }
+    .recent strong, .recent small { display: block; }
+    .recent small { margin-top: 7px; font-size: 12px; opacity: .67; }
+    .recent .arrow { margin-left: auto; font-size: 22px; }
+    .motion-tag { margin-top: 27px; font-size: 11px; letter-spacing: .08em; opacity: .65; }
+
+    /* A: 深色流光与漂浮星点 */
+    .a { color: #f7f5f1; background: linear-gradient(135deg, #0b1119, #171629 52%, #092329); }
+    .a::before, .a::after { position: absolute; z-index: 0; width: 56vw; aspect-ratio: 1; border-radius: 50%; filter: blur(92px); content: ""; opacity: .65; animation: aurora 17s ease-in-out infinite alternate; }
+    .a::before { top: 3%; left: 25%; background: radial-gradient(circle, #8966bd, #273f70 44%, transparent 70%); }
+    .a::after { right: -12%; top: 4%; background: radial-gradient(circle, #50d4ce, #125a64 44%, transparent 71%); animation-duration: 22s; animation-delay: -7s; }
+    .a .stars { position: absolute; inset: 0; z-index: 1; opacity: .65; background-image: radial-gradient(#d2f4f0 1px, transparent 1.6px), radial-gradient(#eac8b5 1px, transparent 1.5px); background-position: 0 0, 70px 90px; background-size: 153px 161px, 229px 211px; animation: star-drift 35s linear infinite; }
+    .a .site-nav { margin: 18px 20px 0; height: 66px; border: 1px solid #ffffff25; border-radius: 18px; background: #111b26bd; backdrop-filter: blur(18px); }
+    .a .home-grid { max-width: 1370px; min-height: 720px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 5%; margin: auto; padding: 38px 5% 85px; }
+    .a .eyebrow { color: #9ae7e3; background: #7bd4d122; border: 1px solid #7bd4d144; }
+    .a h1 { margin: 29px 0 24px; }
+    .a .lede { color: #c4cbd0; }
+    .a .primary { color: #1e2425; background: linear-gradient(100deg, #efb18a, #d48265); }
+    .a .secondary { color: #f4f7f7; background: #ffffff20; border: 1px solid #ffffff44 !important; }
+    .a .section-title { margin: 68px 0 17px; color: #e2e7e7; font-size: 15px; }
+    .a .recent { border: 1px solid #ffffff25; background: #ffffff13; backdrop-filter: blur(18px); }
+    .a .recent .thumb { color: #fff9f1; background: linear-gradient(135deg, #92816f, #c99373, #2b555b); }
+    .a .recent .arrow, .a .motion-tag { color: #9de2dd; }
+    .a .preview { position: relative; width: 100%; max-width: 566px; height: 532px; margin: auto; padding: 30px; border: 1px solid #ffffff35; border-radius: 28px; background: #ffffff0f; box-shadow: 0 28px 90px #0005; backdrop-filter: blur(10px); animation: float 7s ease-in-out infinite; }
+    .a .preview-screen { position: relative; height: 320px; overflow: hidden; border: 1px solid #bceae666; border-radius: 17px; background: linear-gradient(145deg, #0c2631, #427e82 52%, #d0aa84); }
+    .a .preview-screen::before { position: absolute; top: 52px; right: 80px; width: 90px; height: 90px; border-radius: 50%; background: #ffe6ad; box-shadow: 0 0 38px #ffdd9c; content: ""; animation: breathe 6s ease-in-out infinite; }
+    .a .preview-screen::after { position: absolute; right: 0; bottom: 0; left: 0; height: 100px; background: #1e2d33; content: ""; }
+    .a .preview-screen span { position: absolute; z-index: 2; left: 25px; bottom: 25px; font-size: 18px; font-weight: 700; }
+    .a .progress { height: 8px; margin-top: 22px; border-radius: 5px; background: #ffffff28; }
+    .a .progress::before { display: block; width: 49%; height: 100%; border-radius: inherit; background: #7edbd9; content: ""; animation: progress 8s ease-in-out infinite alternate; }
+    .a .preview-footer { display: flex; gap: 12px; margin-top: 23px; }
+    .a .preview-footer div { flex: 1; padding: 15px; border: 1px solid #7bd4d140; border-radius: 12px; background: #132936; font-size: 12px; }
+    .a .preview-footer div:last-child { background: #342a33; border-color: #d8a18a44; }
+    .a .preview-footer strong { display: block; margin-bottom: 8px; color: #9fe9e7; }
+    .a .preview-footer div:last-child strong { color: #e7b097; }
+
+    /* B: 薄荷云雾与轻柔日光 */
+    .b { color: #29483f; background: linear-gradient(135deg, #f8fbf5, #e9f7ef 52%, #fbf0e6); }
+    .b .cloud { position: absolute; z-index: 0; width: 56vw; aspect-ratio: 1.1; border-radius: 50%; filter: blur(90px); opacity: .75; animation: cloud 19s ease-in-out infinite alternate; }
+    .b .cloud.one { top: 2%; right: 4%; background: #a8dcc5; }
+    .b .cloud.two { right: -18%; bottom: -15%; background: #f6d1b5; animation-delay: -6s; }
+    .b .cloud.three { left: 34%; bottom: -28%; background: #b8d9e2; animation-delay: -11s; }
+    .b .site-nav { border-bottom: 1px solid #c9e1d7; background: #ffffffad; backdrop-filter: blur(14px); }
+    .b .home-grid { max-width: 1370px; min-height: 745px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 5%; margin: auto; padding: 55px 5% 98px; }
+    .b .eyebrow { color: #4a897a; background: #dcefe6; }
+    .b h1 { margin: 30px 0 25px; }
+    .b .lede { color: #607d73; }
+    .b .primary { color: #fff; background: #5b9d88; }
+    .b .secondary { color: #4d806e; background: #ffffffb8; border: 1px solid #c4dcd0 !important; }
+    .b .section-title { margin: 64px 0 17px; font-size: 15px; }
+    .b .recent { border: 1px solid #d3e6dc; background: #ffffffd2; box-shadow: 0 12px 40px #4b837b12; }
+    .b .recent .thumb { color: #fff; background: linear-gradient(130deg, #b8d2af, #c99172); }
+    .b .recent .arrow, .b .motion-tag { color: #4d947e; }
+    .b .cloud-window { position: relative; width: 100%; max-width: 570px; height: 523px; margin: auto; padding: 28px; border: 1px solid #ffffffdd; border-radius: 32px; background: #ffffff7d; box-shadow: 0 25px 80px #6b9b8525; backdrop-filter: blur(10px); animation: float 9s ease-in-out infinite; }
+    .b .cloud-art { position: relative; height: 365px; overflow: hidden; border-radius: 22px; background: linear-gradient(135deg, #d9ecdc, #a9d5d0 55%, #f3d4b6); }
+    .b .sun { position: absolute; top: 42px; right: 92px; width: 175px; height: 175px; border-radius: 50%; background: #fff9e4; box-shadow: 0 0 65px #fff8d0; animation: breathe 7s ease-in-out infinite; }
+    .b .hill { position: absolute; right: -5%; bottom: -50px; left: -5%; height: 180px; border-radius: 50% 50% 0 0; background: #79a597; }
+    .b .hill.foreground { bottom: -97px; height: 177px; background: #5e8a80; }
+    .b .photo-card { position: absolute; top: 100px; right: 64px; left: 64px; display: flex; gap: 17px; align-items: center; padding: 19px; border: 1px solid #fff; border-radius: 20px; background: #ffffffdc; box-shadow: 0 15px 32px #537a6722; }
+    .b .photo-card .photo { width: 112px; height: 107px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(140deg, #bb8c70, #ead3b7); color: #fff; font-size: 30px; }
+    .b .photo-card small { color: #5a9c88; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+    .b .photo-card strong { display: block; margin: 13px 0; font-size: 16px; }
+    .b .photo-card p { margin: 0; color: #759183; font-size: 12px; }
+    .b .status { display: flex; align-items: center; gap: 11px; margin-top: 20px; padding: 15px 17px; border-radius: 15px; background: #ffffffd5; color: #4c6c61; font-size: 13px; font-weight: 600; }
+    .b .status i { width: 10px; height: 10px; border-radius: 50%; background: #63b98c; box-shadow: 0 0 0 4px #63b98c24; animation: breathe 3s ease-in-out infinite; }
+
+    /* C: C4 奶油胶片与横向循环的画面 */
+    .c { color: #352f2b; background: linear-gradient(120deg, #f8f3ed, #f0e3d6 60%, #f9f4ec); }
+    .c::before, .c::after { position: absolute; z-index: 0; width: 48vw; aspect-ratio: 1; border-radius: 50%; filter: blur(90px); content: ""; animation: light-leak 13s ease-in-out infinite alternate; }
+    .c::before { top: 0; right: -9%; background: #e9af8a77; }
+    .c::after { bottom: -24%; left: 27%; background: #8fbfc266; animation-delay: -5s; }
+    .c .sidebar { position: absolute; z-index: 4; inset: 0 auto 0 0; width: 236px; padding: 28px 19px; background: #ebe3d9e8; border-right: 1px solid #dbcbbd; }
+    .c .sidebar .brand { gap: 10px; margin-bottom: 51px; font-size: 13px; }
+    .c .sidebar .brand-mark { background: linear-gradient(130deg, #b96c4a, #dfa182); color: white; }
+    .c .side-link { display: flex; align-items: center; gap: 15px; padding: 15px 18px; border-radius: 10px; color: #70675e; font-size: 14px; }
+    .c .side-link.current { background: #faf3ea; color: #9e5b3e; font-weight: 700; }
+    .c .side-project { margin: 46px 9px 0; padding-top: 20px; border-top: 1px solid #d6c6b5; color: #8d7a6b; font-size: 12px; }
+    .c .side-project span { display: block; margin-top: 17px; padding: 10px; border-radius: 9px; background: #f6ede2; color: #625246; }
+    .c .workspace { margin-left: 236px; }
+    .c .site-nav { height: 72px; justify-content: flex-end; gap: 28px; border-bottom: 1px solid #e4d6c9; background: #fffcf8b5; }
+    .c .site-nav .breadcrumb { margin-right: auto; color: #8e7f72; font-size: 13px; }
+    .c .site-nav .online { color: #a76546; font-size: 12px; }
+    .c .c-content { position: relative; z-index: 2; min-height: 730px; padding: 80px 5% 108px; }
+    .c .eyebrow { color: #b36b4b; background: #f0ddce; }
+    .c h1 { max-width: 770px; margin: 28px 0; font-size: clamp(43px, 4vw, 62px); }
+    .c .lede { color: #7d746b; }
+    .c .primary { color: #fff; background: #b96c4a; }
+    .c .secondary { color: #a36143; background: #fff9f1; border: 1px solid #d6c2b0 !important; }
+    .c .continue-card { position: absolute; top: 92px; right: 5%; width: 32%; max-width: 430px; padding: 23px; border: 1px solid #dfcbb9; border-radius: 20px; background: #fffcf8e8; box-shadow: 0 16px 55px #79583a16; }
+    .c .continue-card small { color: #b87957; font-size: 11px; font-weight: 750; letter-spacing: .06em; }
+    .c .continue-card h2 { margin: 14px 0; font-size: 23px; }
+    .c .continue-art { position: relative; height: 148px; overflow: hidden; border-radius: 12px; background: linear-gradient(125deg, #8c6c57, #d1a780 55%, #557a7a); }
+    .c .continue-art::after { position: absolute; top: 20px; right: 35px; width: 71px; height: 71px; border-radius: 50%; background: #ffe8b8c4; box-shadow: 0 0 35px #ffe8b8; content: ""; }
+    .c .continue-card p { margin: 16px 0 0; color: #796d62; font-size: 12px; }
+    .c .filmstrip { position: relative; width: 100%; height: 230px; overflow: hidden; margin-top: 67px; border-radius: 19px; background: #292725; box-shadow: 0 22px 50px #5b49372b; }
+    .c .filmstrip::before, .c .filmstrip::after { position: absolute; z-index: 2; left: 0; right: 0; height: 11px; background: repeating-linear-gradient(90deg, #d8c9b5 0 34px, transparent 34px 59px); content: ""; }
+    .c .filmstrip::before { top: 14px; }
+    .c .filmstrip::after { bottom: 14px; }
+    .c .frames { display: flex; gap: 12px; width: max-content; padding: 39px 14px; animation: reel 28s linear infinite; }
+    .c .frame { width: 250px; height: 151px; flex: none; border-radius: 8px; background: linear-gradient(130deg, #91b9b7, #537773, #c49c7b); }
+    .c .frame:nth-child(2n) { background: linear-gradient(130deg, #6d7b7e, #d3a580, #f0d0a7); }
+    .c .frame:nth-child(3n) { background: linear-gradient(130deg, #ba9276, #826653, #3d5659); }
+    .c .motion-tag { color: #a47e69; }
+    @keyframes aurora { from { transform: translate(-10%, -5%) scale(.92); } to { transform: translate(11%, 8%) scale(1.12); } }
+    @keyframes star-drift { to { background-position: 250px -130px, -210px 170px; } }
+    @keyframes cloud { from { transform: translate(-8%, 5%) scale(.95); } to { transform: translate(12%, -8%) scale(1.12); } }
+    @keyframes float { 50% { transform: translateY(-12px); } }
+    @keyframes breathe { 50% { transform: scale(1.09); opacity: .83; } }
+    @keyframes progress { to { width: 69%; } }
+    @keyframes light-leak { to { transform: translate(-18%, 13%) scale(1.18); opacity: .55; } }
+    @keyframes reel { to { transform: translateX(-1048px); } }
+    @media (max-width: 1050px) {
+      .a .home-grid, .b .home-grid { grid-template-columns: 1fr; padding-top: 70px; }
+      .a .preview, .b .cloud-window { max-width: 600px; margin: 40px 0; }
+      .c .continue-card { position: static; width: min(100%, 430px); margin-top: 35px; }
+      .c .filmstrip { margin-top: 40px; }
+    }
+    @media (max-width: 650px) {
+      .switcher { bottom: 8px; width: calc(100% - 18px); }
+      .switcher button { min-width: 0; flex: 1; padding: 9px 4px; font-size: 10px; }
+      .site-nav { gap: 13px; padding: 0 20px; }
+      .site-nav a { display: none; }
+      .site-nav .brand { font-size: 11px; }
+      .a .site-nav { margin: 9px; }
+      .a .home-grid, .b .home-grid { padding: 68px 24px 80px; }
+      .a .preview, .b .cloud-window { height: 425px; padding: 15px; }
+      .a .preview-screen { height: 255px; }
+      .a .preview-footer div { padding: 10px; font-size: 10px; }
+      .b .cloud-art { height: 280px; }
+      .b .photo-card { top: 70px; left: 22px; right: 22px; }
+      .b .status { font-size: 11px; }
+      .c .sidebar { display: none; }
+      .c .workspace { margin-left: 0; }
+      .c .c-content { padding: 65px 24px 95px; }
+      .c .continue-card { max-width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <section class="scene a active" data-variant="a" aria-label="A 星云片场">
+    <div class="stars"></div><div class="content">
+      <nav class="site-nav"><div class="brand"><span class="brand-mark">✦</span>AI VIDEO STUDIO</div><a class="current" href="#">创作</a><a href="#">探索</a><a href="#">资产</a><a href="#">帮助</a><button class="account">我的空间 ↗</button></nav>
+      <main class="home-grid"><div><span class="eyebrow">✦ 云端 AI 视频工作室</span><h1>把灵感，<br>拍成下一幕。</h1><p class="lede">从一张照片开始。Agent 帮你生成镜头、追踪任务，再把结果放进一集。创作过程清晰可见。</p><div class="actions"><button class="primary">＋ 新建项目</button><button class="secondary">▷ 继续创作</button></div><h2 class="section-title">最近项目</h2><div class="recent"><div class="thumb">EP 01</div><div><strong>第 1 集 · 小狗做饭</strong><small>5 个节点 · 最近编辑</small></div><span class="arrow">→</span></div><p class="motion-tag">MOTION / 光晕缓慢呼吸 · 星点漂移 · 预览卡片悬浮</p></div><div class="preview"><div class="preview-screen"><span>每个想法，都能成为画面。</span></div><div class="progress"></div><div class="preview-footer"><div><strong>AGENT 正在创作</strong>镜头 02 · 视频生成中</div><div><strong>整集时间线</strong>镜头 01 已加入分集</div></div></div></main>
+    </div>
+  </section>
+  <section class="scene b" data-variant="b" aria-label="B 薄荷晨雾">
+    <div class="cloud one"></div><div class="cloud two"></div><div class="cloud three"></div><div class="content">
+      <nav class="site-nav"><div class="brand"><span class="brand-mark">✦</span>AI VIDEO STUDIO</div><a class="current" href="#">首页</a><a href="#">创作</a><a href="#">探索</a><a href="#">资产</a><button class="account">我的空间</button></nav>
+      <main class="home-grid"><div><span class="eyebrow">✦ 让灵感轻轻发生</span><h1>今天，想创作<br>什么故事？</h1><p class="lede">上传一张照片，写下你的想法。AI Agent 会陪你把它变成完整的视频分集。</p><div class="actions"><button class="primary">＋ 从新的灵感开始</button><button class="secondary">继续项目 →</button></div><h2 class="section-title">最近项目</h2><div class="recent"><div class="thumb">EP 01</div><div><strong>继续制作 · 小狗做饭</strong><small>5 个节点 · 1 个视频已生成</small></div><span class="arrow">→</span></div><p class="motion-tag">MOTION / 云雾缓慢漂移 · 日光呼吸 · 卡片微浮动</p></div><div class="cloud-window"><div class="cloud-art"><div class="sun"></div><div class="hill"></div><div class="hill foreground"></div><div class="photo-card"><div class="photo">▧</div><div><small>PHOTO → VIDEO</small><strong>每个画面都在生长</strong><p>小狗 · 厨房 · 5 秒镜头</p></div></div></div><div class="status"><i></i>Agent 已完成镜头 01，随时加入整集</div></div></main>
+    </div>
+  </section>
+  <section class="scene c" data-variant="c" aria-label="C 奶油胶片">
+    <aside class="sidebar"><div class="brand"><span class="brand-mark">✦</span>AI VIDEO STUDIO</div><div class="side-link current">⌂　首页</div><div class="side-link">✦　创作</div><div class="side-link">▣　资产</div><div class="side-link">♙　主体</div><div class="side-project">最近项目<span>第 1 集 · 小狗做饭</span></div></aside>
+    <div class="workspace content"><nav class="site-nav"><span class="breadcrumb">首页 / 工作台</span><span class="online">✦ Agent 在线</span><button class="account">我的空间</button></nav><main class="c-content"><span class="eyebrow">THE STORY STARTS HERE</span><h1>把今天的灵感，<br>剪成一部好故事。</h1><p class="lede">从一张照片和一句描述开始。Agent 负责生成镜头，你来决定每一集如何展开。</p><div class="actions"><button class="primary">＋ 开始新项目</button><button class="secondary">继续创作 →</button></div><div class="continue-card"><small>CONTINUE CREATING</small><h2>最近的一集</h2><div class="continue-art"></div><p>小狗做饭 · 1 个片段已加入时间线</p></div><div class="filmstrip"><div class="frames"><div class="frame"></div><div class="frame"></div><div class="frame"></div><div class="frame"></div><div class="frame"></div><div class="frame"></div><div class="frame"></div><div class="frame"></div></div></div><p class="motion-tag">MOTION / 胶片横向缓动 · 暖色漏光扫过 · 颗粒轻闪</p></main></div>
+  </section>
+  <div class="switcher" role="tablist" aria-label="切换首页设计方案"><button role="tab" data-target="a" aria-selected="true">A 星云片场</button><button role="tab" data-target="b" aria-selected="false">B 薄荷晨雾</button><button role="tab" data-target="c" aria-selected="false">C 奶油胶片</button></div>
+  <script>
+    const tabs = [...document.querySelectorAll('.switcher [role="tab"]')];
+    const scenes = [...document.querySelectorAll('.scene')];
+    for (const tab of tabs) tab.addEventListener('click', () => {
+      const target = tab.dataset.target;
+      for (const item of tabs) item.setAttribute('aria-selected', String(item === tab));
+      for (const scene of scenes) scene.classList.toggle('active', scene.dataset.variant === target);
+    });
+    document.querySelectorAll('.scene a[href="#"]').forEach(link => link.addEventListener('click', event => event.preventDefault()));
+  </script>
+</body>
+</html>

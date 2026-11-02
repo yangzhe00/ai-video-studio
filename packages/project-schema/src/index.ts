@@ -9,6 +9,11 @@ export {
   UnclassifiedAudioClipSchema, SubtitleClipSchema, TimelineClipSchema, TimelineTrackSchema,
 } from "./clips.ts";
 export type { TimelineClipV1, TimelineTrackV1 } from "./clips.ts";
+export { AudioAnchorSchema, LegacyEpisodeAudioClipSchema, EpisodeAudioClipV2Schema,
+  LegacyEpisodeAudioSchema, EpisodeAudioV2Schema, EpisodeAudioSchema } from "./episode-audio.ts";
+export type { AudioAnchor, LegacyEpisodeAudio, EpisodeAudioV2 } from "./episode-audio.ts";
+export { projectEpisodeAudio } from "./episode-audio.ts";
+export type { CloudAudioEpisode } from "./episode-audio.ts";
 export {
   ProjectMetadataSchema, CanvasConfigSchema, RenderConfigSchema, CharacterSchema,
   SceneSchema, EpisodeSchema, VideoProjectShapeSchema,

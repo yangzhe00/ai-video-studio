@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-10-30",
+  "base": "https://39.108.55.176/",
+  "verificationCommand": "node deploy/site/verify-routes.mjs https://39.108.55.176/",
+  "home": 200,
+  "studio": 200,
+  "api": 200,
+  "missingDownload": 404,
+  "range": 206,
+  "filename": "AI-Video-Studio-0.1.0-macos-arm64.dmg",
+  "bytes": 2992581,
+  "sha256": "db2dbf78c874ac4f7dad6a8ddd06c0d374f52f7fbb17256f6e007e160ede8506"
+}

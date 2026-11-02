@@ -24,6 +24,17 @@ describe("shared C4 components", () => {
     expect(refresh).toHaveBeenCalledWith(result);
   });
 
+  it("uses one result action to enter episode editing with the selected clip", () => {
+    const addToTimeline = vi.fn();
+    const first = { id: "run-1", title: "镜头 1", durationSec: 5, status: "succeeded" as const, videoUrl: "/first.mp4" };
+    const second = { id: "run-2", title: "镜头 2", durationSec: 5, status: "succeeded" as const, videoUrl: "/second.mp4" };
+    render(<ResultsPage results={[first, second]} onGenerate={() => {}} onAddToTimeline={addToTimeline} />);
+    expect(screen.queryByRole("button", { name: "打开视频编辑" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /镜头 2/ }));
+    fireEvent.click(screen.getByRole("button", { name: /加入本集并打开整集剪辑/ }));
+    expect(addToTimeline).toHaveBeenCalledWith(second);
+  });
+
   it("uses the same sidebar navigation contract on web and desktop", () => {
     const navigate = vi.fn();
     render(<StudioShell active="generate" onNavigate={navigate}><div>页面</div></StudioShell>);

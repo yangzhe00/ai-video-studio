@@ -31,7 +31,7 @@ async function loadPeaks(url: string): Promise<number[]> {
   const existing = peakCache.get(url);
   if (existing) return existing;
   const task = (async () => {
-    const response = await fetch(url, { credentials: "include" });
+    const response = await fetch(url, url.startsWith("blob:") ? undefined : { credentials: "include" });
     if (!response.ok) throw new Error(`音频读取失败：${response.status}`);
     const bytes = await response.arrayBuffer();
     const Context = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -48,15 +48,17 @@ async function loadPeaks(url: string): Promise<number[]> {
 /** Decode the real audio asset once; never draw decorative peaks for an undecodable file. */
 export function AudioWaveform({ url, inMs, outMs, durationMs }: { url?: string; inMs: number; outMs: number; durationMs: number }) {
   const [peaks, setPeaks] = useState<number[] | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    setPeaks(null); setError(false);
-    if (!url) { setError(true); return; }
-    void loadPeaks(url).then(value => { if (live) setPeaks(value); }).catch(() => { if (live) setError(true); });
+    setPeaks(null); setError("");
+    if (!url) { setError("音频预览地址尚未就绪"); return; }
+    void loadPeaks(url).then(value => { if (live) setPeaks(value); }).catch(cause => {
+      if (live) setError(cause instanceof Error ? cause.message : String(cause));
+    });
     return () => { live = false; };
   }, [url]);
-  if (error) return <span className="episode-editor-waveform-unavailable" title="波形不可用，请检查音频素材">波形不可用</span>;
+  if (error) return <span className="episode-editor-waveform-unavailable" title={`波形不可用：${error}`}>波形不可用</span>;
   if (!peaks) return <span className="episode-editor-waveform-loading" role="status">读取波形…</span>;
   const bars = sampleClipPeaks(peaks, inMs, outMs, durationMs);
   return <svg className="episode-editor-waveform" viewBox="0 0 96 28" preserveAspectRatio="none" role="img" aria-label="真实音频波形">

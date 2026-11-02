@@ -1,0 +1,14 @@
+{
+  "loginStatus": 200,
+  "listStatus": 200,
+  "ideas": [
+    {
+      "state": "failed",
+      "errorCode": "provider_error",
+      "error": "灵感服务暂时不可用，请稍后再试或手写提示词",
+      "variantCount": 0
+    }
+  ],
+  "responseCode": null,
+  "responseError": null
+}

@@ -150,7 +150,7 @@ export function GeneratePage({
                 const sourcePreview = shot ? previewUrls[shot.sourceAssetId] : undefined;
                 const canRefresh = !["draft", "failed", "succeeded"].includes(job.state);
                 return <article className="film-recent-card" key={job.id}>
-                  <div className="film-recent-thumb">{preview && asset?.kind === "video" ? <video src={preview} muted preload="auto" /> : sourcePreview ? <img src={sourcePreview} alt="" /> : <StudioIcon name="play" size={22} />}</div>
+                  <div className="film-recent-thumb">{sourcePreview ? <img src={sourcePreview} alt="" /> : <StudioIcon name={preview && asset?.kind === "video" ? "play" : "image"} size={22} />}</div>
                   <div className="film-recent-copy"><strong title={shot?.prompt}>{shot?.prompt.slice(0, 20) || nameOf(asset)}</strong><small>{jobLabels[job.state]} · {shot?.durationSec ?? 5} 秒</small>
                     {job.state === "succeeded" && job.outputAssetId ? <><button type="button" onClick={() => onAddToCanvas(job)}>加入画布 →</button>{onEditVideo && <button type="button" onClick={() => onEditVideo(job)}>微调视频</button>}</>
                       : canRefresh ? <button type="button" onClick={() => void onRefresh(job.id)} disabled={busy}>查询原任务 →</button>

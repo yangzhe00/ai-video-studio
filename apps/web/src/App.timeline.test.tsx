@@ -7,6 +7,47 @@ import type { CloudProject } from "./api";
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); });
 
 describe("web episode timeline entry", () => {
+  it("adds the selected result once and enters the episode editor", async () => {
+    HTMLMediaElement.prototype.pause = vi.fn();
+    let project: CloudProject = { id: "project-result", title: "结果入口", revision: 1,
+      resourceRevisions: [{ resourceType: "episode", resourceId: "episode-one", revision: 1 }],
+      document: { version: 1, episodes: [{ id: "episode-one", title: "第 1 集", shots: [{ id: "shot-one",
+        runId: "run-one", resultAssetId: "video-one", sourceAssetId: "photo-one", prompt: "小狗做饭", durationSec: 5 }],
+        timeline: [] }], assets: [{ id: "video-one", kind: "video", name: "小狗做饭", durationMs: 5000 }], characters: [] } };
+    let episodeWrites = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/auth/me")) return Response.json({ account: { id: "account-one", email: "demo@example.com",
+        demo_quota: 3, demo_reserved: 0, demo_used: 0 } });
+      if (url.endsWith("/prompt-ideas")) return Response.json({ ideaSets: [] });
+      if (url.endsWith("/projects")) return Response.json({ projects: [{ id: project.id, title: project.title, revision: project.revision }] });
+      if (url.endsWith("/projects/project-result")) return Response.json({ project });
+      if (url.endsWith("/projects/project-result/commands") && init?.method === "POST") {
+        const command = JSON.parse(String(init.body)) as { resourceType: string; payload: CloudProject["document"]["episodes"][number] };
+        if (command.resourceType === "episode") {
+          episodeWrites += 1;
+          project = { ...project, revision: project.revision + 1,
+            resourceRevisions: [{ resourceType: "episode", resourceId: "episode-one", revision: episodeWrites + 1 }],
+            document: { ...project.document, episodes: [command.payload] } };
+        }
+        return Response.json({ project });
+      }
+      if (url.endsWith("/projects/project-result/runs")) return Response.json({ runs: [] });
+      if (url.endsWith("/tts/voices")) return Response.json({ voices: [] });
+      return Response.json({ error: "unexpected" }, { status: 404 });
+    }));
+    render(<ThemeProvider><App /></ThemeProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "全部项目" }));
+    fireEvent.click(await screen.findByRole("button", { name: /结果入口.*云端项目/ }));
+    await screen.findByRole("heading", { name: "今天想要创作什么？" });
+    const navigation = within(screen.getByRole("complementary", { name: "主导航" }));
+    fireEvent.click(navigation.getByRole("button", { name: "结果" }));
+    expect(screen.queryByRole("button", { name: "打开视频编辑" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: /加入本集并打开整集剪辑/ }));
+    expect(await screen.findByRole("region", { name: "整集剪辑" })).toBeTruthy();
+    expect(project.document.episodes[0].timeline).toEqual(["video-one"]);
+    expect(episodeWrites).toBe(1);
+  });
+
   it("opens the shared editor from canvas and returns to the same episode", async () => {
     HTMLMediaElement.prototype.pause = vi.fn();
     let project: CloudProject = { id: "project-timeline", title: "小狗做饭", revision: 3,

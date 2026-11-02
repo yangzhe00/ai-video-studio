@@ -1,163 +1,160 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { createServer } from "node:http";
-import type { Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { createServer } from "node:http";
+import type { Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { createApi } from "./server.ts";
-import { createTestDb as createDb, testDatabaseUrl, dropTestSchema } from "./test-db.ts";
+import { IdeaAgentWorker } from "./idea-agent-worker.ts";
+import { createTestDb, testDatabaseUrl } from "./test-db.ts";
 import type { ApiConfig } from "./config.ts";
 
-const running: { server: Server; dir?: string }[] = [];
+const initial = [
+  { title: "叙事", description: "完整动作", prompt: "小狗在厨房切菜，固定镜头。" },
+  { title: "温暖", description: "暖光氛围", prompt: "小狗在暖光厨房切菜，近景镜头。" },
+  { title: "轻快", description: "轻快节奏", prompt: "小狗快速切菜，轻快推镜。" },
+];
+const additional = [
+  { title: "俯拍", description: "俯视画面", prompt: "俯拍小狗把晚餐摆上木桌。" },
+  { title: "窗边", description: "窗边光影", prompt: "小狗在窗边端起热汤，缓慢摇镜。" },
+  { title: "特写", description: "细节镜头", prompt: "特写小狗撒上香草，再拉远看全景。" },
+];
+
+const servers: { server: Server; dir: string }[] = [];
 afterEach(async () => {
-  for (const { server, dir } of running.splice(0)) {
+  vi.unstubAllGlobals();
+  for (const { server, dir } of servers.splice(0)) {
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
-const variants = [
-  { title: "叙事", description: "动作完整", prompt: "小狗在厨房切菜，镜头平稳。" },
-  { title: "温暖", description: "突出氛围", prompt: "暖光中的小狗缓慢切菜，近景。" },
-  { title: "轻快", description: "强调节奏", prompt: "小狗快速切菜，轻快推镜。" },
-];
-function modelPayload(items: unknown = variants) {
-  return { choices: [{ message: { content: JSON.stringify({ variants: items }) } }], usage: { total_tokens: 42 } };
-}
-
-async function listen(server: Server): Promise<string> {
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-}
-
-async function setup(modelHandler?: (response: import("node:http").ServerResponse) => void | Promise<void>, overrides: Partial<ApiConfig> = {}) {
-  let calls = 0;
-  const model = createServer(async (_request, response) => {
-    calls++;
-    try { await modelHandler?.(response); }
-    catch { response.destroy(); }
-  });
-  const modelUrl = await listen(model);
-  running.push({ server: model });
-  const dir = mkdtempSync(join(tmpdir(), "avs-prompt-api-"));
+async function setup(options: { second?: typeof initial; secondStatus?: string; loseSecondResponse?: boolean; ideaDailyLimit?: number } = {}) {
+  const nativeFetch = globalThis.fetch;
+  const creates: { agentId: string; prompt: string }[] = [];
+  const runs = new Map<string, { id: string; agentId: string; status: string; result: string }>();
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url === "https://api.cursor.com/v1/agents" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body)) as { agentId: string; prompt: { text: string } };
+      creates.push({ agentId: body.agentId, prompt: body.prompt.text });
+      const id = `run-${randomUUID()}`;
+      runs.set(id, { id, agentId: body.agentId, status: creates.length === 2 ? options.secondStatus ?? "FINISHED" : "FINISHED",
+        result: JSON.stringify({ variants: creates.length === 1 ? initial : creates.length === 2 ? options.second ?? additional : additional }) });
+      if (creates.length === 2 && options.loseSecondResponse) throw new Error("lost create response");
+      return Response.json({ agent: { id: body.agentId }, run: { id, agentId: body.agentId } });
+    }
+    const agentId = /\/agents\/(bc-[a-zA-Z0-9-]+)$/.exec(url)?.[1];
+    if (agentId) {
+      const latest = [...runs.values()].find(run => run.agentId === agentId);
+      return latest ? Response.json({ id: agentId, latestRunId: latest.id }) : Response.json({ error: "missing" }, { status: 404 });
+    }
+    const runId = /\/runs\/(run-[a-zA-Z0-9-]+)$/.exec(url)?.[1];
+    if (runId) return Response.json(runs.get(runId) ?? { error: "missing" }, { status: runs.has(runId) ? 200 : 404 });
+    return nativeFetch(input, init);
+  }));
+  const dir = mkdtempSync(join(tmpdir(), "avs-ideas-cursor-"));
   const config: ApiConfig = { dataDir: dir, databaseUrl: await testDatabaseUrl(dir), sessionSecret: "test-secret-at-least-thirty-two-characters",
-    secureCookies: false, workerEnabled: false, ideaModelBaseUrl: modelUrl, ideaModelApiKey: "server-only-key",
-    ideaModelId: "text-model", ideaModelTimeoutMs: 1000, ...overrides };
-  let api = (await createApi(config));
-  let base = await listen(api);
-  running.push({ server: api, dir });
+    secureCookies: false, workerEnabled: false, ideaCursorApiKey: "test-cursor-key", ideaDailyLimit: options.ideaDailyLimit };
+  const server = await createApi(config);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  servers.push({ server, dir });
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   async function request(path: string, method = "GET", body?: unknown, cookie?: string) {
-    const response = await fetch(base + path, { method, headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(method === "GET" ? {} : { "x-avs-request": "1" }), ...(cookie ? { cookie } : {}) },
-      body: body === undefined ? undefined : JSON.stringify(body) });
-    return { status: response.status, payload: await response.json() as Record<string, any>,
-      cookie: response.headers.get("set-cookie")?.split(";")[0] ?? "" };
+    const response = await nativeFetch(base + path, { method, headers: { ...(body === undefined ? {} : { "content-type": "application/json" }),
+      ...(method === "GET" ? {} : { "x-avs-request": "1" }), ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    return { status: response.status, payload: await response.json() as Record<string, any>, cookie: response.headers.get("set-cookie")?.split(";")[0] ?? "" };
   }
-  async function register(email: string) {
-    return request("/auth/register", "POST", { email, password: "long-password-123" });
-  }
-  async function restart() {
-    api.closeAllConnections();
-    await new Promise<void>(resolve => api.close(() => resolve()));
-    running.splice(running.findIndex(entry => entry.server === api), 1);
-    api = (await createApi(config));
-    base = await listen(api);
-    running.push({ server: api, dir });
-  }
-  return { request, register, restart, dir, get calls() { return calls; } };
+  async function tick() { const db = await createTestDb(dir); try { await new IdeaAgentWorker(db, config).tick(); } finally { await db.close(); } }
+  return { request, tick, creates, dir, register: (email: string) => request("/auth/register", "POST", { email, password: "long-password-123" }) };
 }
 
-describe("account-scoped prompt ideas API", () => {
-  it("persists one model call for concurrent same-ID requests, replays the result, and isolates accounts", async () => {
-    let release!: () => void;
-    let started!: () => void;
-    const gate = new Promise<void>(resolve => { release = resolve; });
-    const modelStarted = new Promise<void>(resolve => { started = resolve; });
-    const app = await setup(async response => {
-      started(); await gate;
-      response.setHeader("content-type", "application/json"); response.end(JSON.stringify(modelPayload()));
-    });
-    const a = await app.register("idea-a@example.com"), b = await app.register("idea-b@example.com");
-    expect((await app.request("/prompt-ideas")).status).toBe(401);
-    const intent = { clientRequestId: "idea-request-001", input: "小狗做饭" };
-    const first = app.request("/prompt-ideas", "POST", intent, a.cookie);
-    await modelStarted;
-    const concurrent = await app.request("/prompt-ideas", "POST", intent, a.cookie);
-    expect(concurrent.status).toBe(200);
-    expect(concurrent.payload.ideaSet.state).toBe("pending");
-    release();
-    const created = await first;
-    expect(created.status).toBe(201);
-    expect(created.payload.ideaSet.state).toBe("ready");
-    expect(created.payload.ideaSet.variants).toHaveLength(3);
-    expect(concurrent.payload.ideaSet.id).toBe(created.payload.ideaSet.id);
-    const replay = await app.request("/prompt-ideas", "POST", intent, a.cookie);
-    expect(replay.payload.ideaSet).toEqual(created.payload.ideaSet);
-    expect(app.calls).toBe(1);
-    expect((await app.request("/prompt-ideas", "POST", { ...intent, input: "不同想法" }, a.cookie)).status).toBe(409);
-    const id = created.payload.ideaSet.id as string;
-    expect((await app.request(`/prompt-ideas/${id}`, "GET", undefined, b.cookie)).status).toBe(404);
-    expect((await app.request("/prompt-ideas", "GET", undefined, b.cookie)).payload.ideaSets).toEqual([]);
-    const selected = await app.request(`/prompt-ideas/${id}/selection`, "POST", { variantId: "variant-2", editedPrompt: "小狗在暖光厨房端菜，近景。" }, a.cookie);
-    expect(selected.payload.ideaSet).toMatchObject({ selectedVariantId: "variant-2", editedPrompt: "小狗在暖光厨房端菜，近景。" });
-    expect((await app.request(`/prompt-ideas/${id}`, "GET", undefined, a.cookie)).payload.ideaSet.editedPrompt).toBe("小狗在暖光厨房端菜，近景。");
-    expect((await app.request(`/prompt-ideas/${id}/selection`, "POST", { variantId: "variant-2", editedPrompt: "x" }, b.cookie)).status).toBe(404);
-    const db = (await createDb(app.dir));
-    expect((await db.prepare("SELECT COUNT(*) AS count FROM agent_runs").get())).toEqual({ count: 0 });
-    expect((await db.prepare("SELECT COUNT(*) AS count FROM operations").get())).toEqual({ count: 0 });
-    expect((await db.prepare("SELECT demo_used,demo_reserved FROM accounts WHERE id=?").get(a.payload.account.id))).toEqual({ demo_used: 0, demo_reserved: 0 });
-    (await db.close());
+describe("Cursor-only inspiration API", () => {
+  it("generates three, expands to six once, persists selection, and rejects another expansion", async () => {
+    const app = await setup();
+    const user = await app.register("six@example.com");
+    const first = await app.request("/prompt-ideas", "POST", { clientRequestId: "first-request-001", input: "小狗做饭" }, user.cookie);
+    expect(first.status).toBe(201);
+    const rootId = first.payload.ideaSet.id as string;
+    await app.tick();
+    const three = await app.request(`/prompt-ideas/${rootId}`, "GET", undefined, user.cookie);
+    expect(three.payload.ideaSet.variants).toHaveLength(3);
+    expect(three.payload.ideaSet.expansionState).toBeNull();
+    const second = await app.request(`/prompt-ideas/${rootId}/more`, "POST", { clientRequestId: "more-request-001" }, user.cookie);
+    expect(second).toMatchObject({ status: 201, payload: { ideaSet: { expansionState: "pending" } } });
+    expect(second.payload.ideaSet.variants).toHaveLength(3);
+    expect(app.creates[1].prompt).toContain(initial[0].prompt);
+    const replay = await app.request(`/prompt-ideas/${rootId}/more`, "POST", { clientRequestId: "more-request-001" }, user.cookie);
+    expect(replay.status).toBe(200);
+    expect(app.creates).toHaveLength(2);
+    await app.tick();
+    const six = await app.request(`/prompt-ideas/${rootId}`, "GET", undefined, user.cookie);
+    expect(six.payload.ideaSet.variants.map((item: { id: string }) => item.id)).toEqual([
+      "variant-1", "variant-2", "variant-3", "variant-4", "variant-5", "variant-6"]);
+    const selected = await app.request(`/prompt-ideas/${rootId}/selection`, "POST", { variantId: "variant-5", editedPrompt: "窗边小狗端汤" }, user.cookie);
+    expect(selected.payload.ideaSet.selectedVariantId).toBe("variant-5");
+    expect((await app.request("/prompt-ideas", "GET", undefined, user.cookie)).payload.ideaSets[0].variants).toHaveLength(6);
+    expect((await app.request(`/prompt-ideas/${rootId}/more`, "POST", { clientRequestId: "more-request-002" }, user.cookie)).status).toBe(409);
+    expect(app.creates).toHaveLength(2);
   });
 
-  it("keeps malformed and unconfigured model results honest and limits new rounds", async () => {
-    const bad = await setup(response => { response.setHeader("content-type", "application/json"); response.end(JSON.stringify(modelPayload([variants[0], variants[0], variants[2]]))); }, { ideaDailyLimit: 1 });
-    const a = await bad.register("bad-model@example.com");
-    const intent = { clientRequestId: "idea-request-002", input: "猫咪跳舞" };
-    const failed = await bad.request("/prompt-ideas", "POST", intent, a.cookie);
-    expect(failed.payload.ideaSet).toMatchObject({ state: "failed", errorCode: "invalid_response", variants: [] });
-    expect((await bad.request("/prompt-ideas", "POST", intent, a.cookie)).payload.ideaSet.id).toBe(failed.payload.ideaSet.id);
-    expect(bad.calls).toBe(1);
-    expect((await bad.request("/prompt-ideas", "POST", { clientRequestId: "idea-request-003", input: "别的想法" }, a.cookie)).status).toBe(429);
-    expect((await bad.request("/prompt-ideas", "POST", { clientRequestId: "idea-request-004", input: "x".repeat(201) }, a.cookie)).status).toBe(400);
-    const empty = await setup(undefined, { ideaModelApiKey: undefined });
-    const user = await empty.register("no-model@example.com");
-    const notConfigured = await empty.request("/prompt-ideas", "POST", { clientRequestId: "idea-request-005", input: "小狗上菜" }, user.cookie);
-    expect(notConfigured.payload.ideaSet).toMatchObject({ state: "failed", errorCode: "not_configured", variants: [] });
-    expect(empty.calls).toBe(0);
-  }, 20_000);
-
-  it("marks uncertain model calls unknown and never resubmits the same request", async () => {
-    const app = await setup(() => { /* provider holds the response until the client times out */ });
-    const a = await app.register("timeout@example.com");
-    const intent = { clientRequestId: "idea-request-006", input: "小狗洗菜" };
-    const unknown = await app.request("/prompt-ideas", "POST", intent, a.cookie);
-    expect(unknown.payload.ideaSet).toMatchObject({ state: "unknown", errorCode: "uncertain", variants: [] });
-    const replay = await app.request("/prompt-ideas", "POST", intent, a.cookie);
-    expect(replay.payload.ideaSet.id).toBe(unknown.payload.ideaSet.id);
-    expect(replay.payload.ideaSet.state).toBe("unknown");
-    expect(app.calls).toBe(1);
-  }, 20_000);
-
-  it("recovers a pending request after process restart as unknown without another model call", async () => {
+  it("keeps both batches scoped to the owner and request IDs scoped to one root", async () => {
     const app = await setup();
-    const user = await app.register("restart@example.com");
-    const id = randomUUID(), requestId = "idea-request-restart", input = "小狗端菜";
-    const old = Date.now() - 10_000;
-    const db = (await createDb(app.dir));
-    (await db.prepare(`INSERT INTO prompt_idea_sets
-      (id,owner_id,client_request_id,input_hash,input_text,state,created_at,updated_at)
-      VALUES (?,?,?,?,?,'pending',?,?)`)
-      .run(id, user.payload.account.id, requestId, createHash("sha256").update(input).digest("hex"), input, old, old));
-    (await db.close());
-    await app.restart();
-    const detail = await app.request(`/prompt-ideas/${id}`, "GET", undefined, user.cookie);
-    expect(detail.payload.ideaSet).toMatchObject({ id, state: "unknown", errorCode: "uncertain" });
-    const list = await app.request("/prompt-ideas", "GET", undefined, user.cookie);
-    expect(list.payload.ideaSets[0].state).toBe("unknown");
-    const replay = await app.request("/prompt-ideas", "POST", { clientRequestId: requestId, input }, user.cookie);
-    expect(replay).toMatchObject({ status: 200, payload: { ideaSet: { id, state: "unknown" } } });
-    expect(app.calls).toBe(0);
+    const a = await app.register("owner@example.com"), b = await app.register("other@example.com");
+    const first = await app.request("/prompt-ideas", "POST", { clientRequestId: "first-request-002", input: "小狗做饭" }, a.cookie);
+    const id = first.payload.ideaSet.id as string;
+    await app.tick();
+    expect((await app.request(`/prompt-ideas/${id}/more`, "POST", { clientRequestId: "more-request-003" }, b.cookie)).status).toBe(404);
+    expect((await app.request(`/prompt-ideas/${id}`, "GET", undefined, b.cookie)).status).toBe(404);
+    expect((await app.request(`/prompt-ideas/${id}/more`, "POST", { clientRequestId: "first-request-002" }, a.cookie)).status).toBe(409);
+    expect(app.creates).toHaveLength(1);
+  });
+
+  it("leaves the first three usable when the second batch duplicates them", async () => {
+    const app = await setup({ second: initial });
+    const user = await app.register("duplicate@example.com");
+    const first = await app.request("/prompt-ideas", "POST", { clientRequestId: "first-request-003", input: "小狗做饭" }, user.cookie);
+    const id = first.payload.ideaSet.id as string;
+    await app.tick();
+    await app.request(`/prompt-ideas/${id}/more`, "POST", { clientRequestId: "more-request-004" }, user.cookie);
+    await app.tick();
+    const result = await app.request(`/prompt-ideas/${id}`, "GET", undefined, user.cookie);
+    expect(result.payload.ideaSet).toMatchObject({ state: "ready", expansionState: "failed" });
+    expect(result.payload.ideaSet.variants).toHaveLength(3);
+    expect((await app.request(`/prompt-ideas/${id}/selection`, "POST", { variantId: "variant-1", editedPrompt: "小狗在厨房切菜" }, user.cookie)).status).toBe(200);
+  });
+
+  it("retries a definitely failed expansion only when explicitly requested", async () => {
+    const app = await setup({ secondStatus: "ERROR" });
+    const user = await app.register("retry@example.com");
+    const first = await app.request("/prompt-ideas", "POST", { clientRequestId: "first-request-004", input: "小狗做饭" }, user.cookie);
+    const id = first.payload.ideaSet.id as string;
+    await app.tick();
+    await app.request(`/prompt-ideas/${id}/more`, "POST", { clientRequestId: "more-request-005" }, user.cookie);
+    await app.tick();
+    expect((await app.request(`/prompt-ideas/${id}`, "GET", undefined, user.cookie)).payload.ideaSet)
+      .toMatchObject({ expansionState: "failed", variants: expect.any(Array) });
+    expect((await app.request(`/prompt-ideas/${id}/more`, "POST", { clientRequestId: "more-request-005" }, user.cookie)).status).toBe(200);
+    expect(app.creates).toHaveLength(2);
+    expect((await app.request(`/prompt-ideas/${id}/more`, "POST", { clientRequestId: "more-request-006" }, user.cookie)).status).toBe(201);
+    await app.tick();
+    expect((await app.request(`/prompt-ideas/${id}`, "GET", undefined, user.cookie)).payload.ideaSet.variants).toHaveLength(6);
+    expect(app.creates).toHaveLength(3);
+  });
+
+  it("recovers a lost expansion response by querying the same Cursor agent", async () => {
+    const app = await setup({ loseSecondResponse: true });
+    const user = await app.register("uncertain@example.com");
+    const first = await app.request("/prompt-ideas", "POST", { clientRequestId: "first-request-005", input: "小狗做饭" }, user.cookie);
+    const id = first.payload.ideaSet.id as string;
+    await app.tick();
+    const more = await app.request(`/prompt-ideas/${id}/more`, "POST", { clientRequestId: "more-request-007" }, user.cookie);
+    expect(more.payload.ideaSet.expansionState).toBe("pending");
+    await app.tick();
+    expect((await app.request(`/prompt-ideas/${id}`, "GET", undefined, user.cookie)).payload.ideaSet.variants).toHaveLength(6);
+    expect(app.creates).toHaveLength(2);
   });
 });

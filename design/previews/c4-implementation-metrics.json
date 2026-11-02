@@ -1,0 +1,457 @@
+{
+  "projectId": "9853f2f1-5e8d-46c0-8401-76dfc33ae09c",
+  "metrics": {
+    "webLogin": {
+      ".avs-titlebar": null,
+      ".avs-studio-sidebar": null,
+      ".avs-studio-stage": null,
+      ".film-generate-main": null,
+      ".film-canvas-view": null,
+      ".avs-results-content": null,
+      ".avs-project-home": null,
+      ".web-auth-story": {
+        "x": 70,
+        "y": 118,
+        "width": 732.875,
+        "height": 657.9375,
+        "right": 802.875,
+        "bottom": 775.9375,
+        "scrollWidth": 732,
+        "clientWidth": 732
+      },
+      ".web-auth-form": {
+        "x": 850.875,
+        "y": 187.96875,
+        "width": 519.109375,
+        "height": 518,
+        "right": 1369.984375,
+        "bottom": 705.96875,
+        "scrollWidth": 519,
+        "clientWidth": 519
+      }
+    },
+    "webGenerate": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 48,
+        "right": 1440,
+        "bottom": 48,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 852,
+        "right": 236,
+        "bottom": 900,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-generate-main": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-canvas-view": null,
+      ".avs-results-content": null,
+      ".avs-project-home": null,
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "webGenerateDark": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 48,
+        "right": 1440,
+        "bottom": 48,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 852,
+        "right": 236,
+        "bottom": 900,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-generate-main": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-canvas-view": null,
+      ".avs-results-content": null,
+      ".avs-project-home": null,
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "webHome": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 48,
+        "right": 1440,
+        "bottom": 48,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 852,
+        "right": 236,
+        "bottom": 900,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-generate-main": null,
+      ".film-canvas-view": null,
+      ".avs-results-content": null,
+      ".avs-project-home": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "webCanvas": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 48,
+        "right": 1440,
+        "bottom": 48,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 852,
+        "right": 236,
+        "bottom": 900,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-generate-main": null,
+      ".film-canvas-view": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".avs-results-content": null,
+      ".avs-project-home": null,
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "webCanvasNode": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 48,
+        "right": 1440,
+        "bottom": 48,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 852,
+        "right": 236,
+        "bottom": 900,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-generate-main": null,
+      ".film-canvas-view": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".avs-results-content": null,
+      ".avs-project-home": null,
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "webCanvasNodeNarrow": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 900,
+        "height": 48,
+        "right": 900,
+        "bottom": 48,
+        "scrollWidth": 900,
+        "clientWidth": 900
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 652,
+        "right": 236,
+        "bottom": 700,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 664,
+        "height": 652,
+        "right": 900,
+        "bottom": 700,
+        "scrollWidth": 664,
+        "clientWidth": 664
+      },
+      ".film-generate-main": null,
+      ".film-canvas-view": {
+        "x": 236,
+        "y": 48,
+        "width": 664,
+        "height": 652,
+        "right": 900,
+        "bottom": 700,
+        "scrollWidth": 664,
+        "clientWidth": 664
+      },
+      ".avs-results-content": null,
+      ".avs-project-home": null,
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "webResultsEmpty": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 48,
+        "right": 1440,
+        "bottom": 48,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 852,
+        "right": 236,
+        "bottom": 900,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-generate-main": null,
+      ".film-canvas-view": null,
+      ".avs-results-content": {
+        "x": 283,
+        "y": 154,
+        "width": 1110,
+        "height": 605,
+        "right": 1393,
+        "bottom": 759,
+        "scrollWidth": 1110,
+        "clientWidth": 1110
+      },
+      ".avs-project-home": null,
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "webResultsNarrow": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 900,
+        "height": 48,
+        "right": 900,
+        "bottom": 48,
+        "scrollWidth": 900,
+        "clientWidth": 900
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 652,
+        "right": 236,
+        "bottom": 700,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 664,
+        "height": 652,
+        "right": 900,
+        "bottom": 700,
+        "scrollWidth": 664,
+        "clientWidth": 664
+      },
+      ".film-generate-main": null,
+      ".film-canvas-view": null,
+      ".avs-results-content": {
+        "x": 255,
+        "y": 154,
+        "width": 626,
+        "height": 605,
+        "right": 881,
+        "bottom": 759,
+        "scrollWidth": 626,
+        "clientWidth": 626
+      },
+      ".avs-project-home": null,
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    },
+    "desktopHome": {
+      ".avs-titlebar": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 48,
+        "right": 1440,
+        "bottom": 48,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      ".avs-studio-sidebar": {
+        "x": 0,
+        "y": 48,
+        "width": 236,
+        "height": 852,
+        "right": 236,
+        "bottom": 900,
+        "scrollWidth": 235,
+        "clientWidth": 235
+      },
+      ".avs-studio-stage": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".film-generate-main": null,
+      ".film-canvas-view": null,
+      ".avs-results-content": null,
+      ".avs-project-home": {
+        "x": 236,
+        "y": 48,
+        "width": 1204,
+        "height": 852,
+        "right": 1440,
+        "bottom": 900,
+        "scrollWidth": 1204,
+        "clientWidth": 1204
+      },
+      ".web-auth-story": null,
+      ".web-auth-form": null
+    }
+  }
+}

@@ -9,7 +9,7 @@ describe("PostgreSQL database", () => {
   it("creates the current schema and rolls back failed transactions", async () => {
     const db = await createTestDb(randomUUID());
     try {
-      expect(await db.prepare("SELECT version FROM api_schema_version").get()).toMatchObject({ version: 3 });
+      expect(await db.prepare("SELECT version FROM api_schema_version").get()).toMatchObject({ version: 4 });
       await expect(db.transaction(async () => {
         await db.prepare("INSERT INTO accounts(id,email,password_hash,created_at,demo_quota) VALUES (?,?,?,?,?)")
           .run("rollback-account", "rollback@example.com", "hash", 1, 1);
@@ -36,7 +36,7 @@ describe("PostgreSQL database", () => {
     await expect(createDb(url)).rejects.toThrow("schema version");
   });
 
-  it("upgrades an occupied PostgreSQL schema 1 to 3 without changing existing records", async () => {
+  it("upgrades an occupied PostgreSQL schema 1 to 4 without changing existing records", async () => {
     const url = await testDatabaseUrl(randomUUID(), false);
     const client = new Client({ connectionString: url });
     const originalTables = [
@@ -64,6 +64,7 @@ describe("PostgreSQL database", () => {
       await client.query("INSERT INTO render_operations(id,edit_id,owner_id,recipe_revision,recipe_json,state,created_at,updated_at) VALUES ('render','e','a',1,'{}','running',5,5)");
       await client.query("INSERT INTO render_events(operation_id,seq,state,message,created_at) VALUES ('render',1,'running','started',5)");
       await client.query("INSERT INTO prompt_idea_sets(id,owner_id,client_request_id,input_hash,input_text,state,created_at,updated_at) VALUES ('idea','a','idea-request','hash','topic','ready',6,6)");
+      await client.query("INSERT INTO prompt_idea_sets(id,owner_id,client_request_id,input_hash,input_text,state,created_at,updated_at) VALUES ('pending-idea','a','pending-request','hash','topic','pending',7,7)");
 
       const tablesBefore = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename")).rows.map(row => row.tablename);
       expect(tablesBefore).toEqual([...originalTables].sort());
@@ -79,7 +80,8 @@ describe("PostgreSQL database", () => {
       const countsAfter = [];
       for (const table of originalTables) countsAfter.push(Number((await client.query(`SELECT count(*) AS count FROM ${table}`)).rows[0].count));
       expect(countsAfter).toEqual(countsBefore);
-      expect((await client.query("SELECT version FROM api_schema_version")).rows).toMatchObject([{ version: 3 }]);
+      expect((await client.query("SELECT version FROM api_schema_version")).rows).toMatchObject([{ version: 4 }]);
+      expect((await client.query("SELECT state FROM prompt_idea_sets WHERE id='pending-idea'")).rows).toMatchObject([{ state: "unknown" }]);
       expect((await client.query("SELECT id, owner_id, title, document_json FROM projects")).rows).toMatchObject([
         { id: "p", owner_id: "a", title: "Old project", document_json: "{}" },
       ]);
@@ -91,7 +93,7 @@ describe("PostgreSQL database", () => {
       const db = await createDb(url);
       await db.close();
     } finally { await client.end(); }
-  });
+  }, 20_000);
 
   it("keeps schema 1 intact when an incompatible existing table makes migration fail", async () => {
     const url = await testDatabaseUrl(randomUUID(), false);
@@ -109,6 +111,28 @@ describe("PostgreSQL database", () => {
         .toMatchObject([{ name: null, preview: null }]);
       expect((await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='tts_tasks' ORDER BY column_name")).rows)
         .toEqual([{ column_name: "id" }]);
+    } finally { await client.end(); }
+  });
+
+  it("upgrades schema 3 to 4 and leaves completed ideas readable", async () => {
+    const url = await testDatabaseUrl(randomUUID(), false);
+    const client = new Client({ connectionString: url });
+    try {
+      await client.connect();
+      for (const file of ["schema.sql", "schema-v2.sql", "schema-v3.sql"]) {
+        await client.query(await readFile(new URL(`./${file}`, import.meta.url), "utf8"));
+      }
+      await client.query("INSERT INTO api_schema_version(version) VALUES (3)");
+      await client.query("INSERT INTO accounts(id,email,password_hash,created_at,demo_quota) VALUES ('a','a@example.com','hash',1,3)");
+      await client.query("INSERT INTO prompt_idea_sets(id,owner_id,client_request_id,input_hash,input_text,state,provider,created_at,updated_at) VALUES ('old','a','old-request','hash','小狗做饭','ready','chat',1,1)");
+      await client.query("INSERT INTO prompt_idea_sets(id,owner_id,client_request_id,input_hash,input_text,state,provider,created_at,updated_at) VALUES ('pending','a','pending-request','hash','小狗跳舞','pending','agents',2,2)");
+      await expect(createDb(url)).rejects.toThrow("schema version");
+      await migrateSchema(url);
+      expect((await client.query("SELECT version FROM api_schema_version")).rows).toMatchObject([{ version: 4 }]);
+      expect((await client.query("SELECT id,state,parent_idea_set_id FROM prompt_idea_sets ORDER BY id")).rows).toMatchObject([
+        { id: "old", state: "ready", parent_idea_set_id: null }, { id: "pending", state: "unknown", parent_idea_set_id: null },
+      ]);
+      const db = await createDb(url); await db.close();
     } finally { await client.end(); }
   });
 

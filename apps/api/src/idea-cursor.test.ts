@@ -10,7 +10,7 @@ import { createPromptIdea } from "./prompt-ideas.ts";
 import { createIdeaCursorRun, readIdeaCursorRun } from "./idea-cursor.ts";
 
 const config: ApiConfig = { dataDir: "/tmp/cursor-test", databaseUrl: "postgresql://unused", sessionSecret: "x".repeat(32),
-  ideaProvider: "cursor", ideaCursorApiKey: "cursor-test-key", ideaCursorBaseUrl: "http://127.0.0.1:8788/v1" };
+  ideaCursorApiKey: "cursor-test-key", ideaCursorBaseUrl: "http://127.0.0.1:8788/v1" };
 const variants = [
   { title: "叙事", description: "完整动作", prompt: "小狗在厨房切菜，固定镜头。" },
   { title: "温暖", description: "暖光氛围", prompt: "小狗在暖光厨房切菜，近景镜头。" },
@@ -24,7 +24,7 @@ const runId = "run-00000000-0000-4000-8000-000000000002";
 describe("Cursor Cloud Agent inspiration adapter", () => {
   it("creates one no-repo agent with the default model and server credential", async () => {
     const fetcher = mockFetch(() => Response.json({ agent: { id: agentId }, run: { id: runId, agentId } }));
-    expect(await createIdeaCursorRun(config, "小狗做饭", agentId.slice(3), fetcher)).toEqual({ agentId, runId });
+    expect(await createIdeaCursorRun(config, "小狗做饭", agentId.slice(3), [], fetcher)).toEqual({ agentId, runId });
     const [url, init] = vi.mocked(fetcher).mock.calls[0];
     expect(url).toBe("http://127.0.0.1:8788/v1/agents");
     expect(init?.headers).toMatchObject({ authorization: "Bearer cursor-test-key" });
@@ -39,7 +39,7 @@ describe("Cursor Cloud Agent inspiration adapter", () => {
 
   it("passes an explicit API model id when configured", async () => {
     const fetcher = mockFetch(() => Response.json({ agent: { id: agentId }, run: { id: runId, agentId } }));
-    await createIdeaCursorRun({ ...config, ideaCursorModel: "model-from-api" }, "小狗做饭", agentId.slice(3), fetcher);
+    await createIdeaCursorRun({ ...config, ideaCursorModel: "model-from-api" }, "小狗做饭", agentId.slice(3), [], fetcher);
     expect(JSON.parse(String(vi.mocked(fetcher).mock.calls[0][1]?.body)).model).toEqual({ id: "model-from-api" });
   });
 
@@ -63,13 +63,13 @@ describe("Cursor Cloud Agent inspiration adapter", () => {
 
   it("does not send a request without a key and classifies uncertain create responses", async () => {
     const fetcher = mockFetch(() => Response.json({ error: "unauthorized" }, { status: 401 }));
-    await expect(createIdeaCursorRun({ ...config, ideaCursorApiKey: undefined }, "小狗做饭", agentId.slice(3), fetcher))
+    await expect(createIdeaCursorRun({ ...config, ideaCursorApiKey: undefined }, "小狗做饭", agentId.slice(3), [], fetcher))
       .rejects.toMatchObject({ code: "not_configured" });
     expect(vi.mocked(fetcher)).not.toHaveBeenCalled();
-    await expect(createIdeaCursorRun(config, "小狗做饭", agentId.slice(3), fetcher))
+    await expect(createIdeaCursorRun(config, "小狗做饭", agentId.slice(3), [], fetcher))
       .rejects.toMatchObject({ code: "provider_error" });
     const conflict = mockFetch(() => Response.json({ error: "exists" }, { status: 409 }));
-    await expect(createIdeaCursorRun(config, "小狗做饭", agentId.slice(3), conflict))
+    await expect(createIdeaCursorRun(config, "小狗做饭", agentId.slice(3), [], conflict))
       .rejects.toMatchObject({ code: "uncertain" });
   });
 });

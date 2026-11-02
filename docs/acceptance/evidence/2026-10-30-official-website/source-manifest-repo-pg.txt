@@ -1,0 +1,16 @@
+Candidate: avs-release-candidate-20261030-b1Ixx6 (provisional pre-release snapshot)
+Source branch: codex/monorepo-plugin-foundation
+Source HEAD: dc066d22277808c425517d66aff9acc31e6eef55
+Source type: frozen snapshot of the dirty working tree; the HEAD commit does not contain these changes.
+Archive: /private/tmp/avs-release-candidate-20261030-b1Ixx6.tar.gz
+Archive SHA-256: eb8562c91536f3635993bf90b6c6f1d24c13f60cf5d64cad4b81d93d8a968a4d
+File manifest: /private/tmp/avs-release-candidate-20261030-b1Ixx6.manifest.sha256
+File manifest SHA-256: 4a4e197a1bd8dfd0627382f91092143eeec891e50456e7268c395f9c5737f4e8
+Files: 345; compressed archive: approximately 1.1 MiB.
+Included: apps, packages, plugins, scripts, deploy, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, .dockerignore, .env.example.
+Excluded: .git, .codex, .agents, .aws, actual .env files, node_modules, dist/build/coverage, Rust target and bundled macOS FFmpeg binaries, docs, design, SQLite files and logs.
+Source comparison: checksum-based rsync dry-run reported no difference for included files immediately after the snapshot.
+Local gates: full workspace pnpm test passed with isolated PostgreSQL (API 96/96, boundary check OK); pnpm build passed; Rust cargo test --lib 22/22; after Agent context changes, focused contract/API tests and API/plugin type builds passed; SQLite-copy and PostgreSQL migration focused tests 8/8; bash -n for deploy/postgres scripts and docker compose config -q passed; git diff --check passed.
+Preliminary Linux/amd64 image: ai-video-studio-api:preflight-eb8562c9; local Docker image ID sha256:6662a5d2928b38f458b22d0690546b513e2adb570a468a7866bfc1358b84a209. Built from this archive; a network-isolated runtime check confirmed FFmpeg/ffprobe execute and .env.local/.codex are absent. A disposable PostgreSQL 17 container accepted schema 3 migration and the candidate API returned /health 200 with production HTTPS Origin and Secure Cookie settings. Both containers and their network were removed after the check. This is a local image ID, not a remotely published registry digest.
+Pending: live server read-only inventory, active SQLite backup rehearsal, production cutover. Frontend and QA may still change business code; rebuild this archive and record a new SHA and image digest before any final release. This snapshot has not been published.
+After freezing this snapshot, deploy/docker/README.md gained a warning pointing PostgreSQL operators to deploy/postgres/README.md. The provisional archive therefore does not contain that documentation correction.

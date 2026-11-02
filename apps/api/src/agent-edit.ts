@@ -64,9 +64,9 @@ export async function getAgentEditByRequest(db: PgDatabase, ownerId: string, pro
 
 export async function createAgentEdit(db: PgDatabase, ownerId: string, projectId: string,
   config: ApiConfig, body: Record<string, unknown>) {
-  if (!(config.agentEditModelBaseUrl ?? config.ideaModelBaseUrl) ||
-      !(config.agentEditModelApiKey ?? config.ideaModelApiKey) ||
-      !(config.agentEditModelId ?? config.ideaModelId)) throw new AgentEditError(503, "Agent 剪辑模型尚未配置");
+  if (!config.agentEditModelBaseUrl || !config.agentEditModelApiKey || !config.agentEditModelId) {
+    throw new AgentEditError(503, "Agent 剪辑模型尚未配置");
+  }
   return db.transaction(async () => {
     await db.lock(`agent-edit-create:${ownerId}:${body.clientRequestId}`);
     const hash = digest({ projectId, episodeId: body.episodeId, instruction: body.instruction });

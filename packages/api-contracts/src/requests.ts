@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EpisodeAudioSchema } from "@ai-video/project-schema";
 
 const id = z.string().regex(/^[a-zA-Z0-9-]{8,80}$/);
 const ideaRequestId = z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/);
@@ -10,6 +11,7 @@ const positiveText = (max: number) => z.string().refine(value => {
 
 export const AuthRequestSchema = z.object({ email: z.string(), password: z.string() }).passthrough();
 export const CreatePromptIdeaRequestSchema = z.object({ clientRequestId: ideaRequestId, input: positiveText(200) }).passthrough();
+export const MorePromptIdeasRequestSchema = z.object({ clientRequestId: ideaRequestId }).passthrough();
 export const SelectPromptIdeaRequestSchema = z.object({ variantId: z.string().min(1), editedPrompt: positiveText(2000) }).passthrough();
 export const CreateProjectRequestSchema = z.object({
   id: id.optional(), title: positiveText(50), initialEpisodeId: id.optional(), initialBrief: z.unknown().optional(),
@@ -40,8 +42,7 @@ export const EditCommandRequestSchema = z.object({
 }).passthrough();
 export const CreateRenderRequestSchema = z.object({ renderOperationId: id, expectedRevision: revision }).passthrough();
 
-export const EpisodeAudioSchema = z.object({ originalVolume: z.number().finite().min(0).max(2),
-  voiceClips: z.array(AudioPlacementSchema).max(100), musicClips: z.array(AudioPlacementSchema).max(100) }).strict();
+export { EpisodeAudioSchema };
 export const TtsEstimateRequestSchema = z.object({ text: positiveText(1000),
   voiceId: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/), voiceLanguage: z.enum(["zh", "en"]),
   speed: z.number().finite().min(0.8).max(2).refine(value => Number.isInteger(value * 10), "语速以 0.1 为步长") }).strict();
@@ -80,6 +81,7 @@ export function requestSchema(method: string, path: string): z.ZodTypeAny | unde
   if (method !== "POST") return undefined;
   if (path === "/auth/register" || path === "/auth/login") return AuthRequestSchema;
   if (path === "/prompt-ideas") return CreatePromptIdeaRequestSchema;
+  if (/^\/prompt-ideas\/[a-zA-Z0-9-]+\/more$/.test(path)) return MorePromptIdeasRequestSchema;
   if (/^\/prompt-ideas\/[a-zA-Z0-9-]+\/selection$/.test(path)) return SelectPromptIdeaRequestSchema;
   if (path === "/projects") return CreateProjectRequestSchema;
   if (/^\/projects\/[a-zA-Z0-9-]+\/commands$/.test(path)) return ProjectCommandRequestSchema;

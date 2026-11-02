@@ -9,6 +9,7 @@ export { ensureStudio, createEpisode, selectEpisode, syncActiveEpisode, createCh
 export type { CanvasDocumentV1, CanvasEpisodeGraphV1 } from "./canvas-extension";
 export { readCanvasDocument, migrateStudioGraph, writeCanvasEpisodeGraph } from "./canvas-extension";
 export type { CloudAsset, CloudShot, CloudEpisode, CloudEpisodeAudio, CloudAudioPlacement, CloudTimelineClip, CloudCharacter, CloudProjectDocument, SyncCommand, SyncResourceType, SyncResourceRevision } from "./sync";
+export { cloudEpisodeAudio } from "./sync";
 export { cloudTimelineClips, timelineWithMetadata } from "./sync";
 export { resourceRevision, applySyncCommand } from "./sync";
 export type { CloudAccountSnapshot, CloudProjectSnapshot, CloudRunSnapshot } from "./cloud-api";

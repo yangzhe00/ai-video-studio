@@ -3,9 +3,12 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AudioPlacement } from "@ai-video/plugin-video-edit/core";
+import { projectEpisodeAudio } from "@ai-video/api-contracts";
 import type { ApiConfig } from "./config.ts";
 import type { PgDatabase } from "./db.ts";
 import { inspectMediaFile } from "./media-inspect.ts";
+import { assertReadableMediaSource, logMediaTaskFailure, MediaSourceUnavailableError,
+  publicMediaTaskError, publicStoredMediaTaskError } from "./media-task-error.ts";
 import { renderEpisodeMedia, type EpisodeVisualInput } from "./episode-media.ts";
 import { storeObject } from "./object-capacity.ts";
 
@@ -13,7 +16,7 @@ export class EpisodeRenderError extends Error { constructor(readonly status: num
 interface CloudClip { id: string; assetId: string; inMs: number; outMs: number; volume: number }
 interface CloudEpisode { id: string; title: string; timeline: string[]; timelineClips?: CloudClip[];
   shots: { resultAssetId: string; durationSec: number }[];
-  audio?: { originalVolume: number; voiceClips: AudioPlacement[]; musicClips: AudioPlacement[] } }
+  audio?: { version?: 2; originalVolume: number; voiceClips: AudioPlacement[]; musicClips: AudioPlacement[] } }
 interface Row { id: string; owner_id: string; project_id: string; episode_id: string; episode_revision: number;
   snapshot_json: string; state: "pending" | "running" | "succeeded" | "failed";
   output_object_id: string | null; error: string | null; lease_token: string | null; lease_expires_at: number | null;
@@ -30,8 +33,10 @@ export async function renderEpisodeSnapshot(db: PgDatabase, ownerId: string, pro
   for (const clip of clips) {
     const object = await db.prepare("SELECT path,mime FROM objects WHERE id=? AND owner_id=?").get(clip.assetId, ownerId) as
       { path: string; mime: string } | undefined;
-    if (!object || !["video/mp4", "image/jpeg", "image/png", "image/webp"].includes(object.mime)) throw new Error("分集镜头素材丢失或格式不支持");
-    visuals.push({ path: object.path, mime: object.mime as EpisodeVisualInput["mime"], inMs: clip.inMs, outMs: clip.outMs });
+    if (!object) throw new MediaSourceUnavailableError("visual", `object:${clip.assetId}`);
+    if (!["video/mp4", "image/jpeg", "image/png", "image/webp"].includes(object.mime)) throw new Error("分集镜头素材格式不支持");
+    assertReadableMediaSource(object.path, "visual");
+    visuals.push({ path: object.path, mime: object.mime as EpisodeVisualInput["mime"], inMs: clip.inMs, outMs: clip.outMs, volume: clip.volume });
   }
   const project = await db.prepare("SELECT document_json FROM projects WHERE id=? AND owner_id=?").get(projectId, ownerId) as
     { document_json: string } | undefined;
@@ -41,24 +46,27 @@ export async function renderEpisodeSnapshot(db: PgDatabase, ownerId: string, pro
     for (const clip of clips) {
       const object = await db.prepare("SELECT path,mime FROM objects WHERE id=? AND owner_id=?").get(clip.assetId, ownerId) as
         { path: string; mime: string } | undefined;
-      if (!object || !assets.some(asset => asset.id === clip.assetId && asset.kind === kind) || !object.mime.startsWith("audio/")) {
-        throw new Error("分集配音或音乐素材丢失");
+      if (!object || !assets.some(asset => asset.id === clip.assetId && asset.kind === kind)) {
+        throw new MediaSourceUnavailableError("audio", `object:${clip.assetId}`);
       }
+      if (!object.mime.startsWith("audio/")) throw new Error("分集音频素材格式不支持");
+      assertReadableMediaSource(object.path, "audio");
       const media = await inspectMediaFile(object.path, object.mime);
       if (!media.durationMs || clip.outMs > media.durationMs + 100) throw new Error("分集音频裁剪超出素材");
       result.push({ clip, path: object.path });
     }
     return result;
   };
-  await renderEpisodeMedia(visuals, episode.audio,
-    await audioInput(episode.audio?.voiceClips ?? [], "voice"),
-    await audioInput(episode.audio?.musicClips ?? [], "music"), output);
+  const audio = projectEpisodeAudio(episode);
+  await renderEpisodeMedia(visuals, audio,
+    await audioInput(audio?.voiceClips ?? [], "voice"),
+    await audioInput(audio?.musicClips ?? [], "music"), output);
 }
 
 function snapshot(row: Row) {
   return { id: row.id, projectId: row.project_id, episodeId: row.episode_id,
     episodeRevision: row.episode_revision, state: row.state,
-    outputAssetId: row.output_object_id, error: row.error };
+    outputAssetId: row.output_object_id, error: publicStoredMediaTaskError(row.error, "export") };
 }
 
 export async function getEpisodeRender(db: PgDatabase, ownerId: string, id: string) {
@@ -86,6 +94,12 @@ export async function createEpisodeRender(db: PgDatabase, ownerId: string, proje
       if (existing.state === "failed") await db.prepare("UPDATE episode_render_operations SET state='pending',error=NULL,lease_token=NULL,lease_expires_at=NULL,updated_at=? WHERE id=?")
         .run(Date.now(), existing.id);
       return { render: await getEpisodeRender(db, ownerId, existing.id), replayed: true };
+    }
+    if (episode.audio?.version === 2) {
+      const preview = await db.prepare(`SELECT id FROM preview_operations WHERE scope='episode' AND project_id=?
+        AND target_id=? AND revision=? AND state='succeeded' AND expires_at>? LIMIT 1`)
+        .get(projectId, episodeId, revision, Date.now());
+      if (!preview) throw new EpisodeRenderError(409, "请先生成当前分集版本的精准预览，再导出成片");
     }
     const used = await db.prepare("SELECT id FROM episode_render_operations WHERE id=?").get(body.renderOperationId);
     if (used) throw new EpisodeRenderError(409, "导出任务 ID 已用于其他内容");
@@ -148,9 +162,10 @@ export class EpisodeRenderWorker {
         });
       } catch (error) { if (createdFilePath) rmSync(createdFilePath, { force: true }); throw error; }
     } catch (error) {
+      logMediaTaskFailure("export", id, error);
       await this.db.prepare(`UPDATE episode_render_operations SET state='failed',error=?,lease_token=NULL,
         lease_expires_at=NULL,updated_at=? WHERE id=? AND state='running' AND lease_token=?`)
-        .run(String(error).slice(0, 500), Date.now(), id, token);
+        .run(publicMediaTaskError(error, "export"), Date.now(), id, token);
     } finally {
       if (heartbeat) clearInterval(heartbeat);
       if (folder) rmSync(folder, { recursive: true, force: true });

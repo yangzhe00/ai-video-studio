@@ -1,0 +1,14 @@
+{
+  "preview": {
+    "status": 200,
+    "id": "21ac46c8-0ae5-49d5-a94b-8c29cf8c7814",
+    "state": "succeeded"
+  },
+  "render": {
+    "status": 200,
+    "id": "27b0fdf0-dd9e-43fe-a0b3-c6e549037651",
+    "state": "succeeded"
+  },
+  "samePreviewId": true,
+  "sameRenderId": true
+}

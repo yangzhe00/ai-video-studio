@@ -1,0 +1,46 @@
+{
+  "evidenceType": "template_only_not_a_test_result",
+  "capturedAt": null,
+  "candidate": {
+    "sourceArchiveSha256": null,
+    "apiImageDigest": null,
+    "webAssetSha256": null,
+    "desktopBuildId": null,
+    "databaseSchema": null,
+    "deploymentRelease": null
+  },
+  "environment": null,
+  "platform": null,
+  "accountAlias": null,
+  "storyIdeaSetId": null,
+  "storyId": null,
+  "projectId": null,
+  "episodeId": null,
+  "storyPlanRevision": null,
+  "storyPlanHash": null,
+  "quoteId": null,
+  "quoteCurrency": null,
+  "approvedMaximum": null,
+  "runId": null,
+  "confirmationId": null,
+  "shots": [
+    { "order": 1, "shotId": null, "operationId": null, "supplierTaskId": null, "status": null, "actualCharge": null, "assetId": null },
+    { "order": 2, "shotId": null, "operationId": null, "supplierTaskId": null, "status": null, "actualCharge": null, "assetId": null },
+    { "order": 3, "shotId": null, "operationId": null, "supplierTaskId": null, "status": null, "actualCharge": null, "assetId": null }
+  ],
+  "events": [],
+  "httpChecks": [],
+  "quotaBefore": null,
+  "quotaAfter": null,
+  "supplierPostCount": null,
+  "previewAssetId": null,
+  "exportAssetId": null,
+  "exportMp4Sha256": null,
+  "exportDurationSec": null,
+  "screenshots": [],
+  "defects": [],
+  "caseResults": {
+    "E01": "未测", "E02": "未测", "E03": "未测", "E04": "未测", "E05": "未测",
+    "E06": "未测", "E07": "未测", "E08": "未测", "E09": "未测", "E10": "未测"
+  }
+}

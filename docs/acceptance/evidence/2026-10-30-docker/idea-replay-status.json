@@ -1,0 +1,9 @@
+{
+  "requestStatus": 200,
+  "code": null,
+  "error": null,
+  "replayed": null,
+  "ideaState": "failed",
+  "ideaErrorCode": "provider_error",
+  "ideaError": "灵感服务暂时不可用，请稍后再试或手写提示词"
+}

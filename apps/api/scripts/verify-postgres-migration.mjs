@@ -12,7 +12,7 @@ try {
   await client.connect();
   await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
   const version = await client.query("SELECT version FROM api_schema_version LIMIT 1");
-  if (Number(version.rows[0]?.version) !== 3) throw new Error("PostgreSQL schema version must be 3");
+  if (Number(version.rows[0]?.version) !== 4) throw new Error("PostgreSQL schema version must be 4");
   for (const table of ["tts_tasks", "episode_render_operations", "agent_edit_sets", "preview_operations", "preview_owned_objects"]) {
     const present = await client.query("SELECT to_regclass($1) AS name", [table]);
     if (!present.rows[0]?.name) throw new Error(`Missing PostgreSQL table: ${table}`);

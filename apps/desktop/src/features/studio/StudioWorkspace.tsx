@@ -907,7 +907,6 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
       onContinue={() => setView("generate")} onCanvas={() => setView("canvas")} ideaSlot={ideaSlot} />
       : view === "results" ? <ResultsPage results={results} episodeTitle={activeEpisode.title} storageLabel={cloudLabel}
         onGenerate={() => setView("generate")}
-        onEdit={result => { const job = manifest.jobs.find(item => item.id === result.id); if (job) void openVideoEdit(job); }}
         onAddToTimeline={result => { const job = manifest.jobs.find(item => item.id === result.id); if (job) void addResultToTimeline(job, true); }}
         onRefresh={result => { void refreshJob(result.id); }} />
       : view === "generate" ? <GeneratePage manifest={manifest} previewUrls={previewUrls} busy={busy} saveState={saveState} initialPrompt={ideaPrompt}
