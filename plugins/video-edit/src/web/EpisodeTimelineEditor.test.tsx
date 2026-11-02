@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { EpisodeTimelineEditor } from "./EpisodeTimelineEditor";
 import type { TimelineAsset, TimelineSnapshot } from "./timeline-model";
@@ -29,6 +29,20 @@ beforeAll(() => { HTMLMediaElement.prototype.pause = vi.fn(); HTMLMediaElement.p
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
 
 describe("EpisodeTimelineEditor", () => {
+  it("keeps narration creation with voice assets and music upload separate", () => {
+    render(<EpisodeTimelineEditor {...props} onUploadAudio={vi.fn(async () => assets[3]!)} ttsSlot={<p>旁白生成任务</p>} />);
+    const voiceSection = screen.getByRole("heading", { name: "配音" }).closest("section")!;
+    const musicSection = screen.getByRole("heading", { name: "背景音乐" }).closest("section")!;
+    expect(within(voiceSection).getByRole("button", { name: "上传录音" })).toBeTruthy();
+    expect(within(voiceSection).getByRole("button", { name: "文字生成旁白" })).toBeTruthy();
+    expect(within(musicSection).getByRole("button", { name: "上传背景音乐" })).toBeTruthy();
+    expect(within(musicSection).queryByRole("button", { name: "文字生成旁白" })).toBeNull();
+    expect(within(voiceSection).getAllByText("加入配音轨")).toHaveLength(2);
+    expect(voiceSection.querySelector('audio[src="/voice-one"]')).toBeTruthy();
+    fireEvent.click(within(voiceSection).getByRole("button", { name: "文字生成旁白" }));
+    expect(within(screen.getByRole("dialog", { name: "文字生成旁白" })).getByText("旁白生成任务")).toBeTruthy();
+  });
+
   it("shows every visual, voice and music clip on one time axis", () => {
     render(<EpisodeTimelineEditor {...props} />);
     expect(screen.getByText("3 个镜头 · 15.0 秒 · 对齐声音与画面")).toBeTruthy();
@@ -37,6 +51,35 @@ describe("EpisodeTimelineEditor", () => {
     expect(screen.getByRole("button", { name: /背景音乐，0.0 秒开始/ })).toBeTruthy();
     expect(document.querySelectorAll(".episode-editor-visual-clip")).toHaveLength(3);
     expect((screen.getByRole("button", { name: "导出成片" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("drags the ruler without saving and moves by 0.1 seconds with the keyboard", () => {
+    const onSave = vi.fn(async () => {});
+    render(<EpisodeTimelineEditor {...props} onSave={onSave} />);
+    const ruler = screen.getByRole("slider", { name: "时间尺播放头" });
+    ruler.getBoundingClientRect = () => ({ left: 300, right: 1800, top: 0, bottom: 30, width: 1500, height: 30, x: 300, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(ruler, { button: 0, pointerId: 1, clientX: 300 });
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: 855 });
+    expect(ruler.getAttribute("aria-valuetext")).toBe("00:07.3");
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: 1273 });
+    fireEvent.pointerUp(ruler, { pointerId: 1, clientX: 1273 });
+    expect(ruler.getAttribute("aria-valuetext")).toBe("00:12.8");
+    fireEvent.keyDown(ruler, { key: "ArrowLeft" });
+    expect(ruler.getAttribute("aria-valuetext")).toBe("00:12.7");
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("opens one selected shot for AI annotation and keeps its draft without fake submission", () => {
+    render(<EpisodeTimelineEditor {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "选择镜头：镜头 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "✦ AI 编辑这个镜头" }));
+    const dialog = screen.getByRole("dialog", { name: "AI 编辑 镜头 2" });
+    expect(within(dialog).getByText(/当前未接入经验证的视频局部编辑服务/)).toBeTruthy();
+    expect((within(dialog).getByRole("button", { name: "查看费用并提交" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(dialog).getByPlaceholderText(/把框选的小狗改成戴厨师帽/), { target: { value: "给小狗戴厨师帽" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "关闭 AI 编辑" }));
+    fireEvent.click(screen.getByRole("button", { name: "✦ AI 编辑这个镜头" }));
+    expect((screen.getByPlaceholderText(/把框选的小狗改成戴厨师帽/) as HTMLTextAreaElement).value).toBe("给小狗戴厨师帽");
   });
 
   it("applies a 0.1 second position, then undoes and redoes the edit", async () => {

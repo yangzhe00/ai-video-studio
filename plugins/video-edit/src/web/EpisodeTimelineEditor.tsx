@@ -3,6 +3,9 @@ import type { DragEvent, PointerEvent, ReactNode } from "react";
 import { audioLength, clipStart, makeAudioClip, mergeTimelineDraft, moveAudioClip, positionedVisuals, reorderVisual, snapTime, timelineDifferences, timelineDuration, trimAudioClip, validateTimeline } from "./timeline-model";
 import type { TimelineAsset, TimelineAudioClip, TimelineAudioKind, TimelineSnapshot } from "./timeline-model";
 import { AudioWaveform } from "./AudioWaveform";
+import { VideoFrameThumbnail } from "./VideoFrameThumbnail";
+import { fitTimelineZoom, rulerTimeAtX } from "./timeline-ruler";
+import { AiVideoEditWorkspace } from "./AiVideoEditWorkspace";
 
 export interface TimelineOperationView {
   state: "pending" | "running" | "succeeded" | "failed";
@@ -68,6 +71,7 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
   const draftRef = useRef(draft);
   const [library, setLibrary] = useState<TimelineAsset[]>(assets);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const playheadRef = useRef(0);
   const [playing, setPlaying] = useState(false);
@@ -89,9 +93,12 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
   const [zoom, setZoom] = useState(1);
   const [showAgent, setShowAgent] = useState(false);
   const [showTts, setShowTts] = useState(false);
+  const [showAi, setShowAi] = useState(false);
   const [form, setForm] = useState({ start: "0.0", inPoint: "0.0", outPoint: "0.0", volume: "100", anchor: "episode" });
   const [originalVolume, setOriginalVolume] = useState(String(Math.round(draft.originalVolume * 100)));
   const fileRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rulerDragRef = useRef<{ pointerId: number; beforeMs: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRefs = useRef(new Map<string, HTMLAudioElement>());
   const dragRef = useRef<DragState | null>(null);
@@ -107,16 +114,28 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
   const visuals = useMemo(() => positionedVisuals(draft.visuals), [draft.visuals]);
   const duration = timelineDuration(draft.visuals);
   const pixelsPerSecond = 76 * zoom;
-  const laneWidth = Math.max(560, duration / 1000 * pixelsPerSecond);
+  const laneWidth = Math.max(120, duration / 1000 * pixelsPerSecond);
   const selected = draft.audio.find(item => item.id === selectedId);
   const selectedAsset = library.find(item => item.id === selected?.assetId);
   const activeVisual = visuals.find(item => playhead >= item.startMs && playhead < item.endMs) ?? visuals[visuals.length - 1];
+  const selectedVisual = visuals.find(item => item.id === selectedVisualId) ?? activeVisual;
   const activeVideoAsset = library.find(item => item.id === activeVisual?.assetId);
   const snapPoints = [0, playhead, ...visuals.map(item => item.startMs), duration];
   const currentPreview = preview?.revision === revision && saveState === "saved" ? preview : null;
   const currentExport = exported?.revision === revision && saveState === "saved" ? exported : null;
 
   useEffect(() => { setLibrary(assets); }, [assets]);
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    scroll.scrollLeft = Math.max(0, 88 + playheadRef.current / 1000 * pixelsPerSecond - scroll.clientWidth / 2);
+  }, [zoom]);
+  useEffect(() => {
+    if (!showTts) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setShowTts(false); };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [showTts]);
   useEffect(() => { setOriginalVolume(String(Math.round(draft.originalVolume * 100))); }, [draft.originalVolume]);
   useEffect(() => {
     if (!selected) return;
@@ -219,6 +238,42 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
     playheadRef.current = next; setPlayhead(next);
     if (playingRef.current) startedAt.current = performance.now() - next;
     syncMedia(next);
+  }
+  function seekFromRuler(event: PointerEvent<HTMLDivElement>) {
+    const scroll = scrollRef.current;
+    if (scroll && rulerDragRef.current) {
+      const visible = scroll.getBoundingClientRect();
+      if (event.clientX > visible.right - 28) scroll.scrollLeft += 22;
+      else if (event.clientX < visible.left + 116) scroll.scrollLeft -= 22;
+    }
+    seek(rulerTimeAtX(event.clientX, event.currentTarget.getBoundingClientRect().left, pixelsPerSecond, duration));
+  }
+  function beginRulerDrag(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    rulerDragRef.current = { pointerId: event.pointerId, beforeMs: playheadRef.current };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    seekFromRuler(event);
+  }
+  function moveRulerDrag(event: PointerEvent<HTMLDivElement>) {
+    if (rulerDragRef.current?.pointerId === event.pointerId) seekFromRuler(event);
+  }
+  function finishRulerDrag(event: PointerEvent<HTMLDivElement>) {
+    if (rulerDragRef.current?.pointerId !== event.pointerId) return;
+    seekFromRuler(event);
+    rulerDragRef.current = null;
+  }
+  function cancelRulerDrag(event: PointerEvent<HTMLDivElement>) {
+    if (rulerDragRef.current?.pointerId !== event.pointerId) return;
+    seek(rulerDragRef.current.beforeMs);
+    rulerDragRef.current = null;
+  }
+  function openAiEditor(clip = selectedVisual) {
+    if (!clip) return;
+    setSelectedVisualId(clip.id);
+    playingRef.current = false; setPlaying(false);
+    videoRef.current?.pause();
+    for (const audio of audioRefs.current.values()) audio.pause();
+    setShowAi(true);
   }
   function syncMedia(time: number) {
     const visual = positionedVisuals(draftRef.current.visuals).find(item => time >= item.startMs && time < item.endMs);
@@ -343,6 +398,7 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
         <button type="button" onClick={backToCanvas} disabled={saveState === "saving"}>返回画布</button>
         <button type="button" onClick={undo} disabled={!historyCount}>撤销</button><button type="button" onClick={redo} disabled={!futureCount}>重做</button>
         {agentSlot && <button type="button" onClick={() => setShowAgent(value => !value)}>Agent 建议</button>}
+        <button type="button" onClick={() => openAiEditor()} disabled={!visuals.length}>✦ AI 视频编辑</button>
         <button type="button" onClick={() => void onPreview?.().catch(cause => setError(String(cause)))} disabled={!onPreview || saveState !== "saved" || !duration}>精准预览</button>
         <button type="button" className="primary" onClick={() => void onExport?.().catch(cause => setError(String(cause)))}
           disabled={!onExport || saveState !== "saved" || currentPreview?.state !== "succeeded"}>导出成片</button>
@@ -358,17 +414,23 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
         <button type="button" onClick={() => setCloudVersion(null)}>继续查看本地草稿</button></div></div>}
     <div className="episode-editor-workspace">
       <aside className="episode-editor-assets"><h2>素材库</h2><p>录音和音乐准备好后，拖到下方音轨。添加到时间线不会删除原素材。</p>
-        {(["voice", "music"] as const).map(kind => <section key={kind}><h3>{kind === "voice" ? "配音录音" : "背景音乐"}</h3>
-          {library.filter(item => item.kind === kind).map(asset => <button type="button" key={asset.id} draggable
-            onDragStart={event => event.dataTransfer.setData("application/x-avs-audio", asset.id)}
-            onClick={() => addAsset(asset, Math.round(playhead / 100) * 100)} className="episode-editor-asset">
-            <span>{kind === "voice" ? "♪" : "♫"}</span><strong>{asset.name}</strong><small>{seconds(asset.durationMs)} 秒</small></button>)}
+        {(["voice", "music"] as const).map(kind => <section key={kind} className="episode-editor-asset-group"><h3>{kind === "voice" ? "配音" : "背景音乐"}</h3>
+          <div className="episode-editor-source-actions">
+            {kind === "voice" && <>
+              {(onUploadAudio || onPickNativeAudio) && <button type="button" onClick={() => { if (onPickNativeAudio) void pickNative("voice"); else { setUploadKind("voice"); fileRef.current?.click(); } }}>上传录音</button>}
+              {ttsSlot && <button type="button" onClick={() => setShowTts(true)}>文字生成旁白</button>}
+            </>}
+            {kind === "music" && (onUploadAudio || onPickNativeAudio) && <button type="button" onClick={() => { if (onPickNativeAudio) void pickNative("music"); else { setUploadKind("music"); fileRef.current?.click(); } }}>上传背景音乐</button>}
+          </div>
+          {library.filter(item => item.kind === kind).map(asset => <div key={asset.id} className="episode-editor-asset-entry">
+            <button type="button" draggable onDragStart={event => event.dataTransfer.setData("application/x-avs-audio", asset.id)}
+              onClick={() => addAsset(asset, Math.round(playhead / 100) * 100)} className="episode-editor-asset">
+              <span>{kind === "voice" ? "♪" : "♫"}</span><strong>{asset.name}</strong><small>{seconds(asset.durationMs)} 秒</small>
+              <em>{kind === "voice" ? "加入配音轨" : "加入音乐轨"}</em></button>
+            {kind === "voice" && asset.url && <audio controls preload="metadata" src={asset.url} aria-label={`试听${asset.name}`} />}
+          </div>)}
           {!library.some(item => item.kind === kind) && <p>暂无{kind === "voice" ? "配音" : "音乐"}素材</p>}</section>)}
-        {(onUploadAudio || onPickNativeAudio) && <div className="episode-editor-asset-actions"><button type="button" onClick={() => { if (onPickNativeAudio) void pickNative("voice"); else { setUploadKind("voice"); fileRef.current?.click(); } }}>＋ 上传自己的录音</button>
-          <button type="button" onClick={() => { if (onPickNativeAudio) void pickNative("music"); else { setUploadKind("music"); fileRef.current?.click(); } }}>＋ 上传背景音乐</button>
-          {onUploadAudio && <input ref={fileRef} type="file" accept=".wav,.mp3,.m4a,audio/*" aria-label="上传音频文件" hidden onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void upload(file); event.currentTarget.value = ""; }} />}</div>}
-        {ttsSlot && <><button type="button" onClick={() => setShowTts(value => !value)}>✦ 文字生成配音</button>{showTts && <div className="episode-editor-slot">{ttsSlot}</div>}</>}
-        <p className="episode-editor-tip">文字配音需先确认费用。生成成功后先进入素材库，由你决定放入哪一轨。</p>
+        {onUploadAudio && <input ref={fileRef} type="file" accept=".wav,.mp3,.m4a,audio/*" aria-label="上传音频文件" hidden onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void upload(file); event.currentTarget.value = ""; }} />}
       </aside>
       <main className="episode-editor-main"><section className="episode-editor-viewer" aria-label="整集预览"><div><h1>{episodeTitle}</h1><p>{visuals.length} 个镜头 · {seconds(duration)} 秒 · 对齐声音与画面</p></div>
           <div className="episode-editor-stage">{activeVideoAsset?.url ? <video key={activeVisual?.id} ref={videoRef} src={activeVideoAsset.url} preload="auto" playsInline
@@ -382,17 +444,30 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
           {currentPreview && <div className="episode-editor-operation" role="status">精准预览：{currentPreview.state}{currentPreview.error ? ` · ${currentPreview.error}` : ""}{currentPreview.url && <video controls src={currentPreview.url} aria-label="精准预览视频" />}</div>}
           {currentExport && <div className="episode-editor-operation" role="status">整集成片：{currentExport.state}{currentExport.error ? ` · ${currentExport.error}` : ""}{currentExport.url && <video controls src={currentExport.url} aria-label="整集成片" />}</div>}
         </section>
-        <section className="episode-editor-timeline" aria-label="统一时间线"><header><h2>整集时间线</h2><span>拖动定位 · 拖两端裁剪 · 点击时间尺跳转</span><button type="button" onClick={() => setZoom(value => value === 1 ? 1.5 : 1)}>缩放 {Math.round(zoom * 100)}%</button></header>
-          <div className="episode-editor-scroll"><div className="episode-editor-tracks" style={{ width: laneWidth + 88 }}>
-            <div className="episode-editor-row ruler"><strong>时间尺</strong><div className="episode-editor-lane" style={{ width: laneWidth }} onClick={event => seek((event.clientX - event.currentTarget.getBoundingClientRect().left) / pixelsPerSecond * 1000)}>
-              {Array.from({ length: Math.floor(duration / 5000) + 1 }, (_, index) => <span key={index} style={{ left: index * 5 * pixelsPerSecond }}>{index * 5}s</span>)}</div></div>
-            <div className="episode-editor-row visual"><strong>画面</strong><div className="episode-editor-lane" style={{ width: laneWidth }}>{visuals.map((clip, index) => <div key={clip.id} className="episode-editor-visual-clip"
-              style={{ left: clip.startMs / 1000 * pixelsPerSecond, width: (clip.endMs - clip.startMs) / 1000 * pixelsPerSecond }}>
-              <span className="episode-editor-visual-title"><strong>{clip.title}</strong><small>{seconds(clip.endMs - clip.startMs)} 秒</small></span>
+        <section className="episode-editor-timeline" aria-label="统一时间线"><header><h2>整集时间线</h2><span>拖动时间尺定位 · 方向键每次 0.1 秒</span>
+          <div className="episode-editor-zoom"><button type="button" aria-label="缩小时间线" onClick={() => setZoom(value => Math.max(0.25, Math.round((value - 0.25) * 100) / 100))}>－</button>
+            <button type="button" onClick={() => setZoom(fitTimelineZoom(duration, scrollRef.current?.clientWidth ?? 900))}>适配全片</button>
+            <button type="button" aria-label="放大时间线" onClick={() => setZoom(value => Math.min(2.5, Math.round((value + 0.25) * 100) / 100))}>＋</button>
+            <output>{Math.round(zoom * 100)}%</output></div></header>
+          <div className="episode-editor-scroll" ref={scrollRef}><div className="episode-editor-tracks" style={{ width: laneWidth + 88 }}>
+            <div className="episode-editor-row ruler"><strong>时间尺</strong><div className="episode-editor-lane" style={{ width: laneWidth }}
+              role="slider" tabIndex={0} aria-label="时间尺播放头" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={playhead} aria-valuetext={formatClock(playhead)}
+              onPointerDown={beginRulerDrag} onPointerMove={moveRulerDrag} onPointerUp={finishRulerDrag} onPointerCancel={cancelRulerDrag}
+              onKeyDown={event => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); seek(playheadRef.current + (event.key === "ArrowRight" ? 100 : -100)); }
+                else if (event.key === "Home" || event.key === "End") { event.preventDefault(); seek(event.key === "Home" ? 0 : duration); }
+                else if (event.key === "Escape" && rulerDragRef.current) { event.preventDefault(); seek(rulerDragRef.current.beforeMs); rulerDragRef.current = null; } }}>
+              {Array.from({ length: Math.min(3600, Math.floor(duration / 1000) + 1) }, (_, index) => <span key={index} className={index % 5 === 0 ? "major" : "minor"} style={{ left: index * pixelsPerSecond }}>{index % 5 === 0 ? `${index}s` : ""}</span>)}</div></div>
+            <div className="episode-editor-row visual"><strong>画面</strong><div className="episode-editor-lane" style={{ width: laneWidth }}>{visuals.map((clip, index) => <div key={clip.id} className={`episode-editor-visual-clip${selectedVisual?.id === clip.id ? " selected" : ""}`}
+              style={{ left: clip.startMs / 1000 * pixelsPerSecond, width: (clip.endMs - clip.startMs) / 1000 * pixelsPerSecond }}
+              role="button" tabIndex={0} aria-label={`选择镜头：${clip.title}`} onClick={() => { setSelectedVisualId(clip.id); seek(clip.startMs); }}
+              onDoubleClick={() => openAiEditor(clip)}
+              onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedVisualId(clip.id); seek(clip.startMs); } }}>
+              <VideoFrameThumbnail url={library.find(item => item.id === clip.assetId)?.url} atMs={clip.inMs + Math.min(250, (clip.endMs - clip.startMs) / 2)} />
+              <span className="episode-editor-visual-title"><small>镜头 {String(index + 1).padStart(2, "0")}</small><strong>{clip.title}</strong><small>{seconds(clip.endMs - clip.startMs)} 秒</small></span>
               <span className="episode-editor-visual-order"><button type="button" disabled={index === 0} aria-label={`将${clip.title}前移`}
-                onClick={() => commit(reorderVisual(draftRef.current, clip.id, -1))}>←</button>
+                onClick={event => { event.stopPropagation(); commit(reorderVisual(draftRef.current, clip.id, -1)); }}>←</button>
                 <button type="button" disabled={index === visuals.length - 1} aria-label={`将${clip.title}后移`}
-                  onClick={() => commit(reorderVisual(draftRef.current, clip.id, 1))}>→</button></span></div>)}</div></div>
+                  onClick={event => { event.stopPropagation(); commit(reorderVisual(draftRef.current, clip.id, 1)); }}>→</button></span></div>)}</div></div>
             <div className="episode-editor-row"><strong>镜头原声</strong><div className="episode-editor-lane episode-editor-original" style={{ width: laneWidth }}><span>{draft.originalVolume ? `原片有音轨时播放 · ${Math.round(draft.originalVolume * 100)}%` : "原声已静音"}</span></div></div>
             {(["voice", "music"] as const).map(kind => <div className="episode-editor-row" key={kind}><strong>{kind === "voice" ? "配音" : "音乐"}</strong>
               <div className="episode-editor-lane" style={{ width: laneWidth }} onDragOver={event => event.preventDefault()} onDrop={event => onAssetDrop(event, kind)}>
@@ -415,7 +490,10 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
             <div className="episode-editor-playhead" style={{ left: 88 + playhead / 1000 * pixelsPerSecond }} aria-hidden="true" />
           </div></div><footer>片段位置、裁剪和音量以 0.1 秒为单位。未保存的本地草稿不会用于精准预览或导出。</footer></section>
       </main>
-      <aside className="episode-editor-inspector"><h2>片段属性</h2>{selected && selectedAsset ? <><strong>{selectedAsset.name}</strong><p>从时间线移除不会删除原始素材。</p>
+      <aside className="episode-editor-inspector"><h2>片段属性</h2>{selectedVisual && <section className="episode-editor-shot-summary"><h3>当前镜头</h3><strong>{selectedVisual.title}</strong>
+        <p>{formatClock(selectedVisual.startMs)} – {formatClock(selectedVisual.endMs)} · 源片段 {seconds(selectedVisual.inMs)} – {seconds(selectedVisual.outMs)} 秒</p>
+        <button type="button" onClick={() => openAiEditor(selectedVisual)}>✦ AI 编辑这个镜头</button></section>}
+        {selected && selectedAsset ? <><strong>{selectedAsset.name}</strong><p>从时间线移除不会删除原始素材。</p>
         <label>起点（秒）<input aria-label="片段起点秒数" type="number" min="0" step="0.1" value={form.start} onChange={event => setForm({ ...form, start: event.target.value })} /></label>
         <label>素材入点（秒）<input aria-label="素材入点秒数" type="number" min="0" step="0.1" value={form.inPoint} onChange={event => setForm({ ...form, inPoint: event.target.value })} /></label>
         <label>素材出点（秒）<input aria-label="素材出点秒数" type="number" min="0" step="0.1" value={form.outPoint} onChange={event => setForm({ ...form, outPoint: event.target.value })} /></label>
@@ -430,6 +508,16 @@ export function EpisodeTimelineEditor({ projectTitle, episodeTitle, revision, sn
         {showAgent && agentSlot && <section className="episode-editor-agent"><h3>Agent 建议</h3>{agentSlot}</section>}
       </aside>
     </div>
+    {showAi && selectedVisual && <AiVideoEditWorkspace key={selectedVisual.id} shot={{ ...selectedVisual,
+      url: library.find(item => item.id === selectedVisual.assetId)?.url }} initialFrameMs={playhead} draftKey={`${draftStorageKey}:ai-video:${selectedVisual.id}`}
+      onClose={() => setShowAi(false)} />}
+    {ttsSlot && <div className="episode-editor-tts-backdrop" hidden={!showTts} onMouseDown={event => { if (event.target === event.currentTarget) setShowTts(false); }}>
+      <aside className="episode-editor-tts-panel" role="dialog" aria-modal="true" aria-label="文字生成旁白">
+        <header><div><small>配音素材</small><h2>文字生成旁白</h2></div><button type="button" aria-label="关闭旁白面板" onClick={() => setShowTts(false)}>×</button></header>
+        {ttsSlot}
+        {(onUploadAudio || onPickNativeAudio) && <button type="button" className="episode-editor-tts-upload" onClick={() => { setShowTts(false); if (onPickNativeAudio) void pickNative("voice"); else { setUploadKind("voice"); fileRef.current?.click(); } }}>改为上传录音</button>}
+      </aside>
+    </div>}
     {pendingAddition && <div className="episode-editor-modal-backdrop"><div role="dialog" aria-modal="true" aria-label="音频超出整集结尾" className="episode-editor-modal"><h2>音频超出整集结尾</h2>
       <p>当前位置仅剩 {seconds(pendingAddition.remainingMs)} 秒。可裁到结尾加入本集；原始素材不会改变。</p><div><button type="button" onClick={() => setPendingAddition(null)}>取消</button>
         <button type="button" className="primary" onClick={() => addAsset(pendingAddition.asset, pendingAddition.startMs, true)}>裁到结尾并加入</button></div></div></div>}

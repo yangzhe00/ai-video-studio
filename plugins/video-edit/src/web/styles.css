@@ -1,4 +1,5 @@
 @import url("./episode-timeline.css");
+@import url("./ai-video-edit.css");
 .video-edit { color: var(--avs-text); background: var(--avs-background); min-height: 100%; border-radius: 16px; }
 .video-edit button { cursor: pointer; border: 1px solid var(--avs-border); border-radius: 10px; background: var(--avs-control-bg); color: var(--avs-text); padding: 8px 12px; }
 .video-edit button:disabled { opacity: .5; cursor: not-allowed; }

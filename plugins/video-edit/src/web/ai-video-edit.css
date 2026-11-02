@@ -1,0 +1,52 @@
+.episode-ai-backdrop { position:fixed; z-index:320; inset:0; display:grid; place-items:center; padding:20px; background:#142329c7; }
+.episode-ai-workspace { display:flex; flex-direction:column; width:min(1260px,100%); max-height:calc(100dvh - 40px); min-height:600px; overflow:auto; border:1px solid var(--avs-border); border-radius:16px; background:var(--avs-background); box-shadow:0 26px 90px #07131977; color:var(--avs-text); }
+.episode-ai-workspace > header { display:flex; justify-content:space-between; gap:20px; padding:16px 22px; border-bottom:1px solid var(--avs-border); background:var(--avs-shell); }
+.episode-ai-workspace > header small { color:var(--avs-text-muted); font-size:11px; }
+.episode-ai-workspace > header h2 { margin:3px 0; font-size:19px; }
+.episode-ai-workspace > header p { margin:0; color:var(--avs-text-muted); font-size:11px; }
+.episode-ai-workspace > header button { align-self:flex-start; width:32px; height:32px; padding:0; font-size:24px; }
+.episode-ai-grid { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:0; min-height:390px; flex:1; }
+.episode-ai-visual { display:grid; grid-template-rows:minmax(300px,1fr) auto; gap:12px; min-width:0; padding:18px; }
+.episode-ai-stage { position:relative; display:grid; place-items:center; min-height:300px; overflow:hidden; border-radius:10px; background:#11181d; color:#e5eeef; }
+.episode-ai-stage video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+.episode-ai-stage > p { padding:16px; text-align:center; }
+.episode-ai-mark-surface { position:absolute; z-index:2; touch-action:none; cursor:crosshair; }
+.episode-ai-mark-surface.text { cursor:text; }
+.episode-ai-box { position:absolute; border:2px solid #f4b674; background:#f4b6742e; box-shadow:0 0 0 1px #18232799; pointer-events:none; }
+.episode-ai-box.draft { border-style:dashed; }
+.episode-ai-pin { position:absolute; display:grid; place-items:center; width:24px; height:24px; border:2px solid #fff; border-radius:50%; background:#d9754c; color:#fff; font-size:16px; font-weight:800; transform:translate(-50%,-50%); pointer-events:none; }
+.episode-ai-text-mark { position:absolute; max-width:55%; padding:5px 8px; border-radius:5px; background:#17262dd9; color:#fff; font-size:12px; transform:translate(-4px,-50%); pointer-events:none; }
+.episode-ai-frame-control label { display:flex; flex-wrap:wrap; align-items:center; gap:10px; color:var(--avs-text-muted); font-size:12px; }
+.episode-ai-frame-control strong { color:var(--avs-text); font-variant-numeric:tabular-nums; }
+.episode-ai-frame-control input { flex:1; min-width:140px; accent-color:var(--avs-primary); }
+.episode-ai-tools { padding:20px; overflow:auto; border-left:1px solid var(--avs-border); background:var(--avs-surface); }
+.episode-ai-tools h3 { margin:0 0 7px; font-size:14px; }
+.episode-ai-tools p { margin:0 0 15px; color:var(--avs-text-muted); font-size:12px; line-height:1.5; }
+.episode-ai-tool-buttons { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.episode-ai-tool-buttons button { padding:7px 4px; font-size:12px; }
+.episode-ai-tool-buttons button[aria-pressed="true"] { border-color:var(--avs-primary); background:var(--avs-primary-subtle); color:var(--avs-primary-strong); font-weight:700; }
+.episode-ai-mark-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:20px 0; }
+.episode-ai-mark-actions span { width:100%; color:var(--avs-text-muted); font-size:11px; }
+.episode-ai-mark-actions button { padding:6px 8px; font-size:11px; }
+.episode-ai-text-input { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.episode-ai-text-input label { width:100%; font-size:11px; }
+.episode-ai-text-input input { width:100%; margin-top:5px; padding:8px; border:1px solid var(--avs-border); border-radius:7px; }
+.episode-ai-reference { display:grid; gap:8px; margin-top:20px; padding:12px; border:1px dashed var(--avs-border); border-radius:9px; color:var(--avs-text); font-size:12px; }
+.episode-ai-reference input { max-width:100%; font-size:11px; }
+.episode-ai-reference-preview { display:flex; align-items:center; gap:7px; margin-top:9px; font-size:11px; }
+.episode-ai-reference-preview img { width:35px; height:35px; border-radius:5px; object-fit:cover; }
+.episode-ai-reference-preview span { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.episode-ai-reference-preview button { padding:5px; }
+.episode-ai-tools [role="alert"] { color:var(--avs-danger); }
+.episode-ai-workspace > footer { display:grid; grid-template-columns:minmax(0,1fr) 270px; gap:18px; padding:16px 22px; border-top:1px solid var(--avs-border); background:var(--avs-surface); }
+.episode-ai-workspace > footer label { display:grid; gap:7px; font-size:12px; font-weight:700; }
+.episode-ai-workspace > footer textarea { width:100%; min-height:80px; padding:10px; resize:vertical; border:1px solid var(--avs-border); border-radius:8px; background:var(--avs-background); color:var(--avs-text); font:inherit; font-weight:400; }
+.episode-ai-workspace > footer > div { display:grid; align-content:end; gap:8px; }
+.episode-ai-workspace > footer p { margin:0; color:var(--avs-text-muted); font-size:11px; line-height:1.5; }
+.episode-ai-workspace > footer button { width:100%; min-height:39px; }
+.episode-ai-frame-dialog { position:fixed; z-index:321; top:50%; left:50%; width:min(420px,calc(100vw - 28px)); padding:22px; border:1px solid var(--avs-border); border-radius:12px; background:var(--avs-surface); color:var(--avs-text); box-shadow:0 16px 50px #07131977; transform:translate(-50%,-50%); }
+.episode-ai-frame-dialog h3 { margin:0 0 8px; }
+.episode-ai-frame-dialog p { font-size:12px; line-height:1.5; }
+.episode-ai-frame-dialog > div { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+@media (max-width:900px) { .episode-ai-grid { grid-template-columns:minmax(0,1fr) 220px; } .episode-ai-workspace > footer { grid-template-columns:1fr; } }
+@media (max-width:700px) { .episode-ai-backdrop { padding:0; } .episode-ai-workspace { width:100%; max-height:100dvh; height:100dvh; min-height:0; border-radius:0; } .episode-ai-grid { grid-template-columns:1fr; } .episode-ai-visual { min-height:330px; } .episode-ai-tools { border-left:0; border-top:1px solid var(--avs-border); } }
