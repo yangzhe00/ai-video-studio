@@ -13,7 +13,8 @@ describe("desktop cloud account entry", () => {
     const onChange = vi.fn();
     render(<CloudAccountControl account={{ id: "qa", email, demo_quota: 6, demo_reserved: 1, demo_used: 2 }} onChange={onChange} />);
     const trigger = screen.getByRole("button", { name: `云端账号，已登录 ${email}` });
-    expect(trigger.textContent).toContain("云端账号");
+    expect(trigger.querySelector(".cloud-account-avatar")?.textContent).toContain("Q");
+    expect(trigger.textContent).not.toContain("云端账号");
     expect(trigger.textContent).not.toContain(email);
     fireEvent.click(trigger);
     const card = screen.getByRole("dialog", { name: "云端账号" });

@@ -52,12 +52,11 @@ export function CloudAccountControl({ account, onChange }: Props) {
       onClick={() => { setError(""); setOpen(value => !value); }}>
       <span className="cloud-account-avatar" aria-hidden="true">{account ? initial : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3" /><path d="M5 20c.5-4 3-6 7-6s6.5 2 7 6" /></svg>}
         {account && <i className="cloud-account-online" />}</span>
-      <span className="cloud-account-trigger-label">{account ? "云端账号" : "登录云端"}</span>
-      <svg className="cloud-account-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
+      {!account && <span className="cloud-account-trigger-label">登录云端</span>}
     </button>
     {open && account && <section className="cloud-account-popover" role="dialog" aria-label="云端账号">
       <div className="cloud-account-popover-head"><span className="cloud-account-avatar large" aria-hidden="true">{initial}<i className="cloud-account-online" /></span>
-        <strong>已连接云端</strong>
+        <div className="cloud-account-identity"><strong>云端账号</strong><span>已连接 · 项目自动同步</span></div>
         <button type="button" className="cloud-account-close" aria-label="关闭账号面板" onClick={() => setOpen(false)}>×</button></div>
       <p className="cloud-account-email">{account.email}</p>
       <div className="cloud-account-quota"><span>可用生成次数</span><strong>{available} 次</strong></div>

@@ -290,7 +290,7 @@ function AppContent() {
         onOpenProjects={() => setProjectDialog(true)} ideaSlot={ideaSlot} incomingPrompt={incomingPrompt}
         onIdeaConsumed={() => setIncomingPrompt(null)} />
       : <div className="film-app">
-        <StudioTitleBar native onHome={() => setNoProjectView("home")} tabs={[]} actions={<><CloudAccountControl account={account} onChange={setAccount} /><ThemeToggle /></>} />
+        <StudioTitleBar native onHome={() => setNoProjectView("home")} tabs={[]} actions={<><ThemeToggle /><CloudAccountControl account={account} onChange={setAccount} /></>} />
         <StudioShell active={noProjectView === "home" && workSetup ? null : noProjectView} onNavigate={setNoProjectView}>
           {noProjectView !== "home" ? <main className="film-section-empty" aria-label={`${sectionLabels[noProjectView]}空状态`}>
             <h1>{sectionLabels[noProjectView]}需要先打开项目</h1>

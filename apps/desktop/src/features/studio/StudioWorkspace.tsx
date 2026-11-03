@@ -910,7 +910,7 @@ export function StudioWorkspace({ project, account, onAccountChange, onOpenProje
     ]} actions={<>
       <button type="button" className="cloud-sync-trigger" onClick={() => { if (account) void runSync(true).catch(() => {}); }}
         disabled={!account || syncState === "syncing"}>{cloudLabel}</button>
-      <CloudAccountControl account={account} onChange={onAccountChange} /><ThemeToggle />
+      <ThemeToggle /><CloudAccountControl account={account} onChange={onAccountChange} />
     </>} />
     {uploadItems.length > 0 && <AssetUploadStatus items={uploadItems} onRetry={assetId => { void uploadReference(assetId).catch(() => {}); }} />}
     <StudioShell active={view === "editor" ? "assets" : view === "video-edit" ? "results" : view === "timeline" ? "canvas" : view} onNavigate={navigate}
