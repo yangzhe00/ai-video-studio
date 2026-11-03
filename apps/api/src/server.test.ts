@@ -191,6 +191,12 @@ describe("authenticated demo API", () => {
     expect(project.status).toBe(201);
     const id = project.payload.project.id as string;
     expect((await request(`/projects/${id}`, "GET", undefined, b.cookie)).status).toBe(404);
+    const episodeId = project.payload.project.document.episodes[0].id as string;
+    expect((await request(`/projects/${id}/episodes/${episodeId}/timeline`, "GET", undefined, b.cookie)).status).toBe(404);
+    const timeline = await request(`/projects/${id}/episodes/${episodeId}/timeline`, "GET", undefined, a.cookie);
+    expect(timeline.status).toBe(200);
+    expect(timeline.payload).toMatchObject({ episodeId, episodeRevision: 1, timelineClips: [],
+      audio: { version: 3, originalClips: [], voiceClips: [], musicClips: [] }, projectedFromLegacy: true });
     expect((await request("/projects", "GET", undefined, b.cookie)).payload.projects).toEqual([]);
     const photo = await request("/objects", "POST", jpegFixture("red"), a.cookie, "image/jpeg");
     expect(photo.status).toBe(201);

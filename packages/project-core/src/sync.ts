@@ -2,13 +2,16 @@ import type { CanvasEpisodeGraphV1 } from "./canvas-extension.ts";
 import type { CreationBrief } from "./brief.ts";
 import { creationBriefs } from "./brief.ts";
 import { projectEpisodeAudio } from "@ai-video/project-schema";
+import type { OriginalAudioClipV3 } from "@ai-video/project-schema";
 
 export interface CloudAsset { id: string; kind: "image" | "video" | "voice" | "music"; name?: string; mimeType?: string; durationMs?: number }
 export interface CloudShot { id: string; runId: string; resultAssetId: string; originalAssetId?: string; selectedAssetId?: string; sourceAssetId: string; prompt: string; durationSec: number }
 export interface CloudTimelineClip { id: string; assetId: string; inMs: number; outMs: number; volume: number }
 export interface CloudAudioPlacement { id?: string; assetId: string; startMs: number; inMs: number; outMs: number; volume: number;
   anchor?: { kind: "absolute" } | { kind: "visual-clip"; clipId: string; offsetMs: number } }
-export interface CloudEpisodeAudio { version?: 2; originalVolume: number; voiceClips: CloudAudioPlacement[]; musicClips: CloudAudioPlacement[] }
+export interface CloudEpisodeAudio { version?: 2 | 3; originalVolume: number; originalClips?: OriginalAudioClipV3[];
+  locks?: { visual: boolean; original: boolean; voice: boolean; music: boolean };
+  voiceClips: CloudAudioPlacement[]; musicClips: CloudAudioPlacement[] }
 export interface CloudEpisode { id: string; title: string; shots: CloudShot[]; timeline: string[]; timelineClips?: CloudTimelineClip[]; audio?: CloudEpisodeAudio }
 export interface CloudCharacter { id: string; name: string; description: string; assetId: string }
 export interface CloudProjectDocument {
@@ -53,7 +56,7 @@ export function timelineWithMetadata(episode: CloudEpisode, timeline: string[], 
       outMs: (episode.shots.find(shot => shot.resultAssetId === assetId)?.durationSec ?? 5) * 1000, volume: 1 };
   });
   const next = { ...episode, timeline, timelineClips };
-  return { ...next, ...(episode.audio?.version === 2 ? { audio: projectEpisodeAudio(next) } : {}) };
+  return { ...next, ...([2, 3].includes(episode.audio?.version ?? 0) ? { audio: projectEpisodeAudio(next) } : {}) };
 }
 
 export function resourceRevision(resources: SyncResourceRevision[], type: SyncResourceType, id: string): number {

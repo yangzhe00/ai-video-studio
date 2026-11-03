@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EpisodeAudioSchema, projectEpisodeAudio } from "./episode-audio.ts";
+import { EpisodeAudioSchema, projectEpisodeAudio, projectOriginalAudio } from "./episode-audio.ts";
 
 const clip = (id: string, startMs: number, anchor: { kind: "absolute" } | { kind: "visual-clip"; clipId: string; offsetMs: number }) =>
   ({ id, assetId: "voice-asset-0001", startMs, inMs: 0, outMs: 800, volume: 1, anchor });
@@ -53,5 +53,26 @@ describe("episode audio contract", () => {
     expect(projectEpisodeAudio(episode)?.voiceClips[0].startMs).toBe(9000);
     expect(projectEpisodeAudio({ ...episode, audio: undefined })).toBeUndefined();
     expect(episode.timeline).toEqual(["video-0010"]);
+  });
+
+  it("projects only audible old video sources and carries visual volume once into v3", () => {
+    const episode = { id: "episode-0003", timeline: ["video-0001", "video-0002"], shots: [],
+      timelineClips: [
+        { id: "visual-0001", assetId: "video-0001", inMs: 0, outMs: 5000, volume: 0.3 },
+        { id: "visual-0002", assetId: "video-0002", inMs: 0, outMs: 5000, volume: 0.8 },
+      ] };
+    expect(projectOriginalAudio(episode, assetId => assetId === "video-0001")).toEqual([{
+      id: "original-visual-0001", visualClipId: "visual-0001", assetId: "video-0001",
+      inMs: 0, outMs: 5000, volume: 0.3, muted: false,
+    }]);
+    const v3 = { version: 3 as const, originalVolume: 0.5,
+      originalClips: [{ id: "original-visual-0001", visualClipId: "visual-0001", assetId: "video-0001",
+        inMs: 0, outMs: 2300, volume: 0.3, muted: true }], voiceClips: [], musicClips: [] };
+    expect(EpisodeAudioSchema.safeParse(v3).success).toBe(true);
+    expect(EpisodeAudioSchema.safeParse({ ...v3, originalClips: [{ ...v3.originalClips[0], outMs: 300 }] }).success).toBe(true);
+    expect(EpisodeAudioSchema.safeParse({ ...v3, originalClips: [{ ...v3.originalClips[0], outMs: 299 }] }).success).toBe(false);
+    expect(projectOriginalAudio({ ...episode, audio: v3 }, () => false)).toEqual(v3.originalClips);
+    expect(EpisodeAudioSchema.safeParse({ ...v3, originalClips: [v3.originalClips[0],
+      { ...v3.originalClips[0], visualClipId: "visual-0002" }] }).success).toBe(false);
   });
 });

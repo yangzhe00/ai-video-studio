@@ -41,6 +41,19 @@ describe("shared API contracts", () => {
     expect(() => parseApiResponse({ run: { runId: "run-0001" } })).toThrow();
   });
 
+  it("reads a projected old timeline without hiding a historical short voice clip", () => {
+    const projected = { episodeId: "episode-001", episodeRevision: 2,
+      timelineClips: [{ id: "visual-001", assetId: "video-001", inMs: 0, outMs: 5000, volume: 1 }],
+      audio: { version: 3, originalVolume: 1,
+        originalClips: [{ id: "original-visual-001", visualClipId: "visual-001", assetId: "video-001",
+          inMs: 0, outMs: 5000, volume: 1, muted: false }],
+        voiceClips: [{ id: "legacy-voice-001", assetId: "voice-001", startMs: 0, inMs: 0, outMs: 200,
+          volume: 1, anchor: { kind: "absolute" } }], musicClips: [] }, projectedFromLegacy: true };
+    expect(parseApiResponse<typeof projected>(projected).audio.voiceClips[0].outMs).toBe(200);
+    expect(() => parseApiResponse({ ...projected, audio: { ...projected.audio,
+      originalClips: [{ ...projected.audio.originalClips[0], outMs: 200 }] } })).toThrow();
+  });
+
   it("accepts legacy errors and preserves conflict snapshots", () => {
     expect(parseApiError({ error: "请先登录" }, 401)).toMatchObject({ error: "请先登录", code: "unauthorized" });
     const conflict = { project: { id: "project-001" } };

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import type { PgDatabase } from "./db.ts";
 import { EpisodeAudioSchema } from "@ai-video/api-contracts";
-import { projectEpisodeAudio, type CloudAudioEpisode } from "@ai-video/api-contracts";
+import { projectEpisodeAudio, projectOriginalAudio, projectEpisodeVisuals, type CloudAudioEpisode } from "@ai-video/api-contracts";
 import { inspectMediaFile } from "./media-inspect.ts";
 import { creationBriefs } from "../../../packages/project-core/src/brief.ts";
 import type { CreationBrief } from "../../../packages/project-core/src/brief.ts";
@@ -41,6 +41,38 @@ const allowedTypes = new Set(["episode", "asset", "character", "canvas", "brief"
 export async function listResourceRevisions(db: PgDatabase, projectId: string): Promise<SyncResourceRevision[]> {
   const rows = (await db.prepare("SELECT resource_type,resource_id,revision FROM resource_revisions WHERE project_id=?").all(projectId)) as { resource_type: SyncResourceType; resource_id: string; revision: number }[];
   return rows.map(row => ({ resourceType: row.resource_type, resourceId: row.resource_id, revision: row.revision }));
+}
+
+/** Read a v3 timeline without changing an old stored episode or inventing audio for silent video. */
+export async function readEpisodeTimeline(db: PgDatabase, ownerId: string, projectId: string, episodeId: string) {
+  const row = await db.prepare("SELECT document_json FROM projects WHERE id=? AND owner_id=?")
+    .get(projectId, ownerId) as { document_json: string } | undefined;
+  if (!row) throw new SyncError(404, "项目不存在");
+  const document = JSON.parse(row.document_json) as CloudProjectDocument;
+  const episode = document.episodes.find(item => item.id === episodeId);
+  if (!episode) throw new SyncError(404, "分集不存在");
+  const cloud = episode as unknown as CloudAudioEpisode;
+  const visuals = projectEpisodeVisuals(cloud);
+  const hasAudio = new Map<string, boolean>();
+  for (const assetId of new Set(visuals.map(clip => clip.assetId))) {
+    const object = await db.prepare("SELECT path,mime FROM objects WHERE id=? AND owner_id=?")
+      .get(assetId, ownerId) as { path: string; mime: string } | undefined;
+    if (!object || !existsSync(object.path)) throw new SyncError(410, "画面素材文件已失效，请重新上传或恢复");
+    hasAudio.set(assetId, object.mime === "video/mp4"
+      ? Boolean((await inspectMediaFile(object.path, object.mime)).hasAudio) : false);
+  }
+  let projected;
+  try { projected = projectEpisodeAudio(cloud); }
+  catch { throw new SyncError(409, "分集音频锚点已失效，请先处理旧数据冲突"); }
+  const audio = cloud.audio?.version === 3 ? projected : {
+    version: 3 as const, originalVolume: projected?.originalVolume ?? 1,
+    originalClips: projectOriginalAudio(cloud, assetId => hasAudio.get(assetId) ?? false),
+    voiceClips: projected?.voiceClips ?? [], musicClips: projected?.musicClips ?? [],
+  };
+  const revision = await db.prepare("SELECT revision FROM resource_revisions WHERE project_id=? AND resource_type='episode' AND resource_id=?")
+    .get(projectId, episodeId) as { revision: number } | undefined;
+  return { episodeId, episodeRevision: revision?.revision ?? 1, timelineClips: visuals,
+    audio, projectedFromLegacy: cloud.audio?.version !== 3 };
 }
 
 function currentPayload(document: CloudProjectDocument, type: SyncCommand["resourceType"], id: string): unknown {
@@ -92,8 +124,24 @@ async function validateCommand(db: PgDatabase, ownerId: string, document: CloudP
     const previous = document.episodes.find(item => item.id === body.resourceId);
     const previousAudio = previous?.audio as { version?: number } | undefined;
     const incomingAudio = payload.audio as { version?: number } | undefined;
-    if (previousAudio?.version === 2 && incomingAudio?.version !== 2) {
+    if ((previousAudio?.version === 2 && ![2, 3].includes(incomingAudio?.version ?? 0)) ||
+        (previousAudio?.version === 3 && incomingAudio?.version !== 3)) {
       throw new SyncError(409, "分集使用新版音轨，请刷新并使用新版编辑器保存");
+    }
+    const savedV3 = previousAudio?.version === 3 ? previousAudio as {
+      locks?: { visual: boolean; original: boolean; voice: boolean; music: boolean };
+      originalVolume: number; originalClips: unknown[]; voiceClips: unknown[]; musicClips: unknown[];
+    } : undefined;
+    if (savedV3?.locks && incomingAudio?.version === 3) {
+      const next = incomingAudio as typeof savedV3;
+      const changed = (left: unknown, right: unknown) => JSON.stringify(left) !== JSON.stringify(right);
+      if ((savedV3.locks.visual && changed(previous?.timelineClips, payload.timelineClips)) ||
+          (savedV3.locks.original && (changed(savedV3.originalClips, next.originalClips) ||
+            changed(savedV3.originalVolume, next.originalVolume))) ||
+          (savedV3.locks.voice && changed(savedV3.voiceClips, next.voiceClips)) ||
+          (savedV3.locks.music && changed(savedV3.musicClips, next.musicClips))) {
+        throw new SyncError(409, "轨道已锁定，请先单独解锁后再编辑");
+      }
     }
     const timeline = payload.timeline as unknown[];
     if (!timeline.every(id => typeof id === "string" && validId(id))) throw new SyncError(400, "时间线素材 ID 无效");
@@ -113,6 +161,8 @@ async function validateCommand(db: PgDatabase, ownerId: string, document: CloudP
     if (payload.timelineClips !== undefined) {
       if (!Array.isArray(payload.timelineClips) || payload.timelineClips.length !== timeline.length) throw new SyncError(400, "时间线片段不匹配");
       const ids = new Set<string>();
+      const savedById = new Map(((previous?.timelineClips as { id: string; assetId: string }[] | undefined) ?? [])
+        .map(clip => [clip.id, clip.assetId]));
       for (let index = 0; index < timeline.length; index++) {
         const clip = payload.timelineClips[index] as Record<string, unknown> | null;
         if (!clip || !validId(clip.id) || ids.has(clip.id) || clip.assetId !== timeline[index] ||
@@ -121,29 +171,90 @@ async function validateCommand(db: PgDatabase, ownerId: string, document: CloudP
             typeof clip.volume !== "number" || !Number.isFinite(clip.volume) || clip.volume < 0 || clip.volume > 2) {
           throw new SyncError(400, "时间线片段无效");
         }
+        if (savedById.has(clip.id) && savedById.get(clip.id) !== clip.assetId)
+          throw new SyncError(409, "画面片段 ID 已关联其他源素材，请刷新时间线");
         ids.add(clip.id);
       }
+    }
+    if (previous && Array.isArray(previous.timeline) && Array.isArray(payload.timelineClips)) {
+      const saved = projectEpisodeVisuals(previous as unknown as CloudAudioEpisode);
+      const requested = payload.timelineClips as { id: string; assetId: string; inMs: number; outMs: number }[];
+      const savedById = new Map(saved.map(clip => [clip.id, clip]));
+      const savedAssets = new Set(saved.map(clip => clip.assetId));
+      const segmentEdit = saved.some(clip => {
+        const next = requested.find(item => item.id === clip.id);
+        return !next || next.inMs !== clip.inMs || next.outMs !== clip.outMs;
+      }) || requested.some(clip => !savedById.has(clip.id) && savedAssets.has(clip.assetId));
+      if (segmentEdit && incomingAudio?.version !== 3)
+        throw new SyncError(409, "分割、裁剪或删除画面须同时提交 v3 原声音轨，避免丢失分段信息");
     }
     if (payload.audio !== undefined) {
       const parsed = EpisodeAudioSchema.safeParse(payload.audio);
       if (!parsed.success) throw new SyncError(400, "分集音轨无效");
       let audio = parsed.data;
-      if ("version" in audio && audio.version === 2) {
+      if ("version" in audio && (audio.version === 2 || audio.version === 3)) {
         try {
           const projected = projectEpisodeAudio(payload as unknown as CloudAudioEpisode);
           if (!projected) throw new Error("分集音轨不存在");
           audio = projected as typeof audio;
           payload.audio = projected;
-        } catch { throw new SyncError(400, "音频片段的镜头锚点已失效，请重新选择镜头"); }
+        } catch {
+          const visualIds = new Set((payload.timelineClips as { id: string }[] | undefined)?.map(clip => clip.id) ?? []);
+          const affected = [...audio.voiceClips, ...audio.musicClips].filter(clip => {
+            const anchor = (clip as { anchor?: { kind: string; clipId?: string } }).anchor;
+            return anchor?.kind === "visual-clip" && !visualIds.has(anchor.clipId ?? "");
+          });
+          throw new SyncError(409, "音频片段的镜头锚点已失效，请逐条移除或固定到整集时间", {
+            affectedAudioClips: affected.map(clip => "id" in clip ? clip.id : undefined).filter(Boolean),
+          });
+        }
+      }
+      if ("version" in audio && audio.version === 3 && savedV3?.locks && !audio.locks) {
+        audio = { ...audio, locks: savedV3.locks };
+        payload.audio = audio;
       }
       const episodeDuration = (payload.timelineClips as { inMs: number; outMs: number }[] | undefined)
         ?.reduce((total, clip) => total + clip.outMs - clip.inMs, 0)
         ?? (payload.timeline as string[]).reduce((total, assetId) => total +
           ((payload.shots as { resultAssetId: string; durationSec: number }[]).find(shot => shot.resultAssetId === assetId)?.durationSec ?? 5) * 1000, 0);
-      if ("version" in audio && audio.version === 2 &&
+      if ("version" in audio && (audio.version === 2 || audio.version === 3) &&
           (!Number.isSafeInteger(episodeDuration) || episodeDuration > 20 * 60_000 || timeline.length > 100)) {
         throw new SyncError(400, "分集时长或镜头数量超出精准预览限制");
       }
+      if ("version" in audio && audio.version === 3) {
+        const visuals = payload.timelineClips as { id: string; assetId: string; inMs: number; outMs: number; volume: number }[] | undefined;
+        if (!visuals || visuals.length !== timeline.length) throw new SyncError(400, "新版时间线须包含完整画面片段");
+        const byId = new Map(visuals.map(clip => [clip.id, clip]));
+        const inspected = new Map<string, { durationMs?: number; hasAudio?: boolean }>();
+        for (const visual of visuals) {
+          if (visual.outMs - visual.inMs < 300) throw new SyncError(400, "画面片段不得短于 300 毫秒");
+          if (!inspected.has(visual.assetId)) {
+            const object = await ownedObject(visual.assetId);
+            if (!object || object.mime !== "video/mp4" || !existsSync(object.path)) throw new SyncError(410, "画面素材文件已失效");
+            inspected.set(visual.assetId, await inspectMediaFile(object.path, object.mime));
+          }
+          if (visual.outMs > (inspected.get(visual.assetId)?.durationMs ?? 0))
+            throw new SyncError(400, "画面裁剪超出源视频时长");
+        }
+        const ranges = new Map<string, { inMs: number; outMs: number }[]>();
+        for (const clip of audio.originalClips) {
+          const visual = byId.get(clip.visualClipId);
+          if (!visual || clip.assetId !== visual.assetId || clip.inMs < visual.inMs || clip.outMs > visual.outMs)
+            throw new SyncError(400, "镜头原声片段须位于所属画面的同源范围");
+          if (!inspected.get(clip.assetId)?.hasAudio) throw new SyncError(400, "源视频没有可编辑的原声轨道");
+          const list = ranges.get(clip.visualClipId) ?? [];
+          if (list.some(range => clip.inMs < range.outMs && clip.outMs > range.inMs))
+            throw new SyncError(400, "同一画面的原声片段不能重叠");
+          list.push({ inMs: clip.inMs, outMs: clip.outMs });
+          ranges.set(clip.visualClipId, list);
+        }
+        const removedAnchors = [...audio.voiceClips, ...audio.musicClips].filter(clip =>
+          clip.anchor.kind === "visual-clip" && !byId.has(clip.anchor.clipId));
+        if (removedAnchors.length) throw new SyncError(409, "画面已删除，请逐条处理跟随该画面的配音或音乐", {
+          affectedAudioClips: removedAnchors.map(clip => clip.id),
+        });
+      }
+      const overflowAudioClips: string[] = [];
       for (const [kind, clips] of [["voice", audio.voiceClips], ["music", audio.musicClips]] as const) {
         for (const clip of clips) {
           const asset = document.assets.find(item => item.id === clip.assetId && item.kind === kind);
@@ -153,12 +264,15 @@ async function validateCommand(db: PgDatabase, ownerId: string, document: CloudP
           if (!existsSync(object.path)) throw new SyncError(410, "音频素材文件已失效，请重新上传");
           if (!object.mime.startsWith("audio/") || !Number.isSafeInteger(assetDuration) ||
               (assetDuration as number) <= 0 || clip.outMs > (assetDuration as number) ||
-              !Number.isSafeInteger(clip.startMs + clip.outMs - clip.inMs) ||
-              clip.startMs + clip.outMs - clip.inMs > episodeDuration) {
+              !Number.isSafeInteger(clip.startMs + clip.outMs - clip.inMs)) {
             throw new SyncError(400, "音频裁剪超出素材或分集范围，请调整入点、出点和起点");
           }
+          if (clip.startMs + clip.outMs - clip.inMs > episodeDuration)
+            overflowAudioClips.push("id" in clip ? String(clip.id) : clip.assetId);
         }
       }
+      if (overflowAudioClips.length) throw new SyncError(409,
+        "音频超出新片尾，请逐条选择返回调整或明确裁剪/移除", { affectedAudioClips: overflowAudioClips });
     }
   }
   if (type === "asset") {

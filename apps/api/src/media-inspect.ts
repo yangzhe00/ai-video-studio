@@ -15,7 +15,7 @@ const audioFormats: Record<string, { containers: string[]; codecs: string[] }> =
   "audio/x-wav": { containers: ["wav"], codecs: ["pcm_s16le", "pcm_s24le", "pcm_f32le"] },
   "audio/mp4": { containers: ["mov", "mp4", "m4a"], codecs: ["aac", "alac"] },
 };
-export interface MediaInspection { durationMs?: number }
+export interface MediaInspection { durationMs?: number; hasAudio?: boolean }
 
 export class MediaInspectError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 
@@ -79,7 +79,7 @@ export async function inspectMediaFile(path: string, mime: string, probePath = f
       if (!parsed.format?.format_name?.split(",").includes("mp4") || !Number.isFinite(duration) || duration <= 0 || duration > 3600) {
         throw new MediaInspectError(400, "视频格式或时长无效");
       }
-      return { durationMs: Math.round(duration * 1000) };
+      return { durationMs: Math.round(duration * 1000), hasAudio: Boolean(audio) };
     } else {
       const expected = { "image/jpeg": "mjpeg", "image/png": "png", "image/webp": "webp" }[mime];
       if (video.codec_name !== expected) throw new MediaInspectError(400, "素材内容与声明格式不符");

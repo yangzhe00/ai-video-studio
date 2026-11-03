@@ -11,7 +11,7 @@ import { createDb } from "./db.ts";
 import { approveRun, createRun, getRun, listProjectRuns, listRunEvents, RunError } from "./runs.ts";
 import { GenerationWorker } from "./generation-worker.ts";
 import { KlingGateway } from "./kling.ts";
-import { applyProjectCommand, listResourceRevisions, SyncError } from "./sync.ts";
+import { applyProjectCommand, listResourceRevisions, readEpisodeTimeline, SyncError } from "./sync.ts";
 import { applyEditCommand, createEdit, createRender, EditError, findEdit, getEdit, listEditVersions, renderSnapshot } from "./video-edits.ts";
 import { RenderWorker } from "./render-worker.ts";
 import { inspectMediaFile, MediaInspectError } from "./media-inspect.ts";
@@ -387,6 +387,11 @@ export async function createApi(config: ApiConfig): Promise<Server> {
             recent_episode_id: string | null; document_json: string };
         reply(res, replayed ? 200 : 201, { project: { ...projectSummary(row),
           document: JSON.parse(row.document_json), resourceRevisions: (await listResourceRevisions(db, id)) } }); return;
+      }
+      const episodeTimeline = /^\/projects\/([a-zA-Z0-9-]+)\/episodes\/([a-zA-Z0-9-]+)\/timeline$/.exec(pathname);
+      if (episodeTimeline) {
+        if (method !== "GET") throw new ApiError(405, "分集时间线投影只读");
+        reply(res, 200, await readEpisodeTimeline(db, accountId, episodeTimeline[1], episodeTimeline[2])); return;
       }
       const projectDsl = /^\/projects\/([a-zA-Z0-9-]+)\/dsl$/.exec(pathname);
       if (projectDsl) {

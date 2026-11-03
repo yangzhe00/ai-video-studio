@@ -22,16 +22,17 @@ export {
   VideoEditViewSchema, RenderViewSchema, ObjectSnapshotSchema,
   TtsEstimateSchema, TtsVoiceSchema, TtsTaskSchema, EpisodeRenderViewSchema, PreviewViewSchema,
   AgentEditActionSchema, AgentEditContextSchema, AgentEditSetSchema,
-  CloudProjectResponseSchema, CloudRunResponseSchema, parseApiResponse,
+  CloudProjectResponseSchema, EpisodeTimelineProjectionSchema, CloudRunResponseSchema, parseApiResponse,
 } from "./responses.ts";
 export type {
-  Account, PromptVariant, PromptIdeaSet, ProjectSummary, CloudProjectResponse,
+  Account, PromptVariant, PromptIdeaSet, ProjectSummary, CloudProjectResponse, EpisodeTimelineProjection,
   CloudRunResponse, VideoEditView, RenderView, ObjectSnapshot,
   TtsEstimate, TtsVoice, TtsTask, EpisodeRenderView, PreviewView, AgentEditAction, AgentEditContext, AgentEditSet,
 } from "./responses.ts";
 export type { VideoProjectV1 } from "@ai-video/project-schema";
-export { projectEpisodeAudio, EpisodeAudioV2Schema } from "@ai-video/project-schema";
-export type { CloudAudioEpisode, EpisodeAudioV2 } from "@ai-video/project-schema";
+export { projectEpisodeAudio, projectOriginalAudio, projectEpisodeVisuals, EpisodeAudioV2Schema, EpisodeAudioV3Schema,
+  OriginalAudioClipV3Schema } from "@ai-video/project-schema";
+export type { CloudAudioEpisode, EpisodeAudioV2, EpisodeAudioV3, OriginalAudioClipV3 } from "@ai-video/project-schema";
 
 /** Required on every state-changing API request, including native clients. */
 export const AVS_REQUEST_HEADER_NAME = "X-AVS-Request";

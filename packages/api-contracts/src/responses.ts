@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { parseProjectDsl } from "@ai-video/project-schema";
+import { OriginalAudioClipV3Schema, parseProjectDsl } from "@ai-video/project-schema";
 import { ApiErrorEnvelopeSchema } from "./errors.ts";
 
 const text = z.string().min(1);
@@ -68,6 +68,15 @@ export const AgentEditSetSchema = z.object({ id: text, projectId: text, episodeI
 export const CloudProjectResponseSchema = z.object({ id: text, title: text, revision: int,
   document: z.object({ version: z.literal(1), assets: z.array(z.unknown()), characters: z.array(z.unknown()),
     episodes: z.array(z.unknown()) }).passthrough(), resourceRevisions: z.array(z.unknown()) }).passthrough();
+const readAudioClip = z.object({ id: text, assetId: text, startMs: int, inMs: int, outMs: int,
+  volume: z.number().finite().min(0).max(2), anchor: z.unknown() }).passthrough();
+export const EpisodeTimelineProjectionSchema = z.object({ episodeId: text, episodeRevision: int,
+  timelineClips: z.array(z.object({ id: text, assetId: text, inMs: int, outMs: int,
+    volume: z.number().finite().min(0).max(2) }).strict()).max(100),
+  audio: z.object({ version: z.literal(3), originalVolume: z.number().finite().min(0).max(2),
+    originalClips: z.array(OriginalAudioClipV3Schema), voiceClips: z.array(readAudioClip),
+    musicClips: z.array(readAudioClip) }).passthrough(), projectedFromLegacy: z.boolean(),
+}).strict();
 export const CloudRunResponseSchema = z.object({
   runId: text, projectId: text, episodeId: text, sourceAssetId: text, input: z.string(),
   durationSec: z.union([z.literal(5), z.literal(10)]), state: text, planHash: text,
@@ -79,6 +88,7 @@ export type PromptIdeaSet = z.infer<typeof PromptIdeaSetSchema>;
 export type Account = z.infer<typeof AccountSchema>;
 export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
 export type CloudProjectResponse = z.infer<typeof CloudProjectResponseSchema>;
+export type EpisodeTimelineProjection = z.infer<typeof EpisodeTimelineProjectionSchema>;
 export type CloudRunResponse = z.infer<typeof CloudRunResponseSchema>;
 export type VideoEditView = z.infer<typeof VideoEditViewSchema>;
 export type RenderView = z.infer<typeof RenderViewSchema>;
@@ -97,6 +107,7 @@ export function parseApiResponse<T = unknown>(raw: unknown): T {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("API 响应格式无效");
   const value = raw as Record<string, unknown>;
   if ("error" in value) { ApiErrorEnvelopeSchema.parse(value); return raw as T; }
+  if ("projectedFromLegacy" in value) { EpisodeTimelineProjectionSchema.parse(value); return raw as T; }
   if ("project" in value) {
     if (value.readOnly === true) {
       const snapshot = z.object({ id: text, title: text, revision: int, resourceRevisions: z.array(z.unknown()),

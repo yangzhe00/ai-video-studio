@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AudioPlacement } from "@ai-video/plugin-video-edit/core";
 import { projectEpisodeAudio } from "@ai-video/api-contracts";
+import type { OriginalAudioClipV3 } from "@ai-video/api-contracts";
 import type { ApiConfig } from "./config.ts";
 import type { PgDatabase } from "./db.ts";
 import { inspectMediaFile } from "./media-inspect.ts";
@@ -16,7 +17,8 @@ export class EpisodeRenderError extends Error { constructor(readonly status: num
 interface CloudClip { id: string; assetId: string; inMs: number; outMs: number; volume: number }
 interface CloudEpisode { id: string; title: string; timeline: string[]; timelineClips?: CloudClip[];
   shots: { resultAssetId: string; durationSec: number }[];
-  audio?: { version?: 2; originalVolume: number; voiceClips: AudioPlacement[]; musicClips: AudioPlacement[] } }
+  audio?: { version?: 2 | 3; originalVolume: number; originalClips?: OriginalAudioClipV3[];
+    voiceClips: AudioPlacement[]; musicClips: AudioPlacement[] } }
 interface Row { id: string; owner_id: string; project_id: string; episode_id: string; episode_revision: number;
   snapshot_json: string; state: "pending" | "running" | "succeeded" | "failed";
   output_object_id: string | null; error: string | null; lease_token: string | null; lease_expires_at: number | null;
@@ -36,7 +38,8 @@ export async function renderEpisodeSnapshot(db: PgDatabase, ownerId: string, pro
     if (!object) throw new MediaSourceUnavailableError("visual", `object:${clip.assetId}`);
     if (!["video/mp4", "image/jpeg", "image/png", "image/webp"].includes(object.mime)) throw new Error("分集镜头素材格式不支持");
     assertReadableMediaSource(object.path, "visual");
-    visuals.push({ path: object.path, mime: object.mime as EpisodeVisualInput["mime"], inMs: clip.inMs, outMs: clip.outMs, volume: clip.volume });
+    visuals.push({ id: clip.id, assetId: clip.assetId, path: object.path,
+      mime: object.mime as EpisodeVisualInput["mime"], inMs: clip.inMs, outMs: clip.outMs, volume: clip.volume });
   }
   const project = await db.prepare("SELECT document_json FROM projects WHERE id=? AND owner_id=?").get(projectId, ownerId) as
     { document_json: string } | undefined;
@@ -95,7 +98,7 @@ export async function createEpisodeRender(db: PgDatabase, ownerId: string, proje
         .run(Date.now(), existing.id);
       return { render: await getEpisodeRender(db, ownerId, existing.id), replayed: true };
     }
-    if (episode.audio?.version === 2) {
+    if (episode.audio?.version === 2 || episode.audio?.version === 3) {
       const preview = await db.prepare(`SELECT id FROM preview_operations WHERE scope='episode' AND project_id=?
         AND target_id=? AND revision=? AND state='succeeded' AND expires_at>? LIMIT 1`)
         .get(projectId, episodeId, revision, Date.now());

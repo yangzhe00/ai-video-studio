@@ -10,9 +10,10 @@ export {
 } from "./clips.ts";
 export type { TimelineClipV1, TimelineTrackV1 } from "./clips.ts";
 export { AudioAnchorSchema, LegacyEpisodeAudioClipSchema, EpisodeAudioClipV2Schema,
-  LegacyEpisodeAudioSchema, EpisodeAudioV2Schema, EpisodeAudioSchema } from "./episode-audio.ts";
-export type { AudioAnchor, LegacyEpisodeAudio, EpisodeAudioV2 } from "./episode-audio.ts";
-export { projectEpisodeAudio } from "./episode-audio.ts";
+  LegacyEpisodeAudioSchema, EpisodeAudioV2Schema, OriginalAudioClipV3Schema, EpisodeAudioV3Schema,
+  EpisodeAudioSchema } from "./episode-audio.ts";
+export type { AudioAnchor, LegacyEpisodeAudio, EpisodeAudioV2, EpisodeAudioV3, OriginalAudioClipV3 } from "./episode-audio.ts";
+export { projectEpisodeAudio, projectOriginalAudio, projectEpisodeVisuals } from "./episode-audio.ts";
 export type { CloudAudioEpisode } from "./episode-audio.ts";
 export {
   ProjectMetadataSchema, CanvasConfigSchema, RenderConfigSchema, CharacterSchema,
