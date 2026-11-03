@@ -11,6 +11,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from psycopg.errors import UniqueViolation
 from redis.asyncio import Redis
 
@@ -104,6 +105,11 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     async def api_error_handler(_request: Request, error: ApiError):
         return error_response(error)
 
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error_handler(_request: Request, error: StarletteHTTPException):
+        message = "接口不存在" if error.status_code == 404 else "请求方法不允许" if error.status_code == 405 else "请求失败"
+        return error_response(ApiError(error.status_code, message))
+
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(_request: Request, _error: RequestValidationError):
         return error_response(ApiError(400, "请求参数无效"))
@@ -127,6 +133,8 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     @app.post("/auth/register")
     async def register(request: Request):
         body = await read_json(request)
+        if not isinstance(body.get("email"), str) or not isinstance(body.get("password"), str):
+            raise ApiError(400, "请求内容不符合接口协议")
         email = normalize_email(body.get("email"))
         password = validate_password(body.get("password"))
         await auth_rate(request, email, "register")
@@ -147,6 +155,8 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     @app.post("/auth/login")
     async def login(request: Request):
         body = await read_json(request)
+        if not isinstance(body.get("email"), str) or not isinstance(body.get("password"), str):
+            raise ApiError(400, "请求内容不符合接口协议")
         email = normalize_email(body.get("email"))
         await auth_rate(request, email, "login")
         password = body.get("password") if isinstance(body.get("password"), str) else ""

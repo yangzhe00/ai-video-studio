@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
 from typing import AsyncIterator
@@ -9,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from ai_video_api.db import Database
 from ai_video_api.errors import ApiError, error_response
 
-_RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
+_RANGE = re.compile(r"^bytes=([0-9]*)-([0-9]*)$")
 _SUFFIX = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "video/mp4": "mp4",
            "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a"}
 
@@ -44,7 +45,7 @@ async def _read_file(path: Path, start: int, end: int) -> AsyncIterator[bytes]:
         stream.seek(start)
         remaining = end - start + 1
         while remaining > 0:
-            chunk = stream.read(min(1024 * 1024, remaining))
+            chunk = await asyncio.to_thread(stream.read, min(1024 * 1024, remaining))
             if not chunk:
                 break
             remaining -= len(chunk)

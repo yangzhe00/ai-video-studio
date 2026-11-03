@@ -93,3 +93,14 @@ async def test_register_login_old_cookie_contract(app):
         assert wrong.status_code == 401
         logged_in = await client.post("/auth/login", json={"email": "test@example.com", "password": "ExamplePassword123!"}, headers=headers)
         assert logged_in.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_errors_keep_shared_envelope(app):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as client:
+        missing = await client.get("/missing")
+        assert missing.status_code == 404
+        assert missing.json() == {"error": "接口不存在", "code": "not_found"}
+        malformed = await client.post("/auth/login", json={"email": "a@b.co"}, headers={"X-AVS-Request": "1"})
+        assert malformed.status_code == 400
+        assert malformed.json() == {"error": "请求内容不符合接口协议", "code": "invalid_request"}
