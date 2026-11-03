@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -16,6 +17,8 @@ class Settings:
     session_secret: str
     allowed_origin: str | None
     secure_cookies: bool
+    cookie_name: str
+    cookie_path: str
     trusted_proxy_ips: tuple[str, ...]
     demo_quota: int
     auth_login_account_limit: int
@@ -43,6 +46,12 @@ class Settings:
                 raise ValueError("Production requires HTTPS API_ALLOWED_ORIGIN")
             if not secure:
                 raise ValueError("Production requires Secure cookies")
+        cookie_name = env.get("API_COOKIE_NAME", "avs_session")
+        cookie_path = env.get("API_COOKIE_PATH", "/")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", cookie_name):
+            raise ValueError("API_COOKIE_NAME is invalid")
+        if not re.fullmatch(r"/[A-Za-z0-9/_-]*", cookie_path):
+            raise ValueError("API_COOKIE_PATH is invalid")
         proxy_ips = tuple(part.strip() for part in env.get("API_TRUSTED_PROXY_IPS", "").split(",") if part.strip())
         for address in proxy_ips:
             ipaddress.ip_address(address)
@@ -54,7 +63,7 @@ class Settings:
         return cls(
             database_url=env["DATABASE_URL"], redis_url=env["REDIS_URL"],
             data_dir=Path(env["API_DATA_DIR"]).resolve(), session_secret=secret,
-            allowed_origin=origin, secure_cookies=secure, trusted_proxy_ips=proxy_ips,
+            allowed_origin=origin, secure_cookies=secure, cookie_name=cookie_name, cookie_path=cookie_path, trusted_proxy_ips=proxy_ips,
             demo_quota=positive("API_DEMO_QUOTA", 3),
             auth_login_account_limit=positive("API_AUTH_LOGIN_ACCOUNT_LIMIT", 10),
             port=positive("PORT", 8787), environment=environment,

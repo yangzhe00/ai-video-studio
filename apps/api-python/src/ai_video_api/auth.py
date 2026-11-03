@@ -54,11 +54,12 @@ def digest_session(session_id: str, secret: str) -> str:
     return hmac.new(secret.encode(), session_id.encode(), hashlib.sha256).hexdigest()
 
 
-def session_token(cookie_header: str | None) -> str | None:
+def session_token(cookie_header: str | None, cookie_name: str = "avs_session") -> str | None:
     for part in (cookie_header or "").split(";"):
         item = part.strip()
-        if item.startswith("avs_session="):
-            return item[len("avs_session="):]
+        prefix = f"{cookie_name}="
+        if item.startswith(prefix):
+            return item[len(prefix):]
     return None
 
 
@@ -70,8 +71,8 @@ async def create_session(db: Database, account_id: str, secret: str) -> tuple[st
     return token, expires
 
 
-async def session_account(db: Database, cookie_header: str | None, secret: str) -> str | None:
-    token = session_token(cookie_header)
+async def session_account(db: Database, cookie_header: str | None, secret: str, cookie_name: str = "avs_session") -> str | None:
+    token = session_token(cookie_header, cookie_name)
     if not token:
         return None
     row = await db.fetch_one("SELECT account_id FROM sessions WHERE id = %s AND expires_at > %s",
@@ -79,7 +80,7 @@ async def session_account(db: Database, cookie_header: str | None, secret: str) 
     return row["account_id"] if row else None
 
 
-async def clear_session(db: Database, cookie_header: str | None, secret: str) -> None:
-    token = session_token(cookie_header)
+async def clear_session(db: Database, cookie_header: str | None, secret: str, cookie_name: str = "avs_session") -> None:
+    token = session_token(cookie_header, cookie_name)
     if token:
         await db.execute("DELETE FROM sessions WHERE id = %s", digest_session(token, secret))

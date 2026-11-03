@@ -104,3 +104,20 @@ async def test_errors_keep_shared_envelope(app):
         malformed = await client.post("/auth/login", json={"email": "a@b.co"}, headers={"X-AVS-Request": "1"})
         assert malformed.status_code == 400
         assert malformed.json() == {"error": "请求内容不符合接口协议", "code": "invalid_request"}
+
+
+@pytest.mark.asyncio
+async def test_canary_cookie_does_not_replace_production_cookie(tmp_path: Path):
+    settings = Settings.from_env({
+        "DATABASE_URL": "postgresql://unused/test", "REDIS_URL": "redis://127.0.0.1:1/0",
+        "API_DATA_DIR": str(tmp_path), "API_SESSION_SECRET": "s" * 32,
+        "API_ALLOWED_ORIGIN": "https://39.108.55.176",
+        "API_COOKIE_NAME": "avs_python_session", "API_COOKIE_PATH": "/python-api",
+    })
+    canary = create_app(settings, FakeDb(), FakeRateLimiter())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=canary), base_url="https://39.108.55.176") as client:
+        registered = await client.post("/auth/register", json={"email": "canary@example.com", "password": "ExamplePassword123!"}, headers={"X-AVS-Request": "1"})
+        assert registered.status_code == 201
+        cookie = registered.headers["set-cookie"]
+        assert "avs_python_session=" in cookie and "Path=/python-api" in cookie
+        assert "avs_session=" not in cookie

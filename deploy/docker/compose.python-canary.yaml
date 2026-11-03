@@ -1,0 +1,80 @@
+name: ai-video-studio-python-canary
+
+services:
+  db:
+    image: ${CANARY_PG_IMAGE:?Set the tested PostgreSQL image}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: avs_python_canary
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes:
+      - type: bind
+        source: ${CANARY_DB_DATA_DIR:?Set isolated PostgreSQL data directory}
+        target: /var/lib/postgresql/data
+      - type: bind
+        source: ${CANARY_SCHEMA_DIR:?Set schema SQL directory}
+        target: /schema
+        read_only: true
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d avs_python_canary"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  redis:
+    image: ${CANARY_REDIS_IMAGE:?Set the tested Redis image}
+    restart: unless-stopped
+    command:
+      - sh
+      - -ec
+      - 'exec redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru --requirepass "$$(cat /run/secrets/redis_password)"'
+    secrets: [redis_password]
+    networks: [private]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$(cat /run/secrets/redis_password) redis-cli ping | grep -qx PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+  api:
+    image: ${CANARY_API_IMAGE:?Set the tested Python API image}
+    restart: unless-stopped
+    user: "1000:1000"
+    env_file:
+      - ${CANARY_API_ENV_FILE:?Set a root-owned 0600 canary environment file}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${CANARY_BIND_IP:-172.23.0.1}:${CANARY_HOST_PORT:-8790}:8787"
+    networks: [private, edge]
+    volumes:
+      - type: bind
+        source: ${CANARY_API_DATA_DIR:?Set isolated API data directory}
+        target: /var/lib/ai-video-studio-python-canary
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 512m
+
+secrets:
+  db_password:
+    file: ${CANARY_DB_PASSWORD_FILE:?Set root-owned 0600 DB password file}
+  redis_password:
+    file: ${CANARY_REDIS_PASSWORD_FILE:?Set root-owned 0600 Redis password file}
+
+networks:
+  private:
+    internal: true
+  edge: {}

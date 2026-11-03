@@ -125,7 +125,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         await rate.check(f"auth-account:{kind}:{account_hash}", limit)
 
     async def authenticated_account(request: Request) -> str:
-        account_id = await session_account(db, request.headers.get("cookie"), config.session_secret)
+        account_id = await session_account(db, request.headers.get("cookie"), config.session_secret, config.cookie_name)
         if not account_id:
             raise ApiError(401, "请先登录")
         return account_id
@@ -148,8 +148,8 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         session_id, expires = await create_session(db, account_id, config.session_secret)
         response = JSONResponse({"account": {"id": account_id, "email": email}, "expiresAt": expires},
                                 status_code=201, headers={"Cache-Control": "no-store"})
-        response.set_cookie("avs_session", session_id, max_age=604800, httponly=True,
-                            secure=config.secure_cookies, samesite="lax", path="/")
+        response.set_cookie(config.cookie_name, session_id, max_age=604800, httponly=True,
+                            secure=config.secure_cookies, samesite="lax", path=config.cookie_path)
         return response
 
     @app.post("/auth/login")
@@ -166,16 +166,16 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         session_id, expires = await create_session(db, row["id"], config.session_secret)
         response = JSONResponse({"account": {"id": row["id"], "email": email}, "expiresAt": expires},
                                 headers={"Cache-Control": "no-store"})
-        response.set_cookie("avs_session", session_id, max_age=604800, httponly=True,
-                            secure=config.secure_cookies, samesite="lax", path="/")
+        response.set_cookie(config.cookie_name, session_id, max_age=604800, httponly=True,
+                            secure=config.secure_cookies, samesite="lax", path=config.cookie_path)
         return response
 
     @app.post("/auth/logout")
     async def logout(request: Request):
         await authenticated_account(request)
-        await clear_session(db, request.headers.get("cookie"), config.session_secret)
+        await clear_session(db, request.headers.get("cookie"), config.session_secret, config.cookie_name)
         response = JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
-        response.delete_cookie("avs_session", path="/", httponly=True, samesite="lax")
+        response.delete_cookie(config.cookie_name, path=config.cookie_path, httponly=True, samesite="lax")
         return response
 
     @app.get("/auth/me")
