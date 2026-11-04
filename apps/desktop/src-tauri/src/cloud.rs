@@ -33,8 +33,30 @@ fn validate_base_url(raw: &str) -> Result<String, String> {
     Ok(raw.trim_end_matches('/').to_owned())
 }
 
+fn select_base_url(
+    runtime: Option<&str>,
+    bundled: Option<&str>,
+    debug: bool,
+) -> Result<String, String> {
+    if debug {
+        if let Some(raw) = runtime.filter(|value| !value.trim().is_empty()) {
+            return validate_base_url(raw);
+        }
+        return validate_base_url("http://127.0.0.1:8787");
+    }
+    if let Some(raw) = bundled.filter(|value| !value.trim().is_empty()) {
+        return validate_base_url(raw);
+    }
+    Err("此安装包未配置云端服务地址，请安装官网最新版本".into())
+}
+
 fn base_url() -> Result<String, String> {
-    validate_base_url(&std::env::var("AI_VIDEO_API_BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:8787".into()))
+    let runtime = std::env::var("AI_VIDEO_API_BASE_URL").ok();
+    select_base_url(
+        runtime.as_deref(),
+        option_env!("AI_VIDEO_RELEASE_API_BASE_URL"),
+        cfg!(debug_assertions),
+    )
 }
 
 fn endpoint(path: &str) -> Result<String, String> {
@@ -153,7 +175,22 @@ pub fn cloud_download_asset(session: tauri::State<'_, CloudSession>, root: PathB
 
 #[cfg(test)]
 mod tests {
-    use super::{client, endpoint, validate_base_url, with_request_marker, AVS_REQUEST_HEADER_NAME, AVS_REQUEST_HEADER_VALUE};
+    use super::{client, endpoint, select_base_url, validate_base_url, with_request_marker, AVS_REQUEST_HEADER_NAME, AVS_REQUEST_HEADER_VALUE};
+
+    #[test]
+    fn release_uses_bundled_public_api_even_with_runtime_override() {
+        let base = select_base_url(None, Some("https://39.108.55.176/api"), false).unwrap();
+        assert_eq!(base, "https://39.108.55.176/api");
+        assert_eq!(select_base_url(Some("http://127.0.0.1:8797"), Some("https://39.108.55.176/api"), false).unwrap(), base);
+        assert!(select_base_url(None, None, false).unwrap_err().contains("未配置云端服务地址"));
+    }
+
+    #[test]
+    fn debug_keeps_loopback_and_explicit_override_is_validated() {
+        assert_eq!(select_base_url(None, Some("https://39.108.55.176/api"), true).unwrap(), "http://127.0.0.1:8787");
+        assert_eq!(select_base_url(Some("http://127.0.0.1:8797"), None, true).unwrap(), "http://127.0.0.1:8797");
+        assert!(select_base_url(Some("http://example.com/api"), Some("https://39.108.55.176/api"), true).is_err());
+    }
 
     #[test]
     fn state_changes_carry_the_shared_request_marker() {

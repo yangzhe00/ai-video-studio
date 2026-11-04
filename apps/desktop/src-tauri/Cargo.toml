@@ -1,6 +1,6 @@
 [package]
 name = "ai-video-studio"
-version = "0.1.0"
+version = "0.1.1"
 description = "A macOS video editor with optional AI creation"
 authors = ["yangzhe00"]
 edition = "2024"
