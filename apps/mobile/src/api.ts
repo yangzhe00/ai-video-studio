@@ -3,7 +3,7 @@ import { parseApiError, parseApiResponse, requestSecurityHeaders } from "@ai-vid
 import { parseCloudEnvelope } from "@ai-video/project-core";
 import { createMobileSession } from "./session";
 
-const session = createMobileSession(SecureStore);
+const session = createMobileSession(SecureStore, { allowInsecureLocal: __DEV__ });
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly code?: string) { super(message); }

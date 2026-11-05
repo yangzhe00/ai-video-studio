@@ -1,6 +1,6 @@
 # AI Video Studio 后端开发规范
 
-> 适用范围：`apps/api` 的 Node.js 服务、共享业务规则，以及 `apps/desktop/src-tauri` 中的本地后端能力。依据当前候选代码编写；架构或接口变更时同步更新本文件。本文是开发约束，文末单列当前尚未完成的能力。线上 API 镜像 `20261030-official-04` 已使用 PostgreSQL schema 1；仓库候选 API 要求 schema 4，尚未发布。部署事实见 [正式发布记录](../../docs/acceptance/2026-10-30-official-release.md) 与 [升级手册](../../deploy/postgres/schema1-to4.md)。
+> 适用范围：`apps/api` 的 Node.js 服务、共享业务规则，以及 `apps/desktop/src-tauri` 中的本地后端能力。依据仓库代码编写；架构或接口变更时同步更新本文件。本文是开发约束，文末单列尚未完成的能力。2026-11-02 只读核对线上镜像 `257b1bb-schema4`、PostgreSQL schema 4；后续发布状态须以实际镜像核对。历史发布与升级路径见[正式发布记录](../../docs/acceptance/2026-10-30-official-release.md)及[升级手册](../../deploy/postgres/schema1-to4.md)。
 
 ## 1. 技术栈与目录职责
 
@@ -70,9 +70,9 @@ API 使用 Node.js 24、TypeScript 严格模式、NodeNext ES module、PostgreSQ
 
 - 新视频 `POST /projects/:id/runs` 只接受 `durationSec: 5`。旧 10 秒镜头、编辑配方和成片继续读取、编辑和导出。
 - 音频使用 `POST /objects` 上传 MP3/WAV/M4A，服务端用 `ffprobe` 检查真实格式与时长，再以 `POST /projects/:id/commands` 绑定 `voice` 或 `music` 资产；跨账号对象不得引用。
-- 文字配音先读取 `GET /tts/voices` 的受控音色列表，再调用 `POST /projects/:id/tts/estimate` 获取与输入绑定的确认 ID。费用字段为 `null`，`billingPolicy=actual-usage`，界面必须明确告知按实际用量扣费且事前无法准确报价；用户二次确认后使用稳定 `clientRequestId` 和 `confirmed: true` 调用 `POST /projects/:id/tts/tasks`。`GET /projects/:id/tts/tasks/by-request/:clientRequestId` 与 `GET /tts/tasks/:id` 可恢复状态。供应商返回实际扣费后保存到任务；提交响应不确定时不得重发 POST。
+- 文字旁白先读取 `GET /tts/voices` 的受控音色列表与 `availability/message`。未配置密钥或已验证音色、账号认证失败、权限被拒或账号查询暂不可用时，列表为空，报价与新任务返回 503。账号查询为供应商免费 `/account/costs`，成功只证明认证有效，不证明 TTS 模型权限。可用时调用 `POST /projects/:id/tts/estimate` 获取与输入绑定的确认 ID。费用字段为 `null`，`billingPolicy=actual-usage`，界面必须明确告知按实际用量扣费且事前无法准确报价；用户二次确认后使用稳定 `clientRequestId` 和 `confirmed: true` 调用 `POST /projects/:id/tts/tasks`。`GET /projects/:id/tts/tasks/by-request/:clientRequestId` 与 `GET /tts/tasks/:id` 可恢复状态。供应商返回实际扣费后保存到任务；提交响应不确定时不得重发 POST。
 - 视频生成使用 `KLING_API_KEY`（当前北京接口），TTS 单独使用 `KLING_TTS_API_KEY` 和 `KLING_TTS_BASE_URL`（默认官方文档的新加坡接口）。两个密钥不能假定跨区域通用；未配置 TTS 密钥时 `GET /tts/voices` 返回空列表，任务创建不可用。2026-10-30 隔离实测：现有视频密钥在北京账户接口返回 200，在新加坡返回 401/1002；一次 TTS 提交失败且未扣费。换用新版 TTS 密钥后，先免费查询认证，再提交一次可恢复的真实任务验证权限和结果。
-- 官方文档已核实的默认音色仅有英文示例 `oversea_male1`。中文音色必须由运维依据可灵 Voice Guide 和实际账号权限核实后，通过 `KLING_TTS_VOICES_JSON` 配置；服务端检查 `voiceId` 与 `voiceLanguage` 的对应关系。未配置、未实测的音色不可展示为可用。
+- 官方文档示例音色 `oversea_male1` 仅证明请求格式，不默认展示为可用音色。中文音色必须由运维依据可灵 Voice Guide 和实际账号权限核实后，通过 `KLING_TTS_VOICES_JSON` 配置；服务端检查 `voiceId` 与 `voiceLanguage` 的对应关系。未配置、未实测的音色不可展示为可用。
 - 镜头 `POST /video-edits/:id/commands` 的 `set-audio-mix` 和分集 `POST /projects/:id/commands` 的 `episode.audio` 保存原声、人声、音乐的时间及音量。保存不触发生成或导出。
 - 镜头 `POST /video-edits/:id/previews` 使用 `{previewOperationId,expectedRevision}`；分集 `POST /projects/:projectId/episodes/:episodeId/previews` 使用 `{previewOperationId,expectedEpisodeRevision}`；`GET /previews/:id` 返回状态与 `outputAssetId`。预览与正式导出调用同一 FFmpeg 混音函数，预览对象 1 小时过期并回收，不更新正式版本。过期后重新创建同一版本预览。正式镜头渲染走 `/video-edits/:id/render`，正式整集渲染走 `/projects/:id/episodes/:episodeId/render`。
 - Agent 剪辑建议走 `POST /projects/:id/agent-edits`、`GET /projects/:id/agent-edits/by-request/:clientRequestId`、`GET /agent-edits/:id`。响应的 `context` 固定保留生成建议时的镜头顺序、各编辑的裁剪、字幕与配音，确认或跨端刷新后仍用它展示原值。先展示建议和理由，用户选中动作后以 `POST /agent-edits/:id/confirm` 手动确认；事务内检查镜头/分集修订及资产归属。该确认不自动启动视频生成、TTS 或渲染。
@@ -96,7 +96,7 @@ API 使用 Node.js 24、TypeScript 严格模式、NodeNext ES module、PostgreSQ
 
 - 现有 `sr-nginx` 容器继续提供网页静态文件和 HTTPS，`/api/` 代理到 `172.23.0.1:8787`；API 由 `/srv/ai-video-studio/docker/compose.yaml` 的单个 `ai-video-studio-api` 容器运行。Compose 项目名必须为 `ai-video-studio`，不可复用服务器其他服务的项目名。
 - API 镜像在 Linux x86_64 上从明确的 release 与锁文件构建。构建时实测 `ffmpeg` 和 `ffprobe`；不得把 macOS `node_modules` 或 `/etc/ai-video-studio/api.env` 拷入镜像。
-- API 容器以主机 `ai-video` 的 UID/GID 运行，只将 `/var/lib/ai-video-studio` 读写挂载；密钥通过 root 权限的环境文件注入。SQLite 与进程内 worker 只运行单实例。
+- API 容器以主机 `ai-video` 的 UID/GID 运行，只将 `/var/lib/ai-video-studio` 读写挂载；密钥通过 root 权限的环境文件注入。进程内 worker 与限流当前按单 API 实例运行。
 - 切换前备份活动数据库、完整数据目录和环境文件。常规代码回滚执行 `docker compose down` 与 `systemctl enable --now ai-video-studio`；不得用旧数据库快照覆盖切换后新增的数据。详细命令见 `deploy/docker/README.md`。
 
 ## 8. 当前边界与后续收敛
@@ -105,3 +105,10 @@ API 使用 Node.js 24、TypeScript 严格模式、NodeNext ES module、PostgreSQ
 - PostgreSQL 已支持多连接事务；媒体对象仍在本地目录，worker 与登录限流仍在进程内。若改为多 API 实例，应先引入共享对象存储、跨实例限流和任务调度，并验证租约与事件通知的一致性。
 - `scripts/check-api-runtime.mjs` 检查 PostgreSQL 连接、`CURSOR_API_KEY` 存在和 `ffprobe`；它不发起 Cursor 生成或验证账号额度，不能把该脚本单独通过当作供应商已经可用。
 - 自动测试和模拟供应商只能证明受测代码路径；真实可灵计费生成、桌面运行、移动真机和发布包需要分别记录实际验收结果。
+
+## 9. 整集剪辑 v3 后端契约
+
+- `GET /projects/:projectId/episodes/:episodeId/timeline` 按分集修订返回 v3 的画面和音轨只读投影。旧视频仅在 ffprobe 确认有原声音轨时生成虚拟 `originalClip`；首次编辑经资源命令写入 v3，原项目读请求不改数据库。
+- v3 原声片段保存稳定 ID、所属视觉片段 ID、同源视频 ID、源入／出点、单段音量和静音状态。所有区间使用整数毫秒、左闭右开，长度至少 300 ms；原声范围须落在所属视觉源范围内且同画面内不重叠。旧视觉 `volume` 只作为新原声片段的默认音量，渲染时再乘全局 `originalVolume` 一次。
+- 分割、裁剪、删除画面必须连同 v3 音轨提交；同源视频可重复引用，`timeline` 与 `timelineClips` 顺序一致。保留镜头上的锚定配音随镜头移动；被删镜头的锚点与越过新片尾的配音／音乐必须先由用户逐条处理。服务端拒绝静默截断，冲突响应在 `conflict.affectedAudioClips` 列出片段 ID。轨道锁定、命令幂等和 `baseRevision` 冲突在服务端校验。
+- 精准预览与最终导出必须读取同一保存修订，并共用 `renderEpisodeSnapshot` 的 FFmpeg 路径。15 秒分割、12.3 秒画面合拢、分段静音和 30% 单段音量要用实际 MP4 音频采样回归；界面试听及 Web／macOS 运行验收另行记录。详细字段和接入说明见 `docs/architecture/2026-11-02-episode-clip-v3-backend-contract.md`。

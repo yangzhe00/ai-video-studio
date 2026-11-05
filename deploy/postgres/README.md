@@ -1,8 +1,8 @@
 # PostgreSQL cutover scripts
 
-> **Historical SQLite cutover only.** The production API was moved to PostgreSQL in release `20261030-official-04`. Its observed database is schema 1. Do **not** run `preflight.sh`, `rehearsal.sh`, `cutover.sh`, `verify.sh`, or the SQLite importer against that PostgreSQL production database. For the current schema 1→3 upgrade, use [schema1-to3.md](schema1-to3.md).
+> **Historical SQLite cutover only.** The production API was moved to PostgreSQL in release `20261030-official-04`. A 2026-11-02 read-only check recorded image `257b1bb-schema4` and database schema 4; see [schema1-to4.md](schema1-to4.md) for the historical upgrade record. Do **not** run `preflight.sh`, `rehearsal.sh`, `cutover.sh`, `verify.sh`, or the SQLite importer against that PostgreSQL production database.
 
-These scripts are for a supervised maintenance window. They do not alter the active SQLite database. `cutover.sh` stops the old API, creates a complete archive, takes a SQLite backup including committed WAL rows, upgrades only that backup to schema 10, imports into an empty PostgreSQL database, then **leaves the public API stopped**. `verify.sh` checks all imported table counts and object paths from a one-off container without opening a public port.
+These scripts document the earlier supervised SQLite cutover. `cutover.sh` stops the old API, creates a complete archive, takes a SQLite backup including committed WAL rows, upgrades only that backup to schema 10, imports into an empty PostgreSQL database, then **leaves the public API stopped**. `verify.sh` checks all imported table counts and object paths from a one-off container without opening a public port.
 
 Export absolute paths and pinned image references before running `preflight.sh`:
 

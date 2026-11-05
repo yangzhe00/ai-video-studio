@@ -31,8 +31,8 @@
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "@tauri-apps/plugin-opener": "^2.5.5",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

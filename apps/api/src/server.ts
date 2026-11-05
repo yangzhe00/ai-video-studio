@@ -91,8 +91,22 @@ export async function createApi(config: ApiConfig): Promise<Server> {
   const worker = config.klingApiKey ? new GenerationWorker(db, config.dataDir, new KlingGateway(config.klingApiKey, config.klingBaseUrl), config) : null;
   const renderWorker = new RenderWorker(db, config.dataDir, config);
   const ideaWorker = new IdeaAgentWorker(db, config);
-  const ttsWorker = config.klingTtsApiKey ? new TtsWorker(db, config.dataDir,
-    new KlingTtsGateway(config.klingTtsApiKey, config.klingTtsBaseUrl), config) : null;
+  const ttsGateway = config.klingTtsApiKey ? new KlingTtsGateway(config.klingTtsApiKey, config.klingTtsBaseUrl) : null;
+  const ttsWorker = ttsGateway ? new TtsWorker(db, config.dataDir, ttsGateway, config) : null;
+  async function ttsAvailability() {
+    if (!ttsGateway) return { voices: [], availability: "not_configured", message: "文字旁白服务尚未配置" };
+    const voices = ttsVoices(config);
+    if (!voices.length) return { voices: [], availability: "voice_unverified", message: "尚无已验证可用的旁白音色" };
+    const account = await ttsGateway.checkAccount();
+    if (account === "auth_failed") return { voices: [], availability: account, message: "旁白账号认证失败，请检查密钥和接口区域" };
+    if (account === "permission_denied") return { voices: [], availability: account, message: "旁白账号没有所需接口权限" };
+    if (account !== "ok") return { voices: [], availability: account, message: "旁白账号暂时无法验证，请稍后再试" };
+    return { voices, availability: "account_verified", message: "账号已验证；音色权限以供应商任务结果为准" };
+  }
+  async function requireTtsAvailability() {
+    const available = await ttsAvailability();
+    if (available.availability !== "account_verified") throw new TtsError(503, available.message);
+  }
   const episodeWorker = new EpisodeRenderWorker(db, config.dataDir, config);
   const agentEditWorker = new AgentEditWorker(db, config);
   const previewWorker = new PreviewWorker(db, config.dataDir, config);
@@ -177,14 +191,16 @@ export async function createApi(config: ApiConfig): Promise<Server> {
       }
 
       const ttsEstimate = /^\/projects\/([a-zA-Z0-9-]+)\/tts\/estimate$/.exec(pathname);
-      if (pathname === "/tts/voices" && method === "GET") { reply(res, 200, { voices: ttsWorker ? ttsVoices(config) : [] }); return; }
+      if (pathname === "/tts/voices" && method === "GET") { reply(res, 200, await ttsAvailability()); return; }
       if (ttsEstimate && method === "POST") {
+        await requireTtsAvailability();
         reply(res, 200, { ttsEstimate: await estimateTts(db, accountId, ttsEstimate[1], config, await readJson(req)) }); return;
       }
       const ttsCreate = /^\/projects\/([a-zA-Z0-9-]+)\/tts\/tasks$/.exec(pathname);
       if (ttsCreate && method === "POST") {
         checkCostRate(req, accountId, "tts");
-        if (!ttsWorker) throw new TtsError(503, "可灵配音服务尚未配置");
+        await requireTtsAvailability();
+        if (!ttsWorker) throw new TtsError(503, "文字旁白服务尚未配置");
         const result = await createTtsTask(db, accountId, ttsCreate[1], config, await readJson(req));
         reply(res, result.replayed ? 200 : 201, { ttsTask: result.task });
         if (config.workerEnabled !== false) queueMicrotask(() => { tick("tts", ttsWorker.run(result.task.id)); });

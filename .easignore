@@ -1,0 +1,40 @@
+# EAS uploads this monorepo from the repository root. Keep all local secrets out.
+# This file replaces .gitignore for EAS, so retain its exclusions here.
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.expo/
+.pnpm-store/
+dist
+dist-ssr
+*.local
+.env
+.env.*
+**/src-tauri/target
+**/src-tauri/gen/schemas
+**/src-tauri/binaries/
+apps/api/.data/
+
+.vscode/*
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# The mobile build needs apps/mobile, packages, plugins, workspace manifests.
+# These unrelated trees can contain private operational material or bulky assets.
+.git
+.codex/
+.github/
+docs/
+design/
+deploy/

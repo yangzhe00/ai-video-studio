@@ -1,1 +1,40 @@
-{ "expo": { "name": "AI Video Studio", "slug": "ai-video-studio", "version": "0.1.0", "orientation": "portrait", "userInterfaceStyle": "light", "ios": { "supportsTablet": true }, "android": { "edgeToEdgeEnabled": true }, "plugins": ["expo-secure-store", "expo-image-picker", "expo-video"] } }
+{
+  "expo": {
+    "name": "AI Video Studio",
+    "slug": "ai-video-studio",
+    "scheme": "aivideostudio",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.yangzhe.aivideostudio.mobile",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "选择参考照片，用于创建和编辑视频镜头。"
+      }
+    },
+    "android": {
+      "package": "com.yangzhe.aivideostudio.mobile",
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "选择参考照片，用于创建和编辑视频镜头。",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-video"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2e459023-2c17-43b3-ab19-5be88f089682"
+      }
+    },
+    "owner": "yy12222"
+  }
+}

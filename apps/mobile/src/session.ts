@@ -8,8 +8,31 @@ const urlKey = "avs-api-url";
 const cookieKey = "avs-session";
 const cookieOriginKey = "avs-session-origin";
 
-export function createMobileSession(storage: SessionStorage) {
-  let baseUrl = "";
+export const defaultApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || "https://39.108.55.176/api";
+
+function isLocalHost(host: string): boolean {
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]" ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+export function normalizeApiUrl(raw: string, allowInsecureLocal = false): string {
+  let url: URL;
+  try { url = new URL(raw.trim()); }
+  catch { throw new Error("请输入有效的服务器地址，例如 https://39.108.55.176/api"); }
+  const path = url.pathname.replace(/\/$/, "");
+  if ((url.protocol !== "https:" && !(allowInsecureLocal && url.protocol === "http:" && isLocalHost(url.hostname))) ||
+      url.username || url.password || url.search || url.hash || !["", "/api"].includes(path)) {
+    throw new Error("服务器地址须为 HTTPS；本地调试可使用局域网 HTTP，路径只支持 /api");
+  }
+  return `${url.origin}${path}`;
+}
+
+export function createMobileSession(storage: SessionStorage, options: { defaultUrl?: string; allowInsecureLocal?: boolean } = {}) {
+  const allowInsecureLocal = options.allowInsecureLocal ?? false;
+  const initialUrl = normalizeApiUrl(options.defaultUrl ?? defaultApiUrl, allowInsecureLocal);
+  let baseUrl = initialUrl;
   let cookie = "";
   let generation = 0;
   let pending: Promise<unknown> = Promise.resolve();
@@ -26,7 +49,8 @@ export function createMobileSession(storage: SessionStorage) {
         storage.getItemAsync(urlKey), storage.getItemAsync(cookieOriginKey), storage.getItemAsync(cookieKey),
       ]);
       if (started !== generation) return baseUrl;
-      baseUrl = savedUrl ?? "";
+      try { baseUrl = savedUrl ? normalizeApiUrl(savedUrl, allowInsecureLocal) : initialUrl; }
+      catch { baseUrl = initialUrl; }
       cookie = origin === baseUrl ? savedCookie ?? "" : "";
       if (origin !== baseUrl) await serialize(async () => {
         if (started !== generation) return;
@@ -36,8 +60,7 @@ export function createMobileSession(storage: SessionStorage) {
       return baseUrl;
     },
     async setUrl(url: string) {
-      const normalized = url.trim().replace(/\/$/, "");
-      if (!/^https?:\/\/[^/]+$/.test(normalized)) throw new Error("请输入服务器地址，例如 http://192.168.1.10:8787");
+      const normalized = normalizeApiUrl(url, allowInsecureLocal);
       const changed = normalized !== baseUrl;
       if (changed) generation++;
       baseUrl = normalized;

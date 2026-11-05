@@ -4,11 +4,11 @@
 
 ## 最新数据库状态与后续升级
 
-正式发布记录：[2026-10-30 官网与 PostgreSQL 正式发布](../../docs/acceptance/2026-10-30-official-release.md)。线上 API 镜像为 `ai-video-studio-api:20261030-official-04`，数据库为 PostgreSQL `ai_video_studio`，已观察到 `api_schema_version=1` 和 15 张表。仓库候选 API 要求 schema 4，不能直接用当前线上库启动。先按 [schema 1→4 升级手册](../../deploy/postgres/schema1-to4.md) 核对结构、用当前候选重新完成隔离恢复演练，再安排正式发布。媒体对象仍应单独备份和核对。
+正式发布记录：[2026-10-30 官网与 PostgreSQL 正式发布](../../docs/acceptance/2026-10-30-official-release.md)。2026-11-02 只读核对显示当时线上 API 镜像为 `ai-video-studio-api:257b1bb-schema4`，数据库为 PostgreSQL `ai_video_studio`、`api_schema_version=4`；此前 `20261030-official-04` 与 schema 1 属历史快照。后续版本须以实际镜像核对，并独立构建和验收。媒体对象应单独备份和核对。
 
 ### 配音服务配置
 
-在当前 PostgreSQL 发布使用的 `/etc/ai-video-studio/api.pg.env` 中，视频密钥保留为 `KLING_API_KEY`。新候选的文字配音使用另一个变量 `KLING_TTS_API_KEY`；`KLING_TTS_BASE_URL` 默认采用可灵 TTS 文档中的 `https://api-singapore.klingai.com`。不要覆盖现有视频密钥。未配置 TTS 密钥时 API 返回空音色列表，付费任务创建不可用。只有账户认证与 TTS 权限均核实后才配置音色；默认仅包含官方示例英文音色。2026-10-30 隔离实测确认当前视频密钥仅在北京账户接口认证成功，新加坡接口返回 401/1002，因此不应复用于 TTS。密钥文件保持 root 0600，不提交、打印或复制进镜像。
+2026-11-02 只读核对 `/etc/ai-video-studio/api.pg.env`：视频密钥 `KLING_API_KEY` 存在；独立的 `KLING_TTS_API_KEY`、已验证音色列表与显式 TTS 区域均未配置。新候选的 TTS 默认地址为 `https://api-singapore.klingai.com`，但不复用视频密钥；缺少密钥或已验证音色时返回空列表，报价与付费任务不可用。2026-10-30 隔离实测确认既有视频密钥在北京账户接口认证成功，在新加坡返回 401/1002，不应复用于 TTS。密钥文件保持 root 0600，不提交、打印或复制进镜像。
 
 ## 2026-10-29 历史拓扑
 

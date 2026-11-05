@@ -46,6 +46,14 @@ AI Video Studio 是一个正在开发的跨端视频创作项目。网页端用�
 pnpm install
 ```
 
+三端联调可在仓库根目录用一个命令启动：
+
+```sh
+pnpm dev
+```
+
+它依次启动本地 Node API、网页 Vite 和 Tauri 桌面窗口。首次运行前，把 [`.env.example`](.env.example) 复制为被 Git 忽略的 `.env.dev.local`，填写本地 `DATABASE_URL`、`API_DATA_DIR`、`API_SESSION_SECRET` 和 `API_ALLOWED_ORIGIN`；PostgreSQL 数据库须先创建并迁移到 schema 4。网页地址由 `API_ALLOWED_ORIGIN` 决定，桌面端自动连接本次启动的本地 API。按 `Ctrl+C` 停止这次启动的三端。已有本地环境也可设置 `AI_VIDEO_DEV_ENV_FILE=/绝对路径/api.env pnpm dev`，无需复制密钥。要单独运行桌面 Vite 页面，使用 `pnpm dev:desktop-ui`；原生桌面窗口仍用 `pnpm tauri dev`。
+
 先启动本地 PostgreSQL 并创建空数据库 `ai_video_studio`。用迁移账号创建 schema 4，再启动 API；运行账号只需业务表读写权限。旧 SQLite 数据的导入方式见下文。
 
 先运行一次数据库结构迁移：
@@ -78,7 +86,7 @@ pnpm tauri dev
 
 ## 部署状态
 
-网页端构建命令是 `pnpm --filter @ai-video/web build`，产物位于 `apps/web/dist`。`20261030-official-04` 已将线上 API 切换到 PostgreSQL；截至本次只读核对，线上数据库为 schema 1，仓库候选代码要求 schema 4。媒体文件仍在 `API_DATA_DIR`。发布新 API 前须按 [schema 1→4 升级手册](deploy/postgres/schema1-to4.md) 在 PostgreSQL 备份副本上重新演练。文字灵感、视频生成和文字配音分别需要服务端供应商凭据。
+网页端构建命令是 `pnpm --filter @ai-video/web build`，产物位于 `apps/web/dist`。2026-11-02 只读核对线上 API 镜像为 `257b1bb-schema4`，PostgreSQL 已是 schema 4；旧的 schema 1→4 手册保留为历史升级记录。媒体文件仍在 `API_DATA_DIR`。每次发布须独立构建与验收，并以实际容器镜像核对线上版本。文字灵感、视频生成和文字旁白分别需要服务端供应商凭据；未配置独立 TTS 密钥和已验证中文音色时，文字旁白不可用。
 
 ### 历史数据导入：SQLite → PostgreSQL
 

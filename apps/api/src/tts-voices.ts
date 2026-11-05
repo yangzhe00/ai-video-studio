@@ -2,11 +2,10 @@ import type { ApiConfig } from "./config.ts";
 
 export interface TtsVoice { id: string; label: string; language: "zh" | "en" }
 
-/** The English ID is from Kling's public TTS request example. Extra IDs require operator verification. */
-const documentedVoice: TtsVoice = { id: "oversea_male1", label: "英文男声", language: "en" };
-
 export function parseTtsVoices(raw: string | undefined): TtsVoice[] {
-  if (!raw) return [documentedVoice];
+  // Documentation examples do not establish that this account can use a voice.
+  // Operators configure only IDs verified against the TTS account and region.
+  if (!raw) return [];
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new Error("KLING_TTS_VOICES_JSON must be valid JSON"); }
   if (!Array.isArray(parsed) || parsed.length > 100 || parsed.some(item =>
@@ -21,5 +20,5 @@ export function parseTtsVoices(raw: string | undefined): TtsVoice[] {
 }
 
 export function ttsVoices(config: ApiConfig): TtsVoice[] {
-  return config.klingTtsVoices ?? [documentedVoice];
+  return config.klingTtsVoices ?? [];
 }

@@ -20,14 +20,14 @@ export type {
 export {
   AccountSchema, PromptVariantSchema, PromptIdeaSetSchema, ProjectSummarySchema,
   VideoEditViewSchema, RenderViewSchema, ObjectSnapshotSchema,
-  TtsEstimateSchema, TtsVoiceSchema, TtsTaskSchema, EpisodeRenderViewSchema, PreviewViewSchema,
+  TtsEstimateSchema, TtsVoiceSchema, TtsVoicesResponseSchema, TtsTaskSchema, EpisodeRenderViewSchema, PreviewViewSchema,
   AgentEditActionSchema, AgentEditContextSchema, AgentEditSetSchema,
   CloudProjectResponseSchema, EpisodeTimelineProjectionSchema, CloudRunResponseSchema, parseApiResponse,
 } from "./responses.ts";
 export type {
   Account, PromptVariant, PromptIdeaSet, ProjectSummary, CloudProjectResponse, EpisodeTimelineProjection,
   CloudRunResponse, VideoEditView, RenderView, ObjectSnapshot,
-  TtsEstimate, TtsVoice, TtsTask, EpisodeRenderView, PreviewView, AgentEditAction, AgentEditContext, AgentEditSet,
+  TtsEstimate, TtsVoice, TtsVoicesResponse, TtsTask, EpisodeRenderView, PreviewView, AgentEditAction, AgentEditContext, AgentEditSet,
 } from "./responses.ts";
 export type { VideoProjectV1 } from "@ai-video/project-schema";
 export { projectEpisodeAudio, projectOriginalAudio, projectEpisodeVisuals, EpisodeAudioV2Schema, EpisodeAudioV3Schema,

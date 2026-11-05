@@ -28,6 +28,12 @@ export const TtsEstimateSchema = z.object({ id: text, projectId: text, textHash:
   voiceLanguage: z.enum(["zh", "en"]), speed: z.number().finite(), estimatedCost: z.object({ amount: z.number().nonnegative(), currency: text }).nullable(),
   billingPolicy: z.literal("actual-usage"), expiresAt: int }).passthrough();
 export const TtsVoiceSchema = z.object({ id: text, label: text, language: z.enum(["zh", "en"]) }).strict();
+export const TtsVoicesResponseSchema = z.object({
+  voices: z.array(TtsVoiceSchema),
+  availability: z.enum(["not_configured", "voice_unverified", "auth_failed", "permission_denied",
+    "temporarily_unavailable", "account_verified"]).optional(),
+  message: z.string().optional(),
+}).passthrough();
 export const TtsTaskSchema = z.object({ id: text, projectId: text, clientRequestId: text,
   state: z.enum(["pending", "submitting", "unknown", "running", "succeeded", "failed"]),
   voiceAssetId: text.nullable(), providerTaskId: text.nullable(),
@@ -95,6 +101,7 @@ export type RenderView = z.infer<typeof RenderViewSchema>;
 export type ObjectSnapshot = z.infer<typeof ObjectSnapshotSchema>;
 export type TtsEstimate = z.infer<typeof TtsEstimateSchema>;
 export type TtsVoice = z.infer<typeof TtsVoiceSchema>;
+export type TtsVoicesResponse = z.infer<typeof TtsVoicesResponseSchema>;
 export type TtsTask = z.infer<typeof TtsTaskSchema>;
 export type EpisodeRenderView = z.infer<typeof EpisodeRenderViewSchema>;
 export type PreviewView = z.infer<typeof PreviewViewSchema>;
@@ -124,7 +131,7 @@ export function parseApiResponse<T = unknown>(raw: unknown): T {
   if ("run" in value) { z.object({ run: CloudRunResponseSchema }).passthrough().parse(value); return raw as T; }
   if ("runs" in value) { z.object({ runs: z.array(CloudRunResponseSchema) }).passthrough().parse(value); return raw as T; }
   if ("ttsEstimate" in value) { z.object({ ttsEstimate: TtsEstimateSchema }).passthrough().parse(value); return raw as T; }
-  if ("voices" in value) { z.object({ voices: z.array(TtsVoiceSchema) }).passthrough().parse(value); return raw as T; }
+  if ("voices" in value) { TtsVoicesResponseSchema.parse(value); return raw as T; }
   if ("ttsTask" in value) { z.object({ ttsTask: TtsTaskSchema }).passthrough().parse(value); return raw as T; }
   if ("episodeRender" in value) { z.object({ episodeRender: EpisodeRenderViewSchema }).passthrough().parse(value); return raw as T; }
   if ("preview" in value) { z.object({ preview: PreviewViewSchema }).passthrough().parse(value); return raw as T; }

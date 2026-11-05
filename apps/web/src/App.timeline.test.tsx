@@ -6,6 +6,18 @@ import type { CloudProject } from "./api";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); });
 
+function timelineRead(project: CloudProject): Response {
+  const episode = project.document.episodes[0]!;
+  const audio = episode.audio;
+  return Response.json({ episodeId: episode.id,
+    episodeRevision: project.resourceRevisions.find(item => item.resourceType === "episode" && item.resourceId === episode.id)?.revision ?? 1,
+    timelineClips: episode.timelineClips ?? [],
+    audio: { version: 3, originalVolume: audio?.originalVolume ?? 1,
+      originalClips: audio?.version === 3 ? audio.originalClips ?? [] : [],
+      voiceClips: audio?.voiceClips ?? [], musicClips: audio?.musicClips ?? [] },
+    projectedFromLegacy: audio?.version !== 3 });
+}
+
 describe("web episode timeline entry", () => {
   it("adds the selected result once and enters the episode editor", async () => {
     HTMLMediaElement.prototype.pause = vi.fn();
@@ -20,6 +32,7 @@ describe("web episode timeline entry", () => {
         demo_quota: 3, demo_reserved: 0, demo_used: 0 } });
       if (url.endsWith("/prompt-ideas")) return Response.json({ ideaSets: [] });
       if (url.endsWith("/projects")) return Response.json({ projects: [{ id: project.id, title: project.title, revision: project.revision }] });
+      if (url.endsWith("/projects/project-result/episodes/episode-one/timeline")) return timelineRead(project);
       if (url.endsWith("/projects/project-result")) return Response.json({ project });
       if (url.endsWith("/projects/project-result/commands") && init?.method === "POST") {
         const command = JSON.parse(String(init.body)) as { resourceType: string; payload: CloudProject["document"]["episodes"][number] };
@@ -67,6 +80,7 @@ describe("web episode timeline entry", () => {
         demo_quota: 3, demo_reserved: 0, demo_used: 0 } });
       if (url.endsWith("/prompt-ideas")) return Response.json({ ideaSets: [] });
       if (url.endsWith("/projects")) return Response.json({ projects: [{ id: project.id, title: project.title, revision: 3 }] });
+      if (url.endsWith("/projects/project-timeline/episodes/episode-one/timeline")) return timelineRead(project);
       if (url.endsWith("/projects/project-timeline")) return Response.json({ project });
       if (url.endsWith("/projects/project-timeline/commands") && init?.method === "POST") {
         const payload = JSON.parse(String(init.body)) as { payload: CloudProject["document"]["episodes"][number] };
@@ -87,7 +101,7 @@ describe("web episode timeline entry", () => {
     const navigation = within(screen.getByRole("complementary", { name: "主导航" }));
     fireEvent.click(navigation.getByRole("button", { name: "画布" }));
     fireEvent.click(await screen.findByRole("button", { name: "整集剪辑" }));
-    expect(screen.getByRole("region", { name: "整集剪辑" })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "整集剪辑" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /妈妈下班，0.0 秒开始/ })).toBeTruthy();
     expect(screen.queryByRole("dialog", { name: "本集配音与导出" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "将镜头 2前移" }));

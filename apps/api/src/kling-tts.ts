@@ -8,12 +8,53 @@ export interface TtsProviderTask {
 }
 export type TtsSubmitResult = { kind: "accepted"; task: TtsProviderTask } |
   { kind: "rejected"; message: string } | { kind: "unknown" };
+export type TtsAccountStatus = "ok" | "auth_failed" | "permission_denied" | "temporarily_unavailable";
+
+function rejectionMessage(status: number, code?: number): string {
+  if (status === 401 || code === 1000 || code === 1002) return "旁白账号认证失败，请检查密钥和接口区域";
+  if (status === 403 || code === 1103) return "旁白账号没有 TTS 接口权限";
+  if (status === 402 || code === 1101) return "旁白账号余额或额度不足";
+  if (status === 429) return "旁白服务请求过于频繁，请稍后再试";
+  return "旁白文本或音色不可用，请检查输入与音色权限";
+}
 
 /** TTS has no documented external_task_id: an uncertain POST must never be repeated. */
 export class KlingTtsGateway {
+  private accountCheck?: { at: number; status: TtsAccountStatus };
+  private accountCheckPending?: Promise<TtsAccountStatus>;
   constructor(private readonly apiKey: string,
     private readonly baseUrl = "https://api-singapore.klingai.com",
     private readonly fetchImpl: typeof fetch = fetch) {}
+
+  /** Free account check, coalesced and cached to stay below Kling's 1 QPS limit.
+   * A successful result verifies authentication, not TTS model entitlement.
+   */
+  async checkAccount(now = Date.now()): Promise<TtsAccountStatus> {
+    if (this.accountCheck && now >= this.accountCheck.at && now - this.accountCheck.at < 60_000) return this.accountCheck.status;
+    if (this.accountCheckPending) return this.accountCheckPending;
+    this.accountCheckPending = (async () => {
+      let status: TtsAccountStatus = "temporarily_unavailable";
+      try {
+        const params = new URLSearchParams({ start_time: String(now - 86_400_000), end_time: String(now) });
+        const response = await this.fetchImpl(`${this.baseUrl}/account/costs?${params}`, {
+          headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (response.status === 401) status = "auth_failed";
+        else if (response.status === 403) status = "permission_denied";
+        else if (response.ok) {
+          const payload = await response.json() as { code?: number; data?: { code?: number } };
+          const code = payload.code === 0 ? payload.data?.code ?? 0 : payload.code;
+          status = code === 0 ? "ok" : code === 1000 || code === 1002
+            ? "auth_failed" : code === 1103 ? "permission_denied" : "temporarily_unavailable";
+        }
+      } catch { /* Keep the service unavailable until the account check succeeds. */ }
+      this.accountCheck = { at: now, status };
+      return status;
+    })();
+    try { return await this.accountCheckPending; }
+    finally { this.accountCheckPending = undefined; }
+  }
 
   private parse(payload: unknown): TtsProviderTask | null {
     const response = payload as { code?: number; request_id?: string; data?: {
@@ -40,10 +81,14 @@ export class KlingTtsGateway {
         body: JSON.stringify({ text: input.text, voice_id: input.voiceId,
           voice_language: input.voiceLanguage, voice_speed: input.speed }), signal: AbortSignal.timeout(40_000),
       });
-      if (response.status >= 400 && response.status < 500) return { kind: "rejected", message: "可灵拒绝了配音请求，请检查账户权限和文本" };
+      if (response.status === 408) return { kind: "unknown" };
+      if (response.status >= 400 && response.status < 500) {
+        const payload = await response.json().catch(() => null) as { code?: number } | null;
+        return { kind: "rejected", message: rejectionMessage(response.status, payload?.code) };
+      }
       if (!response.ok) return { kind: "unknown" };
       const payload = await response.json() as { code?: number };
-      if (payload.code !== 0) return { kind: "rejected", message: "可灵拒绝了配音请求，请检查音色、语言与账户权限" };
+      if (payload.code !== 0) return { kind: "rejected", message: rejectionMessage(response.status, payload.code) };
       const task = this.parse(payload);
       return task ? { kind: "accepted", task } : { kind: "unknown" };
     } catch { return { kind: "unknown" }; }

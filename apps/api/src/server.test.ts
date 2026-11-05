@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import { connect } from "node:net";
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
 import { createApi } from "./server.ts";
 import type { ApiConfig } from "./config.ts";
 import { createTestDb as createDb, testDatabaseUrl, dropTestSchema } from "./test-db.ts";
@@ -59,16 +59,44 @@ async function register(request: Awaited<ReturnType<typeof start>>["request"], e
 }
 
 describe("authenticated demo API", () => {
-  it("offers TTS voices only when a dedicated TTS key is configured", async () => {
+  it("blocks TTS quotes and hides voices until a dedicated key and verified voice list exist", async () => {
     const videoOnly = await start(1024, { klingTtsApiKey: undefined });
     const videoOnlyAccount = await register(videoOnly.request, "video-only-tts@example.com");
-    expect((await videoOnly.request("/tts/voices", "GET", undefined, videoOnlyAccount.cookie)).payload.voices).toEqual([]);
+    expect((await videoOnly.request("/tts/voices", "GET", undefined, videoOnlyAccount.cookie)).payload)
+      .toMatchObject({ voices: [], availability: "not_configured" });
+    expect((await videoOnly.request(`/projects/unknown/tts/estimate`, "POST", {
+      text: "晚餐做好啦，上菜！", voiceId: "oversea_male1", voiceLanguage: "en", speed: 1,
+    }, videoOnlyAccount.cookie)).status).toBe(503);
 
     const withTts = await start(1024, { klingTtsApiKey: "separate-tts-test-key" });
     const ttsAccount = await register(withTts.request, "dedicated-tts@example.com");
-    expect((await withTts.request("/tts/voices", "GET", undefined, ttsAccount.cookie)).payload.voices).toEqual([
-      { id: "oversea_male1", label: "英文男声", language: "en" },
-    ]);
+    expect((await withTts.request("/tts/voices", "GET", undefined, ttsAccount.cookie)).payload)
+      .toMatchObject({ voices: [], availability: "voice_unverified" });
+  }, 15_000);
+
+  it("does not expose configured voices or create paid tasks when regional TTS authentication fails", async () => {
+    let accountChecks = 0, paidPosts = 0;
+    const provider = createServer((req, res) => {
+      if (req.url?.startsWith("/account/costs")) accountChecks++;
+      if (req.url === "/v1/audio/tts") paidPosts++;
+      res.writeHead(401, { "content-type": "application/json" }); res.end(JSON.stringify({ code: 1002 }));
+    });
+    await new Promise<void>(resolve => provider.listen(0, "127.0.0.1", resolve));
+    try {
+      const baseUrl = `http://127.0.0.1:${(provider.address() as AddressInfo).port}`;
+      const app = await start(1024, { klingTtsApiKey: "invalid-region-test-key", klingTtsBaseUrl: baseUrl,
+        klingTtsVoices: [{ id: "verified_zh", label: "测试中文", language: "zh" }] });
+      const account = await register(app.request, "invalid-tts-key@example.com");
+      expect((await app.request("/tts/voices", "GET", undefined, account.cookie)).payload)
+        .toMatchObject({ voices: [], availability: "auth_failed" });
+      expect((await app.request("/projects/project-001/tts/estimate", "POST", {
+        text: "晚餐做好啦，上菜！", voiceId: "verified_zh", voiceLanguage: "zh", speed: 1,
+      }, account.cookie)).status).toBe(503);
+      expect(accountChecks).toBe(1);
+      expect(paidPosts).toBe(0);
+    } finally {
+      await new Promise<void>(resolve => provider.close(() => resolve()));
+    }
   });
 
   it("rejects cross-site and unmarked state changes before any account, project, upload or approval side effect", async () => {

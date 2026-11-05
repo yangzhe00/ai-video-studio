@@ -20,11 +20,15 @@ const sec = (ms: number) => String(Math.round(ms / 100) / 10);
 const ms = (value: string) => Math.round(Number(value) * 1000);
 const colors = { background: "#f7f2eb", surface: "#fffcf8", text: "#2b2a26", muted: "#696b64", accent: "#b96c4a", border: "#d5c5b5" };
 
+function PreviewPlayer({ url, headers }: { url: string; headers?: Record<string, string> }) {
+  const player = useVideoPlayer({ uri: url, headers });
+  return <VideoView player={player} style={styles.video} nativeControls />;
+}
+
 export function NativeVideoEditor({ edit, sourceUrl, currentUrl, render, mediaHeaders, newId, onCommand, onRender, onUseInTimeline, onClose }: Props) {
   const recipe = edit.recipe;
   const editedAvailable = Boolean(edit.currentOutputId && currentUrl);
   const [original, setOriginal] = useState(!editedAvailable);
-  const player = useVideoPlayer({ uri: original || !currentUrl ? sourceUrl : currentUrl, headers: mediaHeaders });
   const [start, setStart] = useState(sec(recipe.trimStartMs));
   const [end, setEnd] = useState(sec(recipe.trimEndMs));
   const [cover, setCover] = useState(sec(recipe.coverSourceMs));
@@ -44,7 +48,7 @@ export function NativeVideoEditor({ edit, sourceUrl, currentUrl, render, mediaHe
 
   return <ScrollView style={styles.root} contentContainerStyle={styles.content}>
     <View style={styles.header}><Text style={styles.title}>视频微调</Text><Pressable onPress={onClose}><Text style={styles.link}>完成</Text></Pressable></View>
-    <VideoView player={player} style={styles.video} nativeControls />
+    <PreviewPlayer key={selectedAssetId} url={original || !currentUrl ? sourceUrl : currentUrl} headers={mediaHeaders} />
     <View style={styles.row}><Pressable onPress={() => setOriginal(true)} accessibilityRole="button" accessibilityState={{ selected: original || !editedAvailable }}><Text style={styles.link}>原视频</Text></Pressable><Pressable disabled={!editedAvailable} onPress={() => setOriginal(false)} accessibilityRole="button" accessibilityState={{ selected: !original && editedAvailable, disabled: !editedAvailable }}><Text style={styles.link}>编辑版</Text></Pressable></View>
     <Text style={styles.hint}>正在预览：{selectedLabel}。原视频保留，编辑版由云端渲染。时间以原视频为准。</Text>
     <View style={styles.panel}><Text style={styles.section}>裁剪首尾</Text><View style={styles.row}><TextInput style={styles.input} accessibilityLabel="裁剪开始秒数" keyboardType="decimal-pad" value={start} onChangeText={setStart} /><TextInput style={styles.input} accessibilityLabel="裁剪结束秒数" keyboardType="decimal-pad" value={end} onChangeText={setEnd} /></View><Pressable style={styles.button} disabled={busy} onPress={() => void send({ type: "set-trim", startMs: ms(start), endMs: ms(end) })}><Text style={styles.buttonText}>保存裁剪</Text></Pressable></View>

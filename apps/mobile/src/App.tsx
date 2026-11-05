@@ -11,6 +11,7 @@ import type { CloudAccountSnapshot, CloudProjectSnapshot, CloudRunSnapshot } fro
 import { ApiError, getApiUrl, mediaHeaders, objectUrl, request, restoreApi, setApiUrl, uploadPhoto } from "./api";
 import { commandFromSnapshot } from "./sync-command";
 import { mobilePlugins } from "./plugins";
+import { ShotPreview } from "./ShotPreview";
 
 type Account = CloudAccountSnapshot;
 type Project = CloudProjectSnapshot;
@@ -31,6 +32,7 @@ export default function App() {
   const [sourceAssetId, setSourceAssetId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [run, setRun] = useState<Run | null>(null);
+  const [previewAssetId, setPreviewAssetId] = useState<string | null>(null);
   const [edit, setEdit] = useState<NativeEditView | null>(null);
   const [render, setRender] = useState<NativeRenderView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +46,6 @@ export default function App() {
   useEffect(() => {
     void restoreApi().then(async url => {
       setServerUrl(url);
-      if (!url) return;
       try { const me = await request<{ account: Account }>("/auth/me"); setAccount(me.account); }
       catch { /* session expired */ }
     });
@@ -71,6 +72,7 @@ export default function App() {
     try {
       const fresh = (await request<{ project: Project }>(`/projects/${id}`)).project;
       setProject(fresh); setConflict(null); setEpisodeId(fresh.document.episodes[0]?.id ?? "");
+      setPreviewAssetId(null);
       setSourceAssetId(fresh.document.assets.find(item => item.kind === "image")?.id ?? "");
       setRun((await request<{ runs: Run[] }>(`/projects/${id}/runs`)).runs[0] ?? null);
       requestId.current = null; approvalId.current = null;
@@ -129,7 +131,10 @@ export default function App() {
       if (picked.canceled || !picked.assets[0]) return;
       setBusy(true);
       const asset = picked.assets[0];
-      const mime = asset.mimeType === "image/png" ? "image/png" : "image/jpeg";
+      const mime = asset.mimeType ?? "";
+      if (mime !== "image/png" && mime !== "image/jpeg") {
+        throw new Error("当前仅支持 JPG 或 PNG 照片，请先转换格式后上传。");
+      }
       const uploaded = await uploadPhoto(asset.uri, mime);
       await sendCommand("asset", uploaded.id, { id: uploaded.id, kind: "image", name: asset.fileName ?? "参考照片" });
       setSourceAssetId(uploaded.id);
@@ -245,13 +250,13 @@ export default function App() {
 
   return <SafeAreaView style={styles.root}><ScrollView contentContainerStyle={styles.content}>
     <View style={styles.header}><Text style={styles.brand}>✦ AI Video Studio</Text>{account && <Pressable onPress={() => void request("/auth/logout", "POST").then(() => { setAccount(null); setProject(null); })}><Text style={styles.link}>退出</Text></Pressable>}</View>
-    {!account ? <View style={styles.panel}><Text style={styles.title}>云端创作</Text><TextInput style={styles.input} accessibilityLabel="服务器地址" placeholder="http://192.168.1.10:8787" value={serverUrl} onChangeText={setServerUrl} autoCapitalize="none" /><TextInput style={styles.input} accessibilityLabel="邮箱" placeholder="邮箱" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" /><TextInput style={styles.input} accessibilityLabel="密码" placeholder="密码" value={password} onChangeText={setPassword} secureTextEntry /><View style={styles.row}><Pressable onPress={() => setRegister(!register)}><Text style={styles.link}>{register ? "已有账号？登录" : "没有账号？注册"}</Text></Pressable><Pressable style={styles.primary} disabled={busy} onPress={() => void authenticate()}><Text style={styles.primaryText}>{register ? "注册" : "登录"}</Text></Pressable></View></View> : <>
+    {!account ? <View style={styles.panel}><Text style={styles.title}>云端创作</Text><TextInput style={styles.input} accessibilityLabel="服务器地址" placeholder="https://39.108.55.176/api" value={serverUrl} onChangeText={setServerUrl} autoCapitalize="none" /><TextInput style={styles.input} accessibilityLabel="邮箱" placeholder="邮箱" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" /><TextInput style={styles.input} accessibilityLabel="密码" placeholder="密码" value={password} onChangeText={setPassword} secureTextEntry /><View style={styles.row}><Pressable onPress={() => setRegister(!register)}><Text style={styles.link}>{register ? "已有账号？登录" : "没有账号？注册"}</Text></Pressable><Pressable style={styles.primary} disabled={busy} onPress={() => void authenticate()}><Text style={styles.primaryText}>{register ? "注册" : "登录"}</Text></Pressable></View></View> : <>
       <Text style={styles.subtitle}>{account.email} · 剩余演示额度 {account.demo_quota - account.demo_reserved - account.demo_used}</Text>
       <View style={styles.panel}><Text style={styles.section}>项目</Text>{projects.map(item => <Pressable key={item.id} style={styles.listItem} onPress={() => void openProject(item.id)}><Text style={styles.text}>{item.title}</Text></Pressable>)}<View style={styles.row}><TextInput style={styles.input} accessibilityLabel="新项目名称" placeholder="新项目名称" value={newTitle} onChangeText={setNewTitle} /><Pressable style={styles.button} onPress={() => void createProject()}><Text style={styles.text}>创建</Text></Pressable></View></View>
-      {project && <><Text style={styles.title}>{project.title}</Text><View style={styles.row}>{project.document.episodes.map(item => <Pressable key={item.id} style={styles.chip} onPress={() => setEpisodeId(item.id)}><Text style={styles.text}>{item.title}</Text></Pressable>)}</View>
+      {project && <><Text style={styles.title}>{project.title}</Text><View style={styles.row}>{project.document.episodes.map(item => <Pressable key={item.id} style={styles.chip} onPress={() => { setEpisodeId(item.id); setPreviewAssetId(null); }}><Text style={styles.text}>{item.title}</Text></Pressable>)}</View>
         <View style={styles.panel}><Text style={styles.section}>照片生成视频</Text><Pressable style={styles.button} disabled={busy} onPress={() => void pickPhoto()}><Text style={styles.text}>选择并上传照片</Text></Pressable>{sourceAssetId ? <Image style={styles.photo} source={{ uri: objectUrl(sourceAssetId), headers: mediaHeaders() }} /> : <Text style={styles.hint}>请先选择参考照片</Text>}{project.document.assets.filter(item => item.kind === "image").map(item => <Pressable key={item.id} onPress={() => setSourceAssetId(item.id)}><Text style={styles.link}>{item.id === sourceAssetId ? "✓ " : ""}{item.name ?? item.id}</Text></Pressable>)}<TextInput style={[styles.input, styles.textArea]} accessibilityLabel="镜头需求" multiline placeholder="描述主体、场景和动作" value={prompt} onChangeText={value => { setPrompt(value); requestId.current = null; }} /><Text style={styles.hint}>新生成镜头固定 5 秒</Text><Pressable style={styles.primary} disabled={busy || !sourceAssetId || !prompt.trim()} onPress={() => void plan()}><Text style={styles.primaryText}>生成镜头计划</Text></Pressable></View>
         {run && <View style={styles.panel}><Text style={styles.section}>Agent 状态：{run.state}</Text><Text style={styles.hint}>任务 ID：{run.runId}</Text>{run.state === "waiting_approval" && <><Text style={styles.text}>{run.plan.steps[0]?.prompt}</Text><Text style={styles.hint}>确认后消耗 1 次演示额度</Text><Pressable style={styles.primary} onPress={() => Alert.alert("确认生成", "将由云端调用可灵生成视频。", [{ text: "取消" }, { text: "确认", onPress: () => void approve() }])}><Text style={styles.primaryText}>确认生成</Text></Pressable></>}{run.state === "unknown" && <Text style={styles.hint}>仅查询原任务，不会重复提交。</Text>}</View>}
-        <View style={styles.panel}><Text style={styles.section}>{activeEpisode?.title} · 视频结果</Text>{activeEpisode?.shots.map(shot => <View key={shot.id} style={styles.listItem}><Text style={styles.text}>{shot.prompt || "生成镜头"}</Text><Pressable onPress={() => void openEdit(shot.id)}><Text style={styles.link}>微调视频</Text></Pressable></View>)}{!activeEpisode?.shots.length && <Text style={styles.hint}>该集还没有视频。</Text>}</View>
+        <View style={styles.panel}><Text style={styles.section}>{activeEpisode?.title} · 视频结果</Text>{activeEpisode?.shots.map(shot => <View key={shot.id} style={styles.listItem}><Text style={styles.text}>{shot.prompt || "生成镜头"}</Text><View style={styles.row}><Pressable onPress={() => setPreviewAssetId(shot.selectedAssetId || shot.resultAssetId)}><Text style={styles.link}>预览视频</Text></Pressable><Pressable onPress={() => void openEdit(shot.id)}><Text style={styles.link}>微调视频</Text></Pressable></View></View>)}{previewAssetId && activeEpisode?.shots.some(shot => [shot.resultAssetId, shot.selectedAssetId].includes(previewAssetId)) && <ShotPreview key={previewAssetId} url={objectUrl(previewAssetId)} headers={mediaHeaders()} />}{!activeEpisode?.shots.length && <Text style={styles.hint}>该集还没有视频。</Text>}</View>
       </>}
     </>}
     {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}

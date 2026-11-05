@@ -4,7 +4,7 @@
 
 ## 1. 以仓库实际技术栈为准
 
-- 使用 `pnpm@10.30.1` workspace；Node.js 开发环境为 24。网页和桌面前端使用 React 19、TypeScript 严格模式、Vite；桌面原生层是 Tauri 2/Rust；移动端是 Expo/React Native。API 是 Node.js/TypeScript。线上 `20261030-official-04` 已使用 PostgreSQL schema 1；当前候选代码要求 schema 4，上线前须按 [升级手册](../../deploy/postgres/schema1-to4.md) 完成重新演练和验收。
+- 使用 `pnpm@10.30.1` workspace；Node.js 开发环境为 24。网页和桌面前端使用 React 19、TypeScript 严格模式、Vite；桌面原生层是 Tauri 2/Rust；移动端是 Expo/React Native。公网主 API 是 Node.js/TypeScript，Python API 在独立入口试运行。2026-11-02 只读核对线上 API 镜像为 `257b1bb-schema4`，PostgreSQL 为 schema 4；后续版本须以实际镜像核对，并独立构建、验收后发布。历史 schema 1→4 步骤见[升级手册](../../deploy/postgres/schema1-to4.md)。
 - 本仓库没有统一采用 React 18、Tailwind CSS、Zustand、Ant Design、React Router、React Query、Axios 或 Storybook。不得因通用模板而强制引入这些技术，也不得编造对应的 lint、type-check、覆盖率或 Storybook 门禁。
 - 新依赖需说明现有能力为何不够、会进入哪些客户端包、体积和平台影响；经项目评审后再添加。更新依赖时同步维护 lockfile。
 
@@ -45,7 +45,7 @@
 
 - 新增或修改有行为的组件、领域规则、API 或同步逻辑时，在相应包添加能验证用户行为与边界的测试；跨端共享改动至少运行受影响包和客户端的测试与构建。仓库目前没有统一覆盖率阈值，不能把“80%”写成已经配置的门禁。
 - 本仓库的实际根命令是 `pnpm test`、`pnpm build`、`pnpm check:boundaries`。修改完成后先运行受影响包的测试/构建，再按影响范围运行根命令和 `git diff --check`；报告每项结果。根目录目前没有 `npm run lint`、`npm run type-check` 脚本，不能把未运行的命令写成通过。
-- 改 Tauri/Rust 时补跑 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`、`cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`；桌面启动用 `pnpm tauri dev` 验证，`pnpm dev` 只启动 Vite。移动端真机、真实付费生成、部署与安装包验收必须单独报告，不能用模拟测试代替。
+- 改 Tauri/Rust 时补跑 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`、`cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`；单独验证桌面启动用 `pnpm tauri dev`，根目录 `pnpm dev` 启动本地 API、网页与 Tauri 桌面窗口，`pnpm dev:desktop-ui` 只启动桌面 Vite。移动端真机、真实付费生成、部署与安装包验收必须单独报告，不能用模拟测试代替。
 - 运行环境若禁止绑定本机端口并出现 `EPERM`，标为环境阻塞，在允许监听的环境复测；不要将其计为产品失败或测试通过。
 - 线上部署拓扑、镜像构建、备份和回滚见 [deployment.md](./deployment.md) 与 `deploy/docker/README.md`。上线前确认镜像对应的代码和数据库版本；网页静态文件与 API 的发布状态分别记录。
 - 提交前核对工作树，保留其他任务的未提交修改。新提交使用 Conventional Commits 风格，如 `fix(api): ...`；该约定不追溯要求重写历史提交。
