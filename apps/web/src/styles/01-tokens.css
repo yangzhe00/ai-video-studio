@@ -1,0 +1,122 @@
+/* =============================================================
+ * 第 1 层 · atoms（原子层）
+ * 只存放「与主题无关」的原始设计常量：色阶、字号、间距、圆角、动效。
+ * 禁止在此层出现语义命名（如 --brand / --text-1），语义映射见 03-themes.css
+ * ============================================================= */
+@layer atoms {
+  :root {
+    /* ---------- 字体族 ---------- */
+    --font-sans: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+    --font-num: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
+
+    /* ---------- 字号阶梯 ---------- */
+    --text-2xs: 10px;
+    --text-xs: 11px;
+    --text-sm: 12px;
+    --text-md: 13px;
+    --text-base: 14px;
+    --text-lg: 16px;
+    --text-xl: 20px;
+    --text-2xl: 26px;
+    --text-3xl: 34px;
+    --text-4xl: 42px;
+
+    /* ---------- 行高 / 字重 / 字距 ---------- */
+    --leading-tight: 1.22;
+    --leading-snug: 1.4;
+    --leading-normal: 1.6;
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-bold: 600;
+    --tracking-caps: 0.08em;
+
+    /* ---------- 间距阶梯（4 的倍数） ---------- */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 28px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    /* ---------- 圆角阶梯 ---------- */
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 22px;
+    --radius-pill: 999px;
+
+    /* ---------- 动效曲线 ---------- */
+    --ease-standard: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur-fast: 120ms;
+    --dur-base: 200ms;
+    --dur-slow: 340ms;
+
+    /* ---------- 层级 ---------- */
+    --z-sticky: 20;
+    --z-nav: 30;
+    --z-topbar: 40;
+    --z-overlay: 60;
+
+    /* ---------- 原始色阶（主题无关调色板） ---------- */
+    --blue-300: #93a7ff;
+    --blue-400: #7b90ff;
+    --blue-500: #4e6bff;
+    --blue-600: #3a52db;
+    --violet-300: #c9aaff;
+    --violet-400: #b183ff;
+    --violet-500: #9b5cff;
+    --violet-600: #7e3ff0;
+    --green-400: #4fe0b3;
+    --green-500: #34d399;
+    --red-400: #ff7c74;
+    --red-500: #ff5449;
+    --amber-400: #ffc46b;
+    --amber-500: #ffb020;
+    --teal-400: #3ad6c4;
+    --teal-500: #12b5a6;
+
+    --ink-0: #ffffff;
+    --ink-50: #f7f8fc;
+    --ink-100: #eef1f8;
+    --ink-200: #dde2ef;
+    --ink-300: #c3cadd;
+    --ink-400: #8e96ae;
+    --ink-500: #6b7389;
+    --ink-600: #4a5168;
+    --ink-700: #2e3448;
+    --ink-800: #1b2033;
+    --ink-900: #0f1424;
+    --ink-950: #080b16;
+
+    /* ---------- 透明度阶梯（玻璃拟态基座） ---------- */
+    --alpha-03: 0.03;
+    --alpha-05: 0.05;
+    --alpha-06: 0.06;
+    --alpha-08: 0.08;
+    --alpha-10: 0.1;
+    --alpha-13: 0.13;
+    --alpha-16: 0.16;
+    --alpha-20: 0.2;
+    --alpha-28: 0.28;
+    --alpha-40: 0.4;
+    --alpha-60: 0.6;
+    --alpha-80: 0.8;
+
+    /* ---------- 模糊半径 ---------- */
+    --blur-card: 18px;
+    --blur-nav: 26px;
+    --blur-pop: 32px;
+
+    /* ---------- 尺寸常量（页面骨架） ---------- */
+    --size-sidebar: 236px;
+    --size-topbar: 64px;
+    --size-content-max: 1200px;
+  }
+}

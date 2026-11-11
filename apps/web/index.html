@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="aurora">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1024" />
+    <title>Taskify 视频成片工作台</title>
+    <script>
+      // 首屏前同步应用配色方案，避免刷新时闪白（与 stores/theme.ts 的 key 保持一致）
+      (function () {
+        try {
+          var t = localStorage.getItem('taskify_theme')
+          if (t) document.documentElement.dataset.theme = t
+        } catch (e) {}
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

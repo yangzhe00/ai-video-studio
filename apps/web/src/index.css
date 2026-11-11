@@ -1,0 +1,14 @@
+/* =============================================================
+ * 样式入口 —— 原子化三层架构（层序不可调换）
+ *   ① atoms   原子层：原始色阶 / 字号 / 间距 / 圆角 / 动效常量
+ *   ② ui      组件·页面层：把原子组合成 .btn / .card / .badge 等组件类
+ *   ③ global  全局层：主题令牌映射 + 基础重置 + 应用骨架
+ * 依赖方向单向向下：ui 可读 atoms/global 令牌，atoms 不引用任何上层。
+ * 换肤 = 只改 global 层的 [data-theme] 区块，组件与页面代码零改动。
+ * ============================================================= */
+@import 'tailwindcss';
+@layer atoms, ui, global;
+
+@import './styles/01-tokens.css';
+@import './styles/02-components.css';
+@import './styles/03-themes.css';

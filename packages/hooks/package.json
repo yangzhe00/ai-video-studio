@@ -1,0 +1,18 @@
+{
+  "name": "@taskify/hooks",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@taskify/api-client": "workspace:*",
+    "@taskify/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
