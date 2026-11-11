@@ -84,7 +84,11 @@ def main() -> int:
     t0 = time.time()
     last = ""
     while time.time() - t0 < KLING_TIMEOUT_SEC:
-        t = s.get(f"{BASE}/tasks/{task_id}", timeout=15).json()
+        tasks = s.get(f"{BASE}/tasks", params={"type": "video_gen"}, timeout=15).json()
+        t = next((x for x in tasks if x["id"] == task_id), None)
+        if t is None:
+            print("task not found in list")
+            return 1
         state = t["state"]
         if state != last:
             print(f"   [{time.time()-t0:6.1f}s] {state} {t.get('failDetail') or ''}")

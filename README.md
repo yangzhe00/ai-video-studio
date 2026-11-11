@@ -9,6 +9,9 @@
 - **前端**：React 19 + TypeScript + Tailwind CSS 4 + Vite 6 + Zustand（pnpm monorepo）
 - **后端**：Python 3.12 + FastAPI + SQLAlchemy 2 + PostgreSQL + ffmpeg
 - **外部能力**：全部 Provider 抽象 + Mock 默认（可灵视频生成 / 火山引擎 TTS / LLM / 短信 / 对象存储），演示模式无真实 API 依赖
+- **真实供应商**（配置 Key 即生效，留空自动回退 Mock，见 `server/.env.example`）：
+  - **LLM = Cursor Cloud Agents**：选题/讲稿/分镜提示词（`CURSOR_API_KEY`，与第一版 ai-video-studio 同源通道）
+  - **视频生成 = 可灵 kling-2.5-turbo**：图生视频 + 视频下载落盘（`KLING_API_KEY`，北京节点）
 
 ## 目录
 
